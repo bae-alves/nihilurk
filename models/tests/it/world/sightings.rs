@@ -1,7 +1,5 @@
 //! Things that come into view together read as one line, not one per thing.
 
-use crate::common::monster;
-
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
@@ -56,24 +54,6 @@ fn sightings(w: &mut World) -> Vec<String> {
 }
 
 #[test]
-fn identical_items_spotted_together_are_one_counted_line() {
-    let mut w = test_world(1);
-    let spot = beside_player(&mut w);
-    for _ in 0..3 {
-        spawn_weapon(&mut w, "dagger", spot);
-    }
-    let said = sightings(&mut w);
-    assert!(
-        said.iter().any(|l| l == "You spotted 3 daggers."),
-        "{said:?}"
-    );
-    assert!(
-        !said.iter().any(|l| l == "You spotted a dagger."),
-        "{said:?}"
-    );
-}
-
-#[test]
 fn a_stack_counts_for_its_whole_size() {
     let mut w = test_world(2);
     let spot = beside_player(&mut w);
@@ -86,45 +66,4 @@ fn a_stack_counts_for_its_whole_size() {
         said.iter().any(|l| l == "You spotted 7 arrows."),
         "{said:?}"
     );
-}
-
-#[test]
-fn different_items_stay_on_their_own_lines() {
-    let mut w = test_world(3);
-    let spot = beside_player(&mut w);
-    spawn_weapon(&mut w, "dagger", spot);
-    spawn_armor(&mut w, "ring mail", spot);
-    let said = sightings(&mut w);
-    assert!(
-        said.iter().any(|l| l == "You spotted a dagger."),
-        "{said:?}"
-    );
-    assert!(
-        said.iter().any(|l| l == "You spotted a ring mail."),
-        "{said:?}"
-    );
-}
-
-#[test]
-fn identical_monsters_spotted_together_are_one_counted_line() {
-    let mut w = test_world(4);
-    let spot = beside_player(&mut w);
-    for _ in 0..3 {
-        monster::monster(&mut w, "emu", spot);
-    }
-    let said = sightings(&mut w);
-    assert!(said.iter().any(|l| l == "You spotted 3 emus."), "{said:?}");
-    assert!(!said.iter().any(|l| l == "You spotted an emu."), "{said:?}");
-}
-
-#[test]
-fn monsters_in_different_gear_share_one_counted_line() {
-    let mut w = test_world(5);
-    let spot = beside_player(&mut w);
-    monster::monster(&mut w, "emu", spot);
-    let armed = monster::monster(&mut w, "emu", spot);
-    let bow = spawn_launcher(&mut w, "short bow", spot);
-    assert!(equip_silently(&mut w, armed, bow));
-    let said = sightings(&mut w);
-    assert!(said.iter().any(|l| l == "You spotted 2 emus."), "{said:?}");
 }

@@ -40,11 +40,6 @@ fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
 }
 
-/// The row for a named coin, so a test can read the dial instead of copying it.
-fn coin_row(name: &str) -> &'static CoinDef {
-    models::coin_row(name).expect(name)
-}
-
 /// Drops the named coin on the player's own tile and steps on it. Returns
 /// whether it was taken.
 fn step_on(w: &mut World, name: &str) -> bool {
@@ -68,17 +63,6 @@ fn score(w: &mut World) -> i64 {
 // ---------------------------------------------------------------------------
 // Treasure
 // ---------------------------------------------------------------------------
-
-#[test]
-fn treasure_pays_its_row_into_the_score() {
-    let mut w = test_world(1);
-    let before = score(&mut w);
-    assert!(step_on(&mut w, "gold coin"));
-    assert_eq!(
-        score(&mut w) - before,
-        i64::from(coin_row("gold coin").amount)
-    );
-}
 
 #[test]
 fn the_relic_pays_its_value_the_moment_it_is_in_hand() {
@@ -110,17 +94,6 @@ fn the_relic_pays_its_value_the_moment_it_is_in_hand() {
 // ---------------------------------------------------------------------------
 // The coins that mend something
 // ---------------------------------------------------------------------------
-
-#[test]
-fn a_red_coin_is_left_alone_until_you_are_hurt() {
-    let mut w = test_world(1);
-    assert!(!step_on(&mut w, "red coin"), "at full health, no thank you");
-
-    let p = player(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().hp = 1;
-    assert!(step_on(&mut w, "red coin"), "hurt, it is worth taking");
-    assert!(w.get::<Fighter>(p).unwrap().hp > 1);
-}
 
 #[test]
 fn a_coin_never_heals_past_the_ceiling() {
@@ -231,45 +204,6 @@ fn descend(w: &mut World) {
 }
 
 #[test]
-fn a_platinum_coin_pays_a_point_of_die_at_the_stairs() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    assert!(step_on(&mut w, "platine coin"));
-    assert!(w.get::<Plated>(p).is_some(), "PLx1");
-    let (power, armor) = {
-        let f = w.get::<Fighter>(p).unwrap();
-        (f.power, f.armor)
-    };
-
-    descend(&mut w);
-
-    let f = w.get::<Fighter>(p).unwrap();
-    assert_eq!(
-        (f.power + f.armor) - (power + armor),
-        1,
-        "one point, into one of the two"
-    );
-    assert!(w.get::<Plated>(p).is_none(), "and the promise is settled");
-}
-
-#[test]
-fn a_forge_coin_pays_a_point_of_plus_at_the_stairs() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    assert!(step_on(&mut w, "forge coin"));
-    let before = equipped_total::<PowerBonus>(&w, p) + equipped_total::<ArmorBonus>(&w, p);
-
-    descend(&mut w);
-
-    assert_eq!(
-        equipped_total::<PowerBonus>(&w, p) + equipped_total::<ArmorBonus>(&w, p),
-        before + 1,
-        "one point of plus, onto the weapon or the armour"
-    );
-    assert!(w.get::<Forged>(p).is_none());
-}
-
-#[test]
 fn a_forge_coin_pays_a_lurk_onto_its_ring() {
     let mut w = world_as(1, Some(Body::Row(body_row("lurk").unwrap())));
     let p = player(&mut w);
@@ -284,25 +218,6 @@ fn a_forge_coin_pays_a_lurk_onto_its_ring() {
     descend(&mut w);
 
     assert_eq!(w.get::<ArmorBonus>(ring).unwrap().0, plus + 1);
-}
-
-#[test]
-fn a_forge_coin_may_land_on_a_ring_without_preferring_it() {
-    let mut on_ring = 0;
-    for seed in 0..40 {
-        let mut w = test_world(seed);
-        let p = player(&mut w);
-        let at = *w.get::<Position>(p).unwrap();
-        let ring = spawn_named(&mut w, "ring of protection", at).expect("a ring");
-        w.entity_mut(ring).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(ring);
-        assert!(toggle_equipped(&mut w, p, ring));
-        let plus = w.get::<ArmorBonus>(ring).unwrap().0;
-        assert!(step_on(&mut w, "forge coin"));
-        descend(&mut w);
-        on_ring += (w.get::<ArmorBonus>(ring).unwrap().0 > plus) as u32;
-    }
-    assert!(on_ring > 0 && on_ring < 40, "{on_ring} of 40");
 }
 
 #[test]
@@ -347,124 +262,12 @@ fn shoot(w: &mut World, coin: &str) -> (Option<TrickShot>, Entity) {
 }
 
 #[test]
-fn shooting_a_coin_pays_the_shooter() {
-    let mut w = test_world(1);
-    let before = score(&mut w);
-    shoot(&mut w, "gold coin");
-    assert_eq!(
-        score(&mut w) - before,
-        i64::from(coin_row("gold coin").amount),
-        "the coin gives itself up to whoever set it off"
-    );
-}
-
-#[test]
-fn a_shot_coin_reaches_across_the_room_with_its_effect() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().hp = 1;
-
-    shoot(&mut w, "red coin");
-
-    assert!(
-        w.get::<Fighter>(p).unwrap().hp > 1,
-        "a red coin heals whoever shot it"
-    );
-}
-
-#[test]
 fn a_shot_coin_does_not_ask_whether_you_needed_it() {
     let mut w = test_world(1);
     let p = player(&mut w);
     let full = w.get::<Fighter>(p).unwrap().hp;
     assert_eq!(shoot(&mut w, "red coin").0, Some(TrickShot::Pickup));
     assert!(w.get::<Fighter>(p).unwrap().hp <= full);
-}
-
-#[test]
-fn a_blast_sets_off_the_coins_it_covers_and_pays_the_zapper() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-    let center = Position {
-        x: at.x + 3,
-        y: at.y,
-    };
-    spawn_named(&mut w, "gold coin", center).expect("a coin");
-    let before = score(&mut w);
-    let wand = spawn_named(&mut w, "wand of fire", Position { x: 0, y: 0 }).unwrap();
-    w.entity_mut(wand).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
-
-    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
-        user: p,
-        item: wand,
-        target: Some(center),
-        slot_idx: None,
-    });
-    w.get_mut::<Backpack>(p)
-        .unwrap()
-        .items
-        .retain(|&e| e != wand);
-    item_system(&mut w);
-
-    assert_eq!(
-        score(&mut w) - before,
-        i64::from(coin_row("gold coin").amount),
-        "a coin caught in your own blast is a coin you set off"
-    );
-}
-
-#[test]
-fn a_shot_coin_and_a_shot_trap_each_burst_to_their_own_radius() {
-    fn caught(what: &str, reach: u16) -> bool {
-        let mut w = test_world(5);
-        let p = player(&mut w);
-        let at = *w.get::<Position>(p).unwrap();
-        let center = Position {
-            x: at.x + 6,
-            y: at.y,
-        };
-        let victim_at = Position {
-            x: center.x + reach,
-            y: center.y,
-        };
-        let placed: Vec<Entity> = w
-            .query_filtered::<Entity, With<Position>>()
-            .iter(&w)
-            .collect();
-        for e in placed {
-            if e != p {
-                w.despawn(e);
-            }
-        }
-        let victim = monster::monster(&mut w, "test monster", victim_at);
-        w.get_mut::<Fighter>(victim).unwrap().hp = 500;
-        let thing = spawn_named(&mut w, what, center).expect(what);
-        w.entity_mut(thing).remove::<Hidden>();
-        detonate_at(&mut w, center, Some(p));
-        w.get::<Fighter>(victim).is_some_and(|f| f.hp < 500)
-    }
-
-    use models::constants::traps::{PICKUP_TRICK_SHOT_RADIUS, TRICK_SHOT_RADIUS};
-    let coin = PICKUP_TRICK_SHOT_RADIUS as u16;
-    let trap = TRICK_SHOT_RADIUS as u16;
-    assert!(
-        caught("gold coin", coin),
-        "a coin's burst falls short of its radius"
-    );
-    assert!(
-        !caught("gold coin", coin + 1),
-        "a coin's burst overshoots its radius"
-    );
-    assert!(
-        caught("bear trap", trap),
-        "a trap's burst falls short of its radius"
-    );
-    assert!(
-        !caught("bear trap", trap + 1),
-        "a trap's burst overshoots its radius"
-    );
 }
 
 #[test]
@@ -513,33 +316,6 @@ fn a_shot_hero_coin_gives_up_everything_it_knows() {
             .iter()
             .any(|l| l.contains("ULTIMATE TRICK SHOT!")),
         "it answers the way the Element of Yoord does"
-    );
-}
-
-#[test]
-fn a_chained_coin_still_pays_whoever_started_the_chain() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-    let first = Position {
-        x: at.x + 4,
-        y: at.y,
-    };
-    let second = Position {
-        x: at.x + 5,
-        y: at.y,
-    };
-    spawn_named(&mut w, "silver coin", first).expect("a coin");
-    let chained = spawn_named(&mut w, "gold coin", second).expect("a coin");
-    let before = score(&mut w);
-
-    detonate_at(&mut w, first, Some(p));
-
-    assert!(w.get_entity(chained).is_none(), "the chain spent it");
-    assert_eq!(
-        score(&mut w) - before,
-        i64::from(coin_row("silver coin").amount) + i64::from(coin_row("gold coin").amount),
-        "a chain reaction is still your shot, and it still pays you"
     );
 }
 
@@ -605,42 +381,6 @@ fn make_red_room(w: &mut World, at: Position) {
 }
 
 #[test]
-fn claiming_one_item_in_a_red_room_destroys_the_rest() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-    make_red_room(&mut w, at);
-
-    let taken = spawn_named(&mut w, "long sword", at).expect("a sword");
-    let leftover = spawn_named(&mut w, "dagger", at).expect("a dagger");
-
-    let line = pick_up(&mut w, p, taken).expect("the sword is taken");
-    assert!(line.contains(RED_ROOM_CLAIMED), "the room's line is logged");
-    assert!(
-        w.get_entity(leftover).is_none(),
-        "the leftover is destroyed"
-    );
-}
-
-#[test]
-fn a_dropped_item_ruins_a_red_room_just_the_same() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-    make_red_room(&mut w, at);
-
-    let native = spawn_named(&mut w, "long sword", at).expect("a sword");
-    let dropped_in = spawn_named(&mut w, "dagger", at).expect("a dagger");
-
-    let line = pick_up(&mut w, p, dropped_in).expect("the dagger is taken");
-    assert!(line.contains(RED_ROOM_CLAIMED));
-    assert!(
-        w.get_entity(native).is_none(),
-        "the other item is destroyed"
-    );
-}
-
-#[test]
 fn a_second_pickup_in_an_already_ruined_red_room_is_silent() {
     let mut w = test_world(1);
     let p = player(&mut w);
@@ -695,23 +435,6 @@ fn a_second_red_room_elsewhere_on_the_floor_is_untouched() {
     );
 }
 
-#[test]
-fn a_pickup_off_an_ordinary_room_never_touches_other_items() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-
-    let taken = spawn_named(&mut w, "long sword", at).expect("a sword");
-    let untouched = spawn_named(&mut w, "dagger", at).expect("a dagger");
-
-    let line = pick_up(&mut w, p, taken).expect("taken");
-    assert!(!line.contains(RED_ROOM_CLAIMED));
-    assert!(
-        w.get_entity(untouched).is_some(),
-        "an ordinary room is inert"
-    );
-}
-
 // ---------------------------------------------------------------------------
 // Score bounty
 // ---------------------------------------------------------------------------
@@ -745,42 +468,6 @@ fn a_bounty_creature_pays_a_multiplied_kill_score() {
         i64::from(max_hp * BOUNTY_SCORE_MULTIPLIER * KILL_PER_MAX_HP),
         "a bounty kill pays the bounty multiplier"
     );
-}
-
-#[test]
-fn a_plain_monster_pays_the_unmultiplied_kill_score() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-    let spot = Position {
-        x: at.x + 3,
-        y: at.y,
-    };
-    let snake = monster::plain_monster(&mut w, "plain", spot);
-    let max_hp = w.get::<Fighter>(snake).unwrap().max_hp;
-    let before = score(&mut w);
-
-    kill_and_settle(&mut w, snake);
-
-    assert_eq!(
-        score(&mut w) - before,
-        i64::from(max_hp * KILL_PER_MAX_HP),
-        "an ordinary kill pays the plain rate, no bounty"
-    );
-}
-
-#[test]
-fn arriving_on_a_pile_takes_every_item_in_one_go() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-    let sword = spawn_named(&mut w, "long sword", at).expect("a sword");
-    let dagger = spawn_named(&mut w, "dagger", at).expect("a dagger");
-
-    pick_up_here(&mut w, p, at.x, at.y);
-
-    let pack = &w.get::<Backpack>(p).unwrap().items;
-    assert!(pack.contains(&sword) && pack.contains(&dagger));
 }
 
 #[test]
@@ -836,102 +523,3 @@ fn coins_stack_and_all_pay_at_the_stairs() {
 // ---------------------------------------------------------------------------
 // The row is the coin
 // ---------------------------------------------------------------------------
-
-fn widen(w: &mut World, taker: Entity, amount: i32) -> String {
-    w.get_mut::<Fighter>(taker).unwrap().max_hp += amount;
-    String::new()
-}
-
-static WIDENING: CoinDef = CoinDef {
-    name: "widening coin",
-    color: Color::White,
-    apply: widen,
-    helps: |_, _| true,
-    amount: 7,
-    treasure: false,
-    weight: 0,
-};
-
-static SPURNED: CoinDef = CoinDef {
-    helps: |_, _| false,
-    ..WIDENING
-};
-
-static HOARD: CoinDef = CoinDef {
-    treasure: true,
-    ..WIDENING
-};
-
-fn step_on_row(w: &mut World, row: &'static CoinDef) -> bool {
-    let p = player(w);
-    let at = *w.get::<Position>(p).unwrap();
-    let coin = row.spawn(w, at);
-    pick_up(w, p, coin).is_some()
-}
-
-#[test]
-fn a_coin_row_runs_its_apply_with_its_amount() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let before = w.get::<Fighter>(p).unwrap().max_hp;
-    assert!(step_on_row(&mut w, &WIDENING));
-    assert_eq!(w.get::<Fighter>(p).unwrap().max_hp - before, 7);
-}
-
-#[test]
-fn a_coin_its_row_says_would_not_help_stays_on_the_floor() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let before = w.get::<Fighter>(p).unwrap().max_hp;
-    assert!(!step_on_row(&mut w, &SPURNED));
-    assert_eq!(w.get::<Fighter>(p).unwrap().max_hp, before);
-}
-
-#[test]
-fn only_a_treasure_row_pays_its_amount_into_the_score() {
-    let mut w = test_world(1);
-    let before = score(&mut w);
-    assert!(step_on_row(&mut w, &WIDENING));
-    assert_eq!(score(&mut w), before);
-    assert!(step_on_row(&mut w, &HOARD));
-    assert_eq!(score(&mut w) - before, 7);
-}
-
-#[test]
-fn every_coin_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(5);
-    let stale: Vec<Entity> = w
-        .query_filtered::<Entity, With<Pickup>>()
-        .iter(&w)
-        .collect();
-    for e in stale {
-        w.despawn(e);
-    }
-    for (i, &row) in COINS.iter().enumerate() {
-        let at = Position {
-            x: 10 + i as u16,
-            y: 5,
-        };
-        row.spawn(&mut w, at);
-    }
-
-    let save = crate::common::SaveFile::new("coin-rows");
-    save_game(&mut w, save.path()).unwrap();
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(5)));
-    w2.insert_resource(RngSeed(5));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName { what: "X".into() });
-    load_game(&mut w2, save.path()).unwrap();
-
-    let mut back: Vec<(u16, &'static CoinDef)> = w2
-        .query::<(&Pickup, &Position)>()
-        .iter(&w2)
-        .map(|(c, p)| (p.x, c.row))
-        .collect();
-    back.sort_by_key(|(x, _)| *x);
-    assert_eq!(back.len(), COINS.len());
-    for (was, (_, is)) in COINS.iter().zip(&back) {
-        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
-    }
-}

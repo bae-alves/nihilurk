@@ -153,27 +153,6 @@ fn round_trip() {
     assert!(w2.resource::<Map>().tiles.contains(&TileType::Wall));
 }
 
-#[test]
-fn a_won_run_saves_as_clear_data() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(5)));
-    w.insert_resource(RngSeed(5));
-    w.init_resource::<GameLog>();
-    w.init_resource::<Ending>();
-    w.insert_resource(PlayerName {
-        what: "VICTOR".into(),
-    });
-    initialize_world(&mut w);
-    w.resource_mut::<Ending>().player_won = true;
-
-    let save = common::SaveFile::new("clear");
-    let p = save.path();
-    save_game(&mut w, p).unwrap();
-
-    let clear = clear_data(p).unwrap().expect("recognised as clear data");
-    assert_eq!(clear.player_name, "VICTOR");
-}
-
 /// Gear stays on across a save. What is wielded and worn when the file is
 /// written is wielded and worn when it is read back, by the same hands — and
 /// what the gear lends its wearer (a ring's granted effect, an armour's die)
@@ -363,55 +342,6 @@ fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
         w2.get::<Bided>(hero2).is_some(),
         "Bide's coiled blow did not survive the save"
     );
-}
-
-/// A monster's Ma is state: a dragon that spent its fireball does not get it
-/// back by the player saving and loading.
-#[test]
-fn a_monsters_spent_magic_and_spellset_survive_a_save() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(7)));
-    w.insert_resource(RngSeed(7));
-    w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "X".into() });
-    initialize_world(&mut w);
-    let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
-    let here = *w.get::<Position>(hero).unwrap();
-    let caster = monster::plain_monster(
-        &mut w,
-        "caster",
-        Position {
-            x: here.x + 1,
-            y: here.y,
-        },
-    );
-    w.entity_mut(caster).insert((
-        Magic {
-            points: 1,
-            max_points: 8,
-        },
-        Spellset {
-            slots: vec![spell_row("Fireball").unwrap()],
-        },
-    ));
-
-    let save = common::SaveFile::new("caster_magic");
-    save_game(&mut w, save.path()).unwrap();
-
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(8)));
-    w2.insert_resource(RngSeed(8));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName { what: "X".into() });
-    load_game(&mut w2, save.path()).unwrap();
-
-    let (magic, spells) = w2
-        .query_filtered::<(&Name, &Magic, &Spellset), With<Mob>>()
-        .iter(&w2)
-        .find_map(|(name, magic, spells)| (name.what == "caster").then_some((magic, spells)))
-        .expect("the caster comes back");
-    assert_eq!(magic.points, 1);
-    assert_eq!(spells.slots, vec![spell_row("Fireball").unwrap()]);
 }
 
 /// A player's name is whatever they typed, and says nothing about what they

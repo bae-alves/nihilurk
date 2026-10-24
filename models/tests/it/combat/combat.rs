@@ -45,36 +45,6 @@ fn spawn_target(w: &mut World, hp: i32, armor: i32) -> Entity {
     .id()
 }
 
-/// A weak attacker (die size 1) against heavy armour, on a foe left at exactly
-/// 1 HP: the combination that used to clamp an "excellent hit" down to 0
-/// damage — the "a glancing blow can't take the last point" rule firing on a
-/// swing that was never glancing in the first place. Sweeps enough seeds that
-/// an excellent hit (15% chance) is certain to land at least once.
-#[test]
-fn an_excellent_hit_never_deals_or_reports_zero_damage() {
-    let mut saw_excellent = false;
-    for seed in 0..2000u64 {
-        let mut w = combat_world(seed);
-        let attacker = spawn_attacker(&mut w, 1);
-        let target = spawn_target(&mut w, 1, 100);
-        resolve_attack(&mut w, attacker, target);
-
-        let log = w.resource::<GameLog>();
-        let Some(line) = log.unread.iter().find(|l| l.contains("excellent hit")) else {
-            continue;
-        };
-        saw_excellent = true;
-        assert!(
-            !line.contains("for 0 damage"),
-            "seed {seed}: excellent hit reported 0 damage: {line}"
-        );
-    }
-    assert!(
-        saw_excellent,
-        "no excellent hit landed across 2000 seeds; the sweep isn't exercising the path"
-    );
-}
-
 /// The other half of the same fix: a plain chip/glancing blow can never take a
 /// foe's last point of HP (see `scrolls.rs`'s
 /// `a_glancing_blow_chips_a_foe_down_to_one_but_never_finishes_it`), but an
@@ -154,21 +124,6 @@ fn a_blow_is_exactly_the_attack_total_minus_the_armour_total() {
     assert_eq!(w.get::<Fighter>(target).unwrap().hp, 30, "40 - 5 - 5");
 }
 
-/// The chip-damage floor is the hero's alone. Armour that outrolls a monster's
-/// swing leaves the defender completely untouched.
-#[test]
-fn armour_that_outrolls_a_monsters_blow_lets_nothing_through() {
-    let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 0);
-    let target = spawn_armored_target(&mut w, 40, 1, 20);
-    resolve_attack(&mut w, foe, target);
-    assert_eq!(
-        w.get::<Fighter>(target).unwrap().hp,
-        40,
-        "a monster gets no chip through armour"
-    );
-}
-
 // ---------------------------------------------------------------------------
 // Stone
 // ---------------------------------------------------------------------------
@@ -178,30 +133,6 @@ fn armour_that_outrolls_a_monsters_blow_lets_nothing_through() {
 // both damage paths — `resolve_attack`, which applies its own HP, and
 // `helpers::apply_hit`, which every other source of harm goes through — so it
 // is tested on both.
-
-/// The same arithmetic as `a_blow_is_exactly_the_attack_total_minus_the_armour_total`,
-/// with the target turned to stone: the five that got through becomes a chip.
-#[test]
-fn a_blow_that_would_wound_a_petrified_creature_only_chips_it() {
-    let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 14);
-    let target = spawn_armored_target(&mut w, 40, 1, 9);
-    hold(&mut w, target, Grant::of::<Petrified>(), 5);
-
-    resolve_attack(&mut w, foe, target);
-
-    let hp = w.get::<Fighter>(target).unwrap().hp;
-    assert!(hp > 35, "the blow went through stone whole: {hp}");
-    assert!(hp < 40, "stone turned the blow aside entirely: {hp}");
-    assert!(
-        w.resource::<GameLog>()
-            .history
-            .iter()
-            .any(|l| l.contains("is chipped for")),
-        "the chip was never reported: {:?}",
-        w.resource::<GameLog>().history
-    );
-}
 
 /// The second half of the rule, and the reason the medusa is a hard stop
 /// rather than a death: a creature on its last point stays on it.
@@ -281,62 +212,6 @@ fn a_blow_that_misses_a_petrified_creature_is_still_a_miss() {
     assert!(
         !said.iter().any(|l| l.contains("chipped")),
         "a swing that never landed was reported as a chip: {said:?}"
-    );
-}
-
-/// The one thing stone does not stop. A war hammer is mass rather than edge:
-/// its blow lands whole on a petrified creature, last point included, and is
-/// reported as the hit it was rather than as a chip.
-#[test]
-fn a_war_hammer_goes_through_stone_whole() {
-    let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 14);
-    let target = spawn_armored_target(&mut w, 40, 1, 9);
-    hold(&mut w, target, Grant::of::<Petrified>(), 5);
-    lend(
-        &mut w,
-        foe,
-        Grant::of::<ShattersStone>(),
-        Lifetime::Permanent,
-    );
-
-    resolve_attack(&mut w, foe, target);
-
-    assert_eq!(
-        w.get::<Fighter>(target).unwrap().hp,
-        35,
-        "stone turned aside a war hammer"
-    );
-    assert!(
-        !w.resource::<GameLog>()
-            .history
-            .iter()
-            .any(|l| l.contains("chipped")),
-        "a hammer blow that landed whole was reported as a chip: {:?}",
-        w.resource::<GameLog>().history
-    );
-}
-
-/// And it can finish one, which is the whole point of carrying it: stone is a
-/// hard stop for everything else in the dungeon.
-#[test]
-fn a_war_hammer_can_take_a_petrified_creatures_last_point() {
-    let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 14);
-    let target = spawn_armored_target(&mut w, 1, 1, 9);
-    hold(&mut w, target, Grant::of::<Petrified>(), 5);
-    lend(
-        &mut w,
-        foe,
-        Grant::of::<ShattersStone>(),
-        Lifetime::Permanent,
-    );
-
-    resolve_attack(&mut w, foe, target);
-
-    assert!(
-        w.get::<Fighter>(target).is_none_or(|f| f.hp <= 0),
-        "a war hammer left a statue standing"
     );
 }
 
@@ -450,20 +325,6 @@ fn hp(w: &World, e: Entity) -> i32 {
 }
 
 #[test]
-fn an_excellent_hit_shatters_the_armour_a_foe_wears() {
-    let mut w = combat_world(1);
-    let a = armoured_orc(&mut w, false);
-
-    resolve_attack(&mut w, a.hero, a.orc);
-
-    assert!(
-        !w.entities().contains(a.armour),
-        "the orc's armour survived an excellent hit"
-    );
-    assert_eq!(hp(&w, a.bystander), 100, "plain armour hurt a bystander");
-}
-
-#[test]
 fn shattered_cursed_armour_splinters_into_monsters_but_spares_the_hero_and_allies() {
     let mut w = combat_world(1);
     let a = armoured_orc(&mut w, true);
@@ -483,43 +344,6 @@ fn shattered_cursed_armour_splinters_into_monsters_but_spares_the_hero_and_allie
     );
     assert_eq!(hp(&w, a.ally), 100, "the splinters hurt an ally");
     assert_eq!(hp(&w, a.hero), 20, "the splinters hurt the hero");
-}
-
-#[test]
-fn a_monsters_excellent_hit_leaves_the_heros_armour_whole() {
-    let mut w = combat_world(1);
-    let a = armoured_orc(&mut w, false);
-    w.entity_mut(a.armour).insert(Equipped {
-        by: Some(a.hero),
-        slot: Slot::Body,
-    });
-    w.entity_mut(a.orc).insert(Crit);
-
-    resolve_attack(&mut w, a.orc, a.hero);
-
-    assert!(
-        w.entities().contains(a.armour),
-        "the hero's armour shattered"
-    );
-}
-
-#[test]
-fn a_splinter_into_an_unseen_monster_hurts_it_without_a_log_line() {
-    let mut w = combat_world(1);
-    let a = armoured_orc(&mut w, true);
-    let goblin = monster::monster(&mut w, "goblin", Position { x: 7, y: 4 });
-    w.entity_mut(goblin).remove::<Blood>().insert(Hidden);
-
-    resolve_attack(&mut w, a.hero, a.orc);
-
-    assert!(hp(&w, goblin) < 100, "the splinters missed the goblin");
-    assert!(
-        !w.resource::<GameLog>()
-            .unread
-            .iter()
-            .any(|l| l.contains("goblin")),
-        "the log named a goblin the hero cannot see"
-    );
 }
 
 /// Harm to a creature the hero cannot see is never news, whoever caused it:

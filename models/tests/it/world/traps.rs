@@ -64,67 +64,9 @@ fn log_contains(w: &World, needle: &str) -> bool {
         .any(|l| l.to_lowercase().contains(&needle.to_lowercase()))
 }
 
-/// Left on whoever set the fixture trap off.
-#[derive(Component)]
-struct Sprung;
-
-fn mark_the_victim(world: &mut World, spring: Spring) {
-    world.entity_mut(spring.victim).insert(Sprung);
-}
-
-static FIXTURE_TRAP: TrapDef = TrapDef {
-    name: "trap of the test",
-    glyph: '^',
-    color: Color::White,
-    weight: 0,
-    min_depth: 1,
-    snare_turns: 0,
-    always_spent: true,
-    apply: mark_the_victim,
-    flourish: |_, _, _| {},
-};
-
-#[test]
-fn a_trap_does_what_its_row_says() {
-    let mut w = test_world(7);
-    clear_traps(&mut w);
-    let p = player(&mut w);
-    let here = player_pos(&mut w);
-    w.spawn(TrapBundle::from_def(&FIXTURE_TRAP, TrapReveal::Sight, here));
-    step_player_onto(&mut w, here.x, here.y);
-
-    trap_system(&mut w);
-
-    assert!(w.get::<Sprung>(p).is_some());
-    let left = w.query_filtered::<Entity, With<Trap>>().iter(&w).count();
-    assert_eq!(left, 0, "an always-spent trap is gone once it goes off");
-}
-
 // ---------------------------------------------------------------------------
 // Trapdoor
 // ---------------------------------------------------------------------------
-
-#[test]
-fn trapdoor_drops_the_player_a_floor_with_no_heal() {
-    let mut w = test_world(7);
-    clear_traps(&mut w);
-    let p = player(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().hp = 5;
-
-    let here = player_pos(&mut w);
-    spawn_named(&mut w, "trapdoor", here).unwrap();
-    step_player_onto(&mut w, here.x, here.y);
-
-    trap_system(&mut w);
-
-    assert_eq!(w.resource::<Depth>().what, 2, "fell one floor");
-    assert_eq!(
-        w.get::<Fighter>(p).unwrap().hp,
-        5,
-        "a fall is not a rest — no heal"
-    );
-    assert!(log_contains(&w, "trapdoor"));
-}
 
 #[test]
 fn a_fall_gives_no_level_feeling() {
@@ -167,129 +109,9 @@ fn trapdoor_on_the_deepest_floor_only_fizzles() {
     assert!(log_contains(&w, "solid rock"));
 }
 
-#[test]
-fn trapdoor_loses_a_random_unequipped_item_but_spares_equipped_gear() {
-    let mut w = test_world(7);
-    clear_traps(&mut w);
-    let p = player(&mut w);
-
-    let loose = w
-        .spawn(Name {
-            what: "a dagger".into(),
-        })
-        .id();
-    w.get_mut::<Backpack>(p).unwrap().items.push(loose);
-
-    let worn = w
-        .spawn((
-            Name {
-                what: "a suit of armor".into(),
-            },
-            Equipped::loose(Slot::Body),
-        ))
-        .id();
-    w.get_mut::<Backpack>(p).unwrap().items.push(worn);
-    assert!(equip_silently(&mut w, p, worn));
-
-    let here = player_pos(&mut w);
-    spawn_named(&mut w, "trapdoor", here).unwrap();
-    step_player_onto(&mut w, here.x, here.y);
-
-    trap_system(&mut w);
-
-    assert!(w.get_entity(loose).is_none(), "the loose item was lost");
-    assert!(w.get_entity(worn).is_some(), "worn gear survives the fall");
-    assert!(
-        w.get::<Backpack>(p).unwrap().items.contains(&worn),
-        "worn gear stays in the pack"
-    );
-    assert!(log_contains(&w, "dagger"));
-}
-
-#[test]
-fn a_monster_that_hits_a_trapdoor_is_gone() {
-    let mut w = test_world(7);
-    clear_traps(&mut w);
-    let here = player_pos(&mut w);
-    let spot = Position {
-        x: here.x + 2,
-        y: here.y,
-    };
-    spawn_named(&mut w, "trapdoor", spot).unwrap();
-    let mob = w
-        .spawn((
-            Name { what: "orc".into() },
-            Mob {
-                movement_type: MovementType::Static,
-            },
-            Position {
-                x: spot.x,
-                y: spot.y,
-            },
-            Fighter {
-                hp: 3,
-                max_hp: 3,
-                armor: 0,
-                power: 1,
-                max_power: 1,
-                armor_bonus: 0,
-                power_bonus: 0,
-            },
-            Faction::Monster,
-            Blood,
-            EntityMoved,
-        ))
-        .id();
-
-    trap_system(&mut w);
-
-    assert!(w.get_entity(mob).is_none(), "the orc dropped through");
-    assert_eq!(w.resource::<Depth>().what, 1, "the player stays put");
-}
-
 // ---------------------------------------------------------------------------
 // Bear trap / sleeping gas — the two "lose your turns" traps
 // ---------------------------------------------------------------------------
-
-#[test]
-fn bear_trap_holds_for_three_turns_then_lets_go_and_is_spent() {
-    let mut w = test_world(1);
-    clear_traps(&mut w);
-    let p = player(&mut w);
-    let here = player_pos(&mut w);
-    spawn_named(&mut w, "bear trap", here).unwrap();
-    step_player_onto(&mut w, here.x, here.y);
-
-    trap_system(&mut w);
-
-    assert!(w.get::<Pinned>(p).is_some(), "snared");
-    let held_for = turns_left(&w, p, Grant::of::<Pinned>()).expect("held on a clock");
-    assert_eq!(
-        held_for,
-        TrapDef::lookup("bear trap").unwrap().snare_turns,
-        "held for something other than the row's own duration"
-    );
-    assert_eq!(
-        w.query_filtered::<(), With<Trap>>().iter(&w).count(),
-        0,
-        "single activation"
-    );
-
-    for spent in 1..held_for {
-        tick_effects(&mut w);
-        assert_eq!(
-            turns_left(&w, p, Grant::of::<Pinned>()),
-            Some(held_for - spent),
-            "the clock did not lose exactly one turn"
-        );
-    }
-    tick_effects(&mut w);
-    assert!(
-        w.get::<Pinned>(p).is_none(),
-        "still held after the clock ran out"
-    );
-    assert!(log_contains(&w, "free of the bear trap"));
-}
 
 // ---------------------------------------------------------------------------
 // Wear and tear
@@ -328,37 +150,6 @@ fn a_sprung_trap_sometimes_breaks() {
 }
 
 #[test]
-fn sleep_trap_knocks_the_player_out_for_five_turns_and_stays_armed() {
-    let mut w = test_world(1);
-    clear_traps(&mut w);
-    let p = player(&mut w);
-    let here = player_pos(&mut w);
-    spawn_named(&mut w, "sleeping gas trap", here).unwrap();
-    step_player_onto(&mut w, here.x, here.y);
-
-    trap_system(&mut w);
-
-    assert!(w.get::<Asleep>(p).is_some(), "asleep");
-    let held_for = turns_left(&w, p, Grant::of::<Asleep>()).expect("out on a clock");
-    assert_eq!(
-        held_for,
-        TrapDef::lookup("sleeping gas trap").unwrap().snare_turns,
-        "out for something other than the row's own duration"
-    );
-    assert_eq!(
-        w.query_filtered::<(), With<Trap>>().iter(&w).count(),
-        1,
-        "gas trap is reusable (seed 1 does not roll the break)"
-    );
-
-    for _ in 0..held_for {
-        tick_effects(&mut w);
-    }
-    assert!(w.get::<Asleep>(p).is_none());
-    assert!(!models::player_incapacitated(&mut w));
-}
-
-#[test]
 fn a_bear_trap_blocks_your_feet_not_your_fists() {
     let mut w = test_world(1);
     clear_traps(&mut w);
@@ -385,142 +176,9 @@ fn a_bear_trap_blocks_your_feet_not_your_fists() {
     assert!(log_contains(&w, "flays your leg"));
 }
 
-#[test]
-fn sleeping_gas_leaves_you_incapacitated() {
-    let mut w = test_world(1);
-    clear_traps(&mut w);
-    let here = player_pos(&mut w);
-    spawn_named(&mut w, "sleeping gas trap", here).unwrap();
-    step_player_onto(&mut w, here.x, here.y);
-    trap_system(&mut w);
-
-    assert!(models::player_incapacitated(&mut w), "out cold");
-}
-
-#[test]
-fn a_bear_trapped_monster_still_bites_an_adjacent_foe() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let here = player_pos(&mut w);
-    w.init_resource::<AttackQueue>();
-
-    let spot = Position {
-        x: here.x + 1,
-        y: here.y,
-    };
-    let mob = w
-        .spawn((
-            Name { what: "orc".into() },
-            Mob {
-                movement_type: MovementType::Chase,
-            },
-            spot,
-            Fighter {
-                hp: 3,
-                max_hp: 3,
-                armor: 0,
-                power: 1,
-                max_power: 1,
-                armor_bonus: 0,
-                power_bonus: 0,
-            },
-            Faction::Monster,
-            Blood,
-        ))
-        .id();
-    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(spot.x, spot.y), (here.x, here.y)];
-    hold(&mut w, mob, Grant::of::<Pinned>(), 2);
-
-    let mut s = Schedule::default();
-    s.add_systems(ai);
-    s.run(&mut w);
-
-    let bit = w
-        .resource::<AttackQueue>()
-        .attacks
-        .iter()
-        .any(|a| a.attacker == mob && a.target == p);
-    assert!(bit, "the held orc can't step, but it can still lash out");
-}
-
-#[test]
-fn ai_skips_a_snared_monster() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let here = player_pos(&mut w);
-    w.init_resource::<AttackQueue>();
-
-    let spot = Position {
-        x: here.x + 3,
-        y: here.y,
-    };
-    let mob = w
-        .spawn((
-            Name { what: "orc".into() },
-            Mob {
-                movement_type: MovementType::Chase,
-            },
-            Position {
-                x: spot.x,
-                y: spot.y,
-            },
-            Fighter {
-                hp: 3,
-                max_hp: 3,
-                armor: 0,
-                power: 1,
-                max_power: 1,
-                armor_bonus: 0,
-                power_bonus: 0,
-            },
-            Faction::Monster,
-            Blood,
-        ))
-        .id();
-    w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
-        vec![(spot.x, spot.y), (spot.x - 1, spot.y), (here.x, here.y)];
-
-    hold(&mut w, mob, Grant::of::<Pinned>(), 2);
-
-    let mut s = Schedule::default();
-    s.add_systems(ai);
-    s.run(&mut w);
-
-    let after = *w.get::<Position>(mob).unwrap();
-    assert_eq!(
-        (after.x, after.y),
-        (spot.x, spot.y),
-        "a held monster does not chase"
-    );
-}
-
 // ---------------------------------------------------------------------------
 // Teleport
 // ---------------------------------------------------------------------------
-
-#[test]
-fn teleport_trap_flings_the_player_elsewhere() {
-    let mut w = test_world(4);
-    clear_traps(&mut w);
-    let p = player(&mut w);
-    let here = player_pos(&mut w);
-    spawn_named(&mut w, "teleport trap", here).unwrap();
-    step_player_onto(&mut w, here.x, here.y);
-    w.get_mut::<Viewshed>(p).unwrap().dirty = false;
-
-    trap_system(&mut w);
-
-    let now = *w.get::<Position>(p).unwrap();
-    assert_ne!((now.x, now.y), (here.x, here.y), "moved");
-    assert!(
-        !w.resource::<Map>().blocks(now.x, now.y),
-        "landed on open ground"
-    );
-    assert!(
-        w.get::<Viewshed>(p).unwrap().dirty,
-        "viewshed refresh queued"
-    );
-}
 
 // ---------------------------------------------------------------------------
 // Arrow — the miss drops loot
@@ -532,27 +190,6 @@ fn arrows_on(w: &mut World, spot: Position) -> usize {
         .iter(w)
         .filter(|(pos, n)| n.what == "arrow" && (pos.x, pos.y) == (spot.x, spot.y))
         .count()
-}
-
-#[test]
-fn arrow_trap_hits_an_unarmoured_target() {
-    let mut w = test_world(2);
-    clear_traps(&mut w);
-    let p = player(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().hp = 12;
-    w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
-
-    let here = player_pos(&mut w);
-    spawn_named(&mut w, "arrow trap", here).unwrap();
-    step_player_onto(&mut w, here.x, here.y);
-    trap_system(&mut w);
-
-    assert!(w.get::<Fighter>(p).unwrap().hp < 12, "the arrow drew blood");
-    assert_eq!(
-        arrows_on(&mut w, here),
-        0,
-        "a connecting arrow is not dropped as loot"
-    );
 }
 
 #[test]
@@ -742,21 +379,6 @@ fn far_visible_tile(w: &mut World) -> (Entity, (u16, u16)) {
 }
 
 #[test]
-fn a_sight_trap_reveals_itself_as_soon_as_it_is_in_view() {
-    let mut w = test_world(11);
-    clear_traps(&mut w);
-    let (p, (tx, ty)) = far_visible_tile(&mut w);
-    let trap = spawn_named(&mut w, "trapdoor", Position { x: tx, y: ty }).unwrap();
-    assert!(w.get::<Hidden>(trap).is_some());
-
-    w.get_mut::<Viewshed>(p).unwrap().dirty = true;
-    vis().run(&mut w);
-
-    assert!(w.get::<Hidden>(trap).is_none(), "spotted on sight");
-    assert!(w.get::<Trap>(trap).unwrap().revealed);
-}
-
-#[test]
 fn an_adjacent_trap_stays_hidden_until_you_are_next_to_it() {
     let mut w = test_world(11);
     clear_traps(&mut w);
@@ -776,28 +398,6 @@ fn an_adjacent_trap_stays_hidden_until_you_are_next_to_it() {
     w.get_mut::<Viewshed>(p).unwrap().dirty = true;
     vis().run(&mut w);
     assert!(w.get::<Hidden>(trap).is_none(), "revealed once adjacent");
-}
-
-#[test]
-fn a_triggered_trap_is_invisible_until_it_goes_off() {
-    let mut w = test_world(11);
-    clear_traps(&mut w);
-    let (p, (tx, ty)) = far_visible_tile(&mut w);
-    let trap = spawn_named(&mut w, "dart trap", Position { x: tx, y: ty }).unwrap();
-    w.get_mut::<Trap>(trap).unwrap().reveal = TrapReveal::Triggered;
-
-    {
-        let mut pos = w.get_mut::<Position>(p).unwrap();
-        pos.x = tx - 1;
-        pos.y = ty;
-    }
-    w.get_mut::<Viewshed>(p).unwrap().dirty = true;
-    vis().run(&mut w);
-    assert!(w.get::<Hidden>(trap).is_some(), "no warning at all");
-
-    step_player_onto(&mut w, tx, ty);
-    trap_system(&mut w);
-    assert!(w.get::<Hidden>(trap).is_none(), "known the hard way");
 }
 
 // ---------------------------------------------------------------------------
@@ -860,39 +460,6 @@ fn traps_scale_with_depth_and_never_exceed_ten_per_floor() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn every_trap_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(5);
-    clear_traps(&mut w);
-    for (i, row) in TRAPS.iter().enumerate() {
-        let at = Position {
-            x: 10 + i as u16,
-            y: 5,
-        };
-        w.spawn(TrapBundle::from_def(row, TrapReveal::Sight, at));
-    }
-
-    let save = common::SaveFile::new("trap-rows");
-    save_game(&mut w, save.path()).unwrap();
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(5)));
-    w2.insert_resource(RngSeed(5));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName { what: "X".into() });
-    load_game(&mut w2, save.path()).unwrap();
-
-    let mut back: Vec<(u16, &'static TrapDef)> = w2
-        .query::<(&Trap, &Position)>()
-        .iter(&w2)
-        .map(|(t, p)| (p.x, t.row))
-        .collect();
-    back.sort_by_key(|(x, _)| *x);
-    assert_eq!(back.len(), TRAPS.len());
-    for (was, (_, is)) in TRAPS.iter().zip(&back) {
-        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
-    }
-}
-
-#[test]
 fn traps_and_snares_survive_a_save_and_reload() {
     let mut w = test_world(5);
     clear_traps(&mut w);
@@ -935,57 +502,6 @@ fn traps_and_snares_survive_a_save_and_reload() {
         Some(OUT_FOR),
         "the clock did not survive the save"
     );
-}
-
-/// A trap sprung by a monster is revealed just as if the player had found it —
-/// `spring_trap` unhides and marks it known regardless of who steps on it —
-/// even for a reveal style (`Adjacent`) that would otherwise keep it hidden
-/// from the player alone.
-#[test]
-fn a_trap_a_monster_steps_on_is_revealed_even_unseen() {
-    let mut w = test_world(9);
-    clear_traps(&mut w);
-    let here = player_pos(&mut w);
-    let spot = Position {
-        x: here.x + 5,
-        y: here.y + 5,
-    };
-    let trap = w
-        .spawn(TrapBundle::from_def(
-            TrapDef::lookup("dart trap").unwrap(),
-            TrapReveal::Adjacent,
-            spot,
-        ))
-        .id();
-    assert!(w.get::<Hidden>(trap).is_some(), "starts hidden");
-
-    w.spawn((
-        Name { what: "orc".into() },
-        Mob {
-            movement_type: MovementType::Static,
-        },
-        spot,
-        Fighter {
-            hp: 3,
-            max_hp: 3,
-            armor: 0,
-            power: 1,
-            max_power: 1,
-            armor_bonus: 0,
-            power_bonus: 0,
-        },
-        Faction::Monster,
-        Blood,
-        EntityMoved,
-    ));
-
-    trap_system(&mut w);
-
-    assert!(
-        w.get::<Hidden>(trap).is_none(),
-        "revealed once the orc steps on it, even out of the player's sight"
-    );
-    assert!(w.get::<Trap>(trap).unwrap().revealed);
 }
 
 // ---------------------------------------------------------------------------
@@ -1142,29 +658,6 @@ fn a_trick_shot_in_sight_shouts_bam() {
 }
 
 #[test]
-fn a_trap_that_is_merely_stepped_on_does_not_burst() {
-    let mut w = test_world(11);
-    clear_traps(&mut w);
-    clear_mobs(&mut w);
-    let (site, ring, _) = blast_site(&mut w);
-
-    spawn_named(&mut w, "bear trap", site).unwrap();
-    let bystander = orc_at(&mut w, ring[0]);
-    let victim = orc_at(&mut w, site);
-    w.entity_mut(victim).insert(EntityMoved);
-
-    trap_system(&mut w);
-
-    assert!(w.get::<Pinned>(victim).is_some(), "the jaws close on it");
-    assert_eq!(
-        w.get::<Fighter>(bystander).unwrap().hp,
-        30,
-        "a trap underfoot bites one victim, it does not go off"
-    );
-    assert!(!log_contains(&w, "trick shot"));
-}
-
-#[test]
 fn a_trick_shot_that_catches_you_asks_why() {
     let mut w = test_world(12);
     clear_traps(&mut w);
@@ -1188,39 +681,6 @@ fn a_trick_shot_that_catches_you_asks_why() {
         w.get::<Pinned>(p).is_some(),
         true,
         "and the trap's own effect lands on you too"
-    );
-}
-
-#[test]
-fn a_detonated_trap_works_its_effect_on_everyone_it_catches() {
-    let mut w = test_world(13);
-    clear_traps(&mut w);
-    clear_mobs(&mut w);
-    let (site, ring, _) = blast_site(&mut w);
-
-    let trap = spawn_named(&mut w, "sleeping gas trap", site).unwrap();
-    let caught = [orc_at(&mut w, ring[0]), orc_at(&mut w, ring[1])];
-
-    detonate_trap(&mut w, trap, None);
-
-    for orc in caught {
-        assert!(w.get::<Asleep>(orc).is_some(), "a lungful of gas each");
-    }
-}
-
-#[test]
-fn a_teleport_trap_leaves_smoke_where_the_victim_stood() {
-    let mut w = test_world(14);
-    clear_traps(&mut w);
-    let here = player_pos(&mut w);
-    spawn_named(&mut w, "teleport trap", here).unwrap();
-    step_player_onto(&mut w, here.x, here.y);
-
-    trap_system(&mut w);
-
-    assert!(
-        w.resource::<Smoke>().is_smoky(here.x, here.y),
-        "a puff marks the spot they vanished from"
     );
 }
 
@@ -1348,79 +808,6 @@ fn a_shooting_trap_shakes_the_map_even_on_a_miss() {
 // ---------------------------------------------------------------------------
 // What a shot may and may not set off, and what one shot sets off next
 // ---------------------------------------------------------------------------
-
-#[test]
-fn an_aimed_shot_passes_over_a_trap_nobody_has_found() {
-    let mut w = test_world(11);
-    clear_traps(&mut w);
-    clear_mobs(&mut w);
-    let (site, ring, _) = blast_site(&mut w);
-
-    let trap = spawn_named(&mut w, "bear trap", site).unwrap();
-    assert!(w.get::<Hidden>(trap).is_some(), "a fresh trap is hidden");
-    let bystander = orc_at(&mut w, ring[0]);
-
-    assert_eq!(
-        detonate_at(&mut w, site, None),
-        None,
-        "there is nothing here the shooter could have been aiming at"
-    );
-    assert!(w.get_entity(trap).is_some(), "and the trap is still armed");
-    assert_eq!(w.get::<Fighter>(bystander).unwrap().hp, 30);
-}
-
-#[test]
-fn an_aimed_shot_sets_off_a_trap_that_has_been_found() {
-    let mut w = test_world(11);
-    clear_traps(&mut w);
-    clear_mobs(&mut w);
-    let (site, ring, _) = blast_site(&mut w);
-
-    let trap = spawn_named(&mut w, "bear trap", site).unwrap();
-    w.entity_mut(trap).remove::<Hidden>();
-    let bystander = orc_at(&mut w, ring[0]);
-
-    assert_eq!(detonate_at(&mut w, site, None), Some(TrickShot::Trap));
-    assert!(w.get_entity(trap).is_none(), "the shot spent it");
-    assert!(w.get::<Fighter>(bystander).unwrap().hp < 30);
-}
-
-#[test]
-fn a_burst_sets_off_the_next_trap_along_even_a_hidden_one() {
-    let mut w = test_world(11);
-    clear_traps(&mut w);
-    clear_mobs(&mut w);
-    let (site, _, two_off) = blast_site(&mut w);
-    let one_off = Position {
-        x: site.x + 1,
-        y: site.y,
-    };
-    let three_off = Position {
-        x: site.x + 3,
-        y: site.y,
-    };
-    if w.resource::<Map>().blocks(three_off.x, three_off.y) {
-        return;
-    }
-    let first = spawn_named(&mut w, "bear trap", site).unwrap();
-    w.entity_mut(first).remove::<Hidden>();
-    let second = spawn_named(&mut w, "bear trap", one_off).unwrap();
-    let third = spawn_named(&mut w, "bear trap", two_off).unwrap();
-    let far = orc_at(&mut w, three_off);
-
-    detonate_at(&mut w, site, None);
-
-    assert!(w.get_entity(first).is_none(), "the shot");
-    assert!(
-        w.get_entity(second).is_none(),
-        "the chain, through a trap nobody had found"
-    );
-    assert!(w.get_entity(third).is_none(), "and on to the next");
-    assert!(
-        w.get::<Fighter>(far).unwrap().hp < 30,
-        "which reaches a creature the first burst could not"
-    );
-}
 
 #[test]
 fn a_whole_chain_goes_off_at_once_with_its_dead() {

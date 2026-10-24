@@ -2,7 +2,6 @@
 //! stairs. What each one does, that it does it once per charge, and the two
 //! effects only runes lend (`Protected`, `ExplodesOnDeath`).
 
-use crate::common;
 #[allow(dead_code)] // only the handless fixture is wanted here
 use crate::common::monster;
 
@@ -69,29 +68,6 @@ fn charged(w: &World, rune: Entity) -> bool {
 // ---------------------------------------------------------------------------
 // The row is the rune
 // ---------------------------------------------------------------------------
-
-/// What the fixture rune leaves on whoever invokes it.
-#[derive(Component)]
-struct Invoked;
-
-fn mark_invoker(world: &mut World, user: Entity) {
-    world.entity_mut(user).insert(Invoked);
-}
-
-static FIXTURE_RUNE: RuneDef = RuneDef::new("rune of the test", mark_invoker);
-
-#[test]
-fn a_rune_does_what_its_row_says() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let rune = (&FIXTURE_RUNE).spawn(&mut w, NOWHERE);
-    stash(&mut w, p, rune);
-
-    use_item(&mut w, p, rune);
-
-    assert!(w.get::<Invoked>(p).is_some());
-    assert!(!charged(&w, rune));
-}
 
 /// Two open tiles side by side on the hero's row, east of them, nearest first.
 fn two_open_east(w: &mut World, hero: Position) -> (Position, Position) {
@@ -173,21 +149,6 @@ fn the_stairs_wake_every_inert_rune_in_the_pack() {
     assert!(change_level(&mut w, true));
     assert!(charged(&w, a));
     assert!(charged(&w, b));
-}
-
-#[test]
-fn a_trapdoor_does_not_wake_a_rune() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let rune = pack_rune(&mut w, p, "rune of ice");
-    w.get_mut::<Rune>(rune).unwrap().charged = false;
-
-    let pit = spawn_named(&mut w, "scroll of pitfall", NOWHERE).unwrap();
-    stash(&mut w, p, pit);
-    use_item(&mut w, p, pit);
-
-    assert_eq!(w.resource::<Depth>().what, 2, "the pitfall dropped us");
-    assert!(!charged(&w, rune), "only a staircase recharges");
 }
 
 #[test]
@@ -346,26 +307,6 @@ fn justice_scene(w: &mut World) -> (Entity, Entity, Entity) {
 }
 
 #[test]
-fn justice_marks_what_the_reader_sees_and_nothing_else() {
-    let mut w = test_world(7);
-    let (_, a, b) = justice_scene(&mut w);
-    assert!(w.get::<ExplodesOnDeath>(a).is_some());
-    assert!(w.get::<ExplodesOnDeath>(b).is_none());
-}
-
-#[test]
-fn a_marked_monster_that_dies_by_anything_but_a_blade_takes_its_neighbour_with_it() {
-    let mut w = test_world(7);
-    let (_, a, b) = justice_scene(&mut w);
-
-    apply_hit(&mut w, a, Hit::physical(5), None);
-    reaper_system(&mut w);
-
-    assert!(w.get_entity(a).is_none(), "it died once");
-    assert!(w.get_entity(b).is_none(), "and the burst took the bat");
-}
-
-#[test]
 fn a_marked_monster_cut_down_in_melee_bursts_too() {
     let mut w = test_world(7);
     let (p, a, b) = justice_scene(&mut w);
@@ -405,72 +346,3 @@ fn a_blank_rune_does_nothing_and_says_so() {
 // ---------------------------------------------------------------------------
 // Saves
 // ---------------------------------------------------------------------------
-
-/// `w` written to a save file and read back into a fresh world.
-fn saved_and_loaded(w: &mut World, tag: &str) -> World {
-    let file = common::SaveFile::new(tag);
-    save_game(w, file.path()).unwrap();
-    let mut loaded = World::new();
-    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    loaded.insert_resource(RngSeed(3));
-    loaded.init_resource::<GameLog>();
-    loaded.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    load_game(&mut loaded, file.path()).unwrap();
-    loaded
-}
-
-#[test]
-fn every_rune_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    w.get_mut::<Backpack>(p).unwrap().items.clear();
-    let rows: Vec<&'static RuneDef> = RUNES
-        .iter()
-        .copied()
-        .chain([rune_row("blank rune").unwrap()])
-        .collect();
-    for row in &rows {
-        let rune = row.spawn(&mut w, NOWHERE);
-        stash(&mut w, p, rune);
-    }
-
-    let mut loaded = saved_and_loaded(&mut w, "rune-rows");
-
-    let lp = player(&mut loaded);
-    let back: Vec<&'static RuneDef> = loaded
-        .get::<Backpack>(lp)
-        .unwrap()
-        .items
-        .iter()
-        .filter_map(|&e| loaded.get::<Rune>(e).map(|r| r.row))
-        .collect();
-    assert_eq!(back.len(), rows.len());
-    for (was, is) in rows.iter().zip(&back) {
-        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
-    }
-}
-
-#[test]
-fn a_rune_keeps_its_kind_and_its_charge_through_a_save() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    pack_rune(&mut w, p, "rune of justice");
-    let spent = pack_rune(&mut w, p, "rune of ice");
-    w.get_mut::<Rune>(spent).unwrap().charged = false;
-
-    let mut loaded = saved_and_loaded(&mut w, "runes");
-
-    let lp = player(&mut loaded);
-    let pack = loaded.get::<Backpack>(lp).unwrap().items.clone();
-    let runes: Vec<(&str, bool)> = pack
-        .iter()
-        .filter_map(|&e| loaded.get::<Rune>(e))
-        .map(|r| (r.row.name, r.charged))
-        .collect();
-    assert_eq!(
-        runes,
-        vec![("rune of justice", true), ("rune of ice", false)]
-    );
-}

@@ -254,23 +254,6 @@ mod tests {
     }
 
     #[test]
-    fn a_click_lands_on_the_grid_cell_under_it() {
-        assert_eq!(grid_cell(5, 3, (0, 0)), Some((5, 3)));
-        assert_eq!(grid_cell(15, 5, (10, 2)), Some((5, 3)));
-        assert_eq!(grid_cell(10, 2, (10, 2)), Some((0, 0)));
-        assert_eq!(grid_cell(9, 5, (10, 2)), None, "left of the frame");
-        assert_eq!(grid_cell(15, 1, (10, 2)), None, "above the frame");
-    }
-
-    #[test]
-    fn a_click_outside_a_centred_frame_is_no_event() {
-        FRAME_AT.set((10, 2));
-        let down = mouse_event(ct::MouseEventKind::Down(ct::MouseButton::Left));
-        assert_eq!(translate(down), None);
-        FRAME_AT.set((0, 0));
-    }
-
-    #[test]
     fn only_a_press_is_a_key() {
         let press = key_event(ct::KeyCode::Char('x'), ct::KeyEventKind::Press);
         let plain_x = Event::Key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));

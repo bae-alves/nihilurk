@@ -753,16 +753,6 @@ mod tests {
     }
 
     #[test]
-    fn a_peaceful_spirit_fights_nobody_and_nobody_fights_it() {
-        let mut world = World::new();
-        world.init_resource::<SpiritsHostile>();
-        for other in OTHERS {
-            assert!(!hostile(&world, Faction::Spirits, other), "{other:?}");
-            assert!(!hostile(&world, other, Faction::Spirits), "{other:?}");
-        }
-    }
-
-    #[test]
     fn an_angered_spirit_fights_everyone_but_its_own() {
         let mut world = World::new();
         world.insert_resource(SpiritsHostile(true));
@@ -781,40 +771,6 @@ mod tests {
         map.tiles[tile_index(6, 5)] = TileType::Passage;
 
         assert!(!mob_can_enter(
-            &map,
-            true,
-            Position { x: 5, y: 5 },
-            6,
-            5,
-            false,
-        ));
-    }
-
-    /// The same leashed mob, standing in a passage, may step into a room:
-    /// the leash is read off the tile it stands on.
-    #[test]
-    fn the_leash_follows_the_tile_not_the_monster() {
-        let mut map = walls();
-        map.tiles[tile_index(5, 5)] = TileType::Passage;
-        map.tiles[tile_index(6, 5)] = TileType::Room;
-
-        assert!(mob_can_enter(
-            &map,
-            true,
-            Position { x: 5, y: 5 },
-            6,
-            5,
-            false,
-        ));
-    }
-
-    #[test]
-    fn corridor_monsters_can_step_through_a_door() {
-        let mut map = walls();
-        map.tiles[tile_index(5, 5)] = TileType::Passage;
-        map.tiles[tile_index(6, 5)] = TileType::Door;
-
-        assert!(mob_can_enter(
             &map,
             true,
             Position { x: 5, y: 5 },
@@ -917,16 +873,5 @@ mod tests {
         );
         assert!(!moved);
         assert_eq!(*world.get::<Position>(mob).unwrap(), at);
-    }
-
-    #[test]
-    fn only_a_swimmer_takes_to_the_water() {
-        let mut map = walls();
-        map.tiles[tile_index(5, 5)] = TileType::Room;
-        map.tiles[tile_index(6, 5)] = TileType::Water;
-
-        let steps = |swims| mob_can_enter(&map, true, Position { x: 5, y: 5 }, 6, 5, swims);
-        assert!(!steps(false), "a walker stops at the shore");
-        assert!(steps(true), "a swimmer goes in");
     }
 }

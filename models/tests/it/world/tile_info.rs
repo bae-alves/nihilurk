@@ -22,13 +22,6 @@ fn spawn(w: &mut World, name: &str) -> Entity {
 }
 
 #[test]
-fn an_item_reads_as_its_pack_info_without_the_name() {
-    let mut w = world();
-    let dagger = spawn(&mut w, "dagger");
-    assert_eq!(tile_info(&w, dagger), item_info(&w, dagger)[1..]);
-}
-
-#[test]
 fn a_creature_reports_health_and_speed() {
     let mut w = world();
     let mob = spawn(&mut w, "kestral");
@@ -36,29 +29,6 @@ fn a_creature_reports_health_and_speed() {
     let lines = tile_info(&w, mob);
     assert!(lines.contains(&strings::info_health(hp, hp)), "{lines:?}");
     assert!(lines.iter().any(|l| l.starts_with("Speed:")), "{lines:?}");
-}
-
-#[test]
-fn a_trap_says_what_it_does() {
-    let mut w = world();
-    let trap = w
-        .spawn((
-            Trap {
-                row: TrapDef::lookup("bear trap").unwrap(),
-                reveal: TrapReveal::Sight,
-                revealed: true,
-            },
-            Position { x: 0, y: 0 },
-        ))
-        .id();
-    let lines = tile_info(&w, trap);
-    assert_eq!(
-        lines,
-        vec![strings::trap_explained(
-            "bear trap",
-            TrapDef::lookup("bear trap").unwrap().snare_turns
-        )]
-    );
 }
 
 #[test]

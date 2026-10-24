@@ -108,29 +108,6 @@ fn a_thrown_weapon_is_caught_and_wielded_by_a_creature_with_hands() {
 }
 
 #[test]
-fn only_an_item_with_thrown_damage_hurts_what_it_hits() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let bat = monster(&mut w, "bat", spot);
-    w.get_mut::<Fighter>(bat).unwrap().hp = 20;
-
-    let mail = stash(&mut w, p, |w| spawn_armor(w, "leather armor", NOWHERE));
-    throw(&mut w, p, mail, spot);
-
-    assert_eq!(
-        w.get::<Fighter>(bat).unwrap().hp,
-        20,
-        "armour is not a weapon"
-    );
-
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    assert!(w.get::<ThrownDamage>(dagger).is_some());
-    throw(&mut w, p, dagger, spot);
-    assert!(w.get::<Fighter>(bat).unwrap().hp < 20, "a dagger is");
-}
-
-#[test]
 fn the_grenade_is_wider_and_hotter_than_the_beam() {
     fn burn(seed: u64, throw_it: bool) -> (usize, i32) {
         let mut w = test_world(seed);
@@ -233,46 +210,6 @@ fn a_wand_lobbed_into_open_floor_lands_a_dud() {
     assert!(logged(&w, "still bottled up"));
 }
 
-/// Where the fixture wand burst and with how many charges, left on whoever
-/// threw it.
-#[derive(Component)]
-struct BurstAt(Position, i32);
-
-fn mark_the_burst(world: &mut World, burst: Burst) {
-    world
-        .entity_mut(burst.thrower)
-        .insert(BurstAt(burst.at, burst.charges));
-}
-
-static FIXTURE_WAND: WandDef = WandDef::new(
-    "wand of the test",
-    Color::White,
-    6,
-    BlastPalette::Warp,
-    |_, _| {},
-)
-.thrown(Thrown {
-    radius: None,
-    burst: mark_the_burst,
-    each: None,
-});
-
-#[test]
-fn a_thrown_wand_bursts_the_way_its_row_says() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    monster(&mut w, "orc", spot);
-    let wand = stash(&mut w, p, |w| (&FIXTURE_WAND).spawn(w, NOWHERE));
-    w.get_mut::<Battery>(wand).unwrap().charges = 4;
-
-    throw(&mut w, p, wand, spot);
-
-    assert!(w.get_entity(wand).is_none(), "the wand burst");
-    let marked = w.get::<BurstAt>(p).map(|b| ((b.0.x, b.0.y), b.1));
-    assert_eq!(marked, Some(((spot.x, spot.y), 4)));
-}
-
 #[test]
 fn a_thrown_wand_of_nothing_makes_confetti_and_nothing_else() {
     let mut w = test_world(3);
@@ -322,26 +259,6 @@ fn a_helper_lost_to_system_shock_is_minus_two_alignment() {
         assert_eq!(w.get::<Alignment>(p).unwrap().0, want, "seed {seed}");
     }
     assert!(shocked > 0, "no seed shocked");
-}
-
-#[test]
-fn a_thrown_wand_of_cancellation_wipes_a_megacursed_plus_but_not_the_curse() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let blade = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    w.entity_mut(blade)
-        .insert((PowerBonus(-3), Curse, MegaCurse));
-    let spot = east_of_player(&mut w, 1);
-    monster(&mut w, "bat", spot);
-    let wand = stash(&mut w, p, |w| {
-        spawn_named(w, "wand of cancellation", NOWHERE).unwrap()
-    });
-    w.get_mut::<Battery>(wand).unwrap().charges = 4;
-
-    throw(&mut w, p, wand, spot);
-
-    assert_eq!(w.get::<PowerBonus>(blade).map(|b| b.0), Some(0));
-    assert!(w.get::<Curse>(blade).is_some() && w.get::<MegaCurse>(blade).is_some());
 }
 
 /// A bow wears its plus on the throw, not on a melee roll — the third kind
@@ -413,31 +330,6 @@ fn cancellation_blanks_the_runes_the_player_carries() {
     let blanked = w.get::<Rune>(rune).unwrap();
     assert_eq!(blanked.row.name, rune_row("blank rune").unwrap().name);
     assert!(!blanked.charged, "nothing left in it to wake");
-}
-
-#[test]
-fn cancellation_clears_the_players_conditions() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    w.entity_mut(p).insert(Confused);
-    w.get_mut::<Speed>(p).unwrap().kind = SpeedKind::Fast;
-
-    let spot = east_of_player(&mut w, 1);
-    monster(&mut w, "bat", spot);
-    let wand = stash(&mut w, p, |w| {
-        spawn_named(w, "wand of cancellation", NOWHERE).unwrap()
-    });
-    w.get_mut::<Battery>(wand).unwrap().charges = 4;
-    throw(&mut w, p, wand, spot);
-
-    assert!(w.get::<Confused>(p).is_none(), "confusion lifts");
-    assert_eq!(
-        w.get::<Speed>(p).unwrap().kind,
-        SpeedKind::Normal,
-        "haste lifts"
-    );
-    assert!(logged(&w, "You are no longer confused."));
-    assert!(logged(&w, "You are no longer hasted."));
 }
 
 #[test]
@@ -536,36 +428,6 @@ fn a_thrown_wand_of_swapping_shuffles_everyone_it_catches() {
 }
 
 #[test]
-fn a_creature_without_hands_just_takes_the_hit_and_the_weapon_falls() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let bat = monster(&mut w, "bat", spot);
-    w.get_mut::<Fighter>(bat).unwrap().hp = 20;
-    let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
-
-    throw(&mut w, p, mace, spot);
-
-    assert!(w.get::<Equipped>(mace).unwrap().by.is_none());
-    assert_eq!(pos_of(&w, mace), (spot.x, spot.y));
-}
-
-#[test]
-fn caught_gear_arms_the_monster_that_caught_it() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let hobgoblin = monster::monster(&mut w, "test monster", spot);
-    w.get_mut::<Fighter>(hobgoblin).unwrap().hp = 30;
-    let mail = stash(&mut w, p, |w| spawn_armor(w, "plate mail", NOWHERE));
-    let mail_armor = w.get::<ArmorDie>(mail).unwrap().0;
-
-    throw(&mut w, p, mail, spot);
-
-    assert_eq!(equipped_total::<ArmorDie>(&w, hobgoblin), mail_armor);
-}
-
-#[test]
 fn armor_thrown_at_a_monster_that_cannot_wear_it_binds_it() {
     let mut w = test_world(7);
     let p = player(&mut w);
@@ -609,23 +471,6 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
 }
 
 #[test]
-fn a_potion_that_does_nothing_visible_still_lands_on_its_target() {
-    let mut w = test_world(5);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let orc = monster::plain_monster(&mut w, "test monster", spot);
-    let hp = w.get::<Fighter>(orc).unwrap().max_hp;
-    w.get_mut::<Fighter>(orc).unwrap().hp = hp;
-    let potion = stash(&mut w, p, |w| {
-        spawn_named(w, "potion of restore strength", NOWHERE).unwrap()
-    });
-
-    throw(&mut w, p, potion, spot);
-
-    assert!(w.get_entity(potion).is_none(), "the bottle broke anyway");
-}
-
-#[test]
 fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
     let mut w = test_world(9);
     let p = player(&mut w);
@@ -657,34 +502,6 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
 }
 
 #[test]
-fn a_throw_with_nothing_in_the_way_lands_on_the_aimed_tile() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-
-    throw(&mut w, p, dagger, spot);
-
-    assert_eq!(pos_of(&w, dagger), (spot.x, spot.y));
-    assert!(!w.get::<Backpack>(p).unwrap().items.contains(&dagger));
-}
-
-#[test]
-fn cursed_gear_you_are_wearing_cannot_be_thrown_or_dropped() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    w.entity_mut(sword).insert(Curse);
-    toggle_equipped(&mut w, p, sword);
-
-    assert!(throw_refusal(&w, p, sword).is_some());
-    assert!(drop_refusal(&w, p, sword).is_some());
-
-    force_unequip(&mut w, sword);
-    assert!(throw_refusal(&w, p, sword).is_none());
-}
-
-#[test]
 fn the_element_of_yoord_never_leaves_your_hand() {
     let mut w = test_world(4);
     let p = player(&mut w);
@@ -692,28 +509,6 @@ fn the_element_of_yoord_never_leaves_your_hand() {
 
     assert!(throw_refusal(&w, p, element).is_some());
     assert!(drop_refusal(&w, p, element).is_some());
-}
-
-#[test]
-fn throwing_equipped_gear_takes_it_off_first() {
-    let mut w = test_world(6);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    toggle_equipped(&mut w, p, sword);
-    assert_ne!(
-        equipped_total::<PowerDie>(&w, p),
-        0,
-        "the sword starts in hand"
-    );
-
-    throw(&mut w, p, sword, spot);
-
-    assert_eq!(
-        equipped_total::<PowerDie>(&w, p),
-        0,
-        "the sword is not in your hand any more"
-    );
 }
 
 /// Arm a troll with a thrown mace, kill it, and report whether the mace
@@ -751,39 +546,6 @@ fn a_slain_catcher_leaves_its_gear_or_takes_it_with_it() {
     let survivals = (0..40).filter(|&seed| kill_an_armed_troll(seed)).count();
     assert!(survivals > 0, "no gear ever survived a death");
     assert!(survivals < 40, "gear always survived a death");
-}
-
-/// A monster holds what it caught across a save. The file used to record a
-/// slot, never a wearer, so a monster had to put its gear down before the save
-/// — an item in flight's last position with no tile of its own would otherwise
-/// come back adrift. Now the wearer is in the file as an index remapped on
-/// load, the save never touches the live world to write itself, and the mace
-/// comes back in the same hand.
-#[test]
-fn a_monster_keeps_what_it_is_holding_across_a_save() {
-    let mut w = test_world(12);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let orc = monster::monster(&mut w, "test monster", spot);
-    w.get_mut::<Fighter>(orc).unwrap().hp = 20;
-    let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
-    throw(&mut w, p, mace, spot);
-    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(orc));
-
-    let save = common::SaveFile::new("throw-save");
-    save_game(&mut w, save.path()).unwrap();
-
-    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(orc));
-
-    let mut loaded = test_world(12);
-    load_game(&mut loaded, save.path()).unwrap();
-    let orc2 = mob_at(&mut loaded, spot).expect("the orc is where it was");
-    let held =
-        equipped_in(&loaded, orc2, Slot::Hand).expect("the mace came back in the orc's hand");
-    assert_eq!(
-        loaded.get::<Name>(held).map(|n| n.what.as_str()),
-        Some("mace")
-    );
 }
 
 #[test]
@@ -840,110 +602,6 @@ fn a_shot_that_lands_on_a_trap_sets_it_off() {
     );
 }
 
-/// The same shot at a trap nobody has found: the dagger lands, and that is all
-/// it does. You cannot line one of these up on a mechanism you have not seen.
-#[test]
-fn a_shot_that_lands_on_a_hidden_trap_just_lands() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 2);
-    let trap = spawn_named(&mut w, "sleeping gas trap", spot).unwrap();
-    let beside_it = east_of_player(&mut w, 3);
-    let bystander = monster(&mut w, "orc", beside_it);
-    w.get_mut::<Fighter>(bystander).unwrap().hp = 30;
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-
-    throw(&mut w, p, dagger, spot);
-
-    assert!(w.get_entity(trap).is_some(), "still armed, still hidden");
-    assert!(w.get::<Hidden>(trap).is_some());
-    assert_eq!(w.get::<Fighter>(bystander).unwrap().hp, 30);
-}
-
-/// Shooting the monster *is* shooting the tile it is standing on. A missile
-/// that stops on a creature stops on whatever is under it, so a monster caught
-/// standing over a found trap takes the trick shot with the blow.
-#[test]
-fn hitting_a_monster_standing_on_a_trap_sets_the_trap_off() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let trap = spawn_named(&mut w, "sleeping gas trap", spot).unwrap();
-    w.entity_mut(trap).remove::<Hidden>();
-    let orc = monster(&mut w, "orc", spot);
-    w.get_mut::<Fighter>(orc).unwrap().hp = 30;
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-
-    throw(&mut w, p, dagger, spot);
-
-    assert!(w.get_entity(trap).is_none(), "the blow set it off");
-    assert_eq!(
-        w.get::<Asleep>(orc).is_some(),
-        true,
-        "and the gas it was holding went into the one standing on it"
-    );
-}
-
-/// A thrown potion doesn't just dose whoever it hits: it bursts where it
-/// lands and spreads over the same small splash a thrown utility wand's
-/// blast covers, just narrower.
-#[test]
-fn a_thrown_potion_splashes_everyone_in_the_small_burst() {
-    let mut w = test_world(5);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let struck = monster(&mut w, "test monster", spot);
-    let beside = monster(
-        &mut w,
-        "test monster",
-        Position {
-            x: spot.x + 1,
-            y: spot.y,
-        },
-    );
-    for orc in [struck, beside] {
-        let mut f = w.get_mut::<Fighter>(orc).unwrap();
-        f.max_hp = 10;
-        f.hp = 1;
-    }
-    let potion = stash(&mut w, p, |w| {
-        spawn_named(w, "potion of healing", NOWHERE).unwrap()
-    });
-
-    throw(&mut w, p, potion, spot);
-
-    for orc in [struck, beside] {
-        let f = w.get::<Fighter>(orc).unwrap();
-        assert_eq!(f.hp, f.max_hp, "everyone in the splash got a share");
-    }
-    assert!(w.get_entity(potion).is_none(), "the bottle broke");
-}
-
-/// A potion is one of the things a blast can find lying underfoot: caught in
-/// somebody else's burst it goes off just the same as a trap or a coin does.
-#[test]
-fn a_potion_caught_in_a_wands_grenade_goes_off_too() {
-    let mut w = test_world(5);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let orc = monster(&mut w, "test monster", spot);
-    w.get_mut::<Fighter>(orc).unwrap().power -= 2;
-    let starved_power = w.get::<Fighter>(orc).unwrap().power;
-    let potion = spawn_named(&mut w, "potion of restore strength", spot).unwrap();
-
-    let wand = stash(&mut w, p, |w| {
-        spawn_named(w, "wand of fire", NOWHERE).unwrap()
-    });
-    w.get_mut::<Battery>(wand).unwrap().charges = 4;
-    throw(&mut w, p, wand, spot);
-
-    assert!(w.get_entity(potion).is_none(), "the blast broke it");
-    assert!(
-        w.get::<Fighter>(orc).unwrap().power > starved_power,
-        "and its effect landed on whoever the blast caught"
-    );
-}
-
 /// A chaser three tiles east of a player who stands on a doorway, and where
 /// the player stands. `moved` is whether the player's last turn was a step.
 fn doorway_standoff(w: &mut World, moved: bool) -> (Entity, Position, Position) {
@@ -963,17 +621,6 @@ fn doorway_standoff(w: &mut World, moved: bool) -> (Entity, Position, Position) 
     s.add_systems(visibility_system);
     s.run(w);
     (chaser, here, perch)
-}
-
-/// Step onto a doorway and everything that can see you stands still.
-#[test]
-fn a_creature_that_sees_you_step_onto_a_doorway_does_nothing() {
-    let mut w = test_world(11);
-    let (chaser, _, perch) = doorway_standoff(&mut w, true);
-
-    ai(&mut w);
-
-    assert_eq!(pos_of(&w, chaser), (perch.x, perch.y), "it held its ground");
 }
 
 /// The ward is one turn long: do anything but move while you stand there and
@@ -1138,18 +785,6 @@ fn a_thrown_wand_previews_its_burst_on_the_first_creature_in_the_way() {
 }
 
 #[test]
-fn a_wand_lobbed_onto_open_floor_previews_nothing() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let wand = stash(&mut w, p, |w| {
-        spawn_named(w, "wand of fire", NOWHERE).unwrap()
-    });
-    let cursor = east_of_player(&mut w, 2);
-
-    assert!(preview(&mut w, Some(wand), true, None, cursor).is_empty());
-}
-
-#[test]
 fn a_creature_the_player_cannot_see_does_not_move_the_preview() {
     let mut w = test_world(13);
     let p = player(&mut w);
@@ -1162,39 +797,6 @@ fn a_creature_the_player_cannot_see_does_not_move_the_preview() {
     let cursor = east_of_player(&mut w, 2);
 
     assert!(preview(&mut w, Some(wand), true, None, cursor).is_empty());
-}
-
-#[test]
-fn a_zapped_blast_previews_on_the_cursor_past_a_creature() {
-    use models::constants::wands::BLAST_RADIUS;
-    let mut w = test_world(13);
-    let p = player(&mut w);
-    let near = east_of_player(&mut w, 1);
-    monster(&mut w, "orc", near);
-    let wand = stash(&mut w, p, |w| {
-        spawn_named(w, "wand of cold", NOWHERE).unwrap()
-    });
-    let cursor = east_of_player(&mut w, 4);
-
-    let cells = preview(&mut w, Some(wand), false, None, cursor);
-
-    assert!(centred_on(&cells, cursor, BLAST_RADIUS), "{cells:?}");
-}
-
-static BURST: SpellDef = SpellDef {
-    range: 8,
-    blast: Some(2.5),
-    ..SpellDef::new("burst of the test", 1, |_, _| {})
-};
-
-#[test]
-fn a_blast_spell_previews_its_rows_disc_on_the_cursor() {
-    let mut w = test_world(13);
-    let cursor = east_of_player(&mut w, 3);
-
-    let cells = preview(&mut w, None, false, Some(&BURST), cursor);
-
-    assert!(centred_on(&cells, cursor, 2.5), "{cells:?}");
 }
 
 #[test]

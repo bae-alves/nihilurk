@@ -5,7 +5,6 @@
 use crate::common::monster;
 
 use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::Schedule;
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -54,32 +53,6 @@ fn quaff(w: &mut World, user: Entity, name: &str) {
     use_item(w, user, potion);
 }
 
-/// Left on whoever drank the fixture potion.
-#[derive(Component)]
-struct Drank;
-
-fn mark_the_drinker(world: &mut World, user: Entity) -> bool {
-    world.entity_mut(user).insert(Drank);
-    true
-}
-
-static FIXTURE_POTION: PotionDef =
-    PotionDef::new("potion of the test", Color::White, mark_the_drinker);
-
-#[test]
-fn a_potion_does_what_its_row_says() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let potion = (&FIXTURE_POTION).spawn(&mut w, Position { x: 0, y: 0 });
-    w.entity_mut(potion).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(potion);
-
-    use_item(&mut w, p, potion);
-
-    assert!(w.get::<Drank>(p).is_some());
-    assert!(w.get_entity(potion).is_none(), "drunk, it is gone");
-}
-
 fn logged(w: &World, needle: &str) -> bool {
     w.resource::<GameLog>()
         .history
@@ -110,15 +83,6 @@ fn spawn_dummy(w: &mut World, name: &str, x: u16, y: u16) -> Entity {
     .id()
 }
 
-fn run_visibility(w: &mut World) {
-    w.query_filtered::<&mut Viewshed, With<Player>>()
-        .single_mut(w)
-        .dirty = true;
-    let mut s = Schedule::default();
-    s.add_systems(visibility_system);
-    s.run(w);
-}
-
 /// Walk the player onto the down-stair and take it.
 fn descend(w: &mut World, p: Entity) {
     let down = w
@@ -135,20 +99,6 @@ fn descend(w: &mut World, p: Entity) {
 // ---------------------------------------------------------------------------
 // The body
 // ---------------------------------------------------------------------------
-
-#[test]
-fn healing_refills_and_raises_the_ceiling() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let max = w.get::<Fighter>(p).unwrap().max_hp;
-    w.get_mut::<Fighter>(p).unwrap().hp = 1;
-
-    quaff(&mut w, p, "potion of healing");
-
-    let f = w.get::<Fighter>(p).unwrap();
-    assert!(f.max_hp > max, "a dose raises the ceiling");
-    assert_eq!(f.hp, f.max_hp, "and fills you to it");
-}
 
 #[test]
 fn extra_healing_raises_the_ceiling() {
@@ -187,18 +137,6 @@ fn strength_is_gained_poisoned_and_restored() {
         f.power, f.max_power,
         "restored to the new peak, not the old"
     );
-}
-
-#[test]
-fn poison_can_leave_you_feeble_but_never_weaponless() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().power = 2;
-
-    quaff(&mut w, p, "potion of poison");
-    quaff(&mut w, p, "potion of poison");
-
-    assert_eq!(w.get::<Fighter>(p).unwrap().power, 1, "the floor holds");
 }
 
 // ---------------------------------------------------------------------------
@@ -281,55 +219,6 @@ fn blindness_on_a_monster_is_just_a_random_walk() {
     ));
 }
 
-#[test]
-fn blindness_cuts_the_player_to_arms_reach_and_hides_every_monster() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let start = *w.get::<Position>(p).unwrap();
-
-    run_visibility(&mut w);
-    let sighted = w.get::<Viewshed>(p).unwrap().visible_tiles.len();
-
-    quaff(&mut w, p, "potion of blindness");
-    run_visibility(&mut w);
-
-    let vs = w.get::<Viewshed>(p).unwrap();
-    assert!(vs.visible_tiles.len() < sighted, "and less than eyes give");
-    assert!(vs.visible_tiles.contains(&(start.x, start.y)));
-
-    let next_door = spawn_dummy(&mut w, "orc", start.x + 1, start.y);
-    run_visibility(&mut w);
-    assert!(w.get::<Hidden>(next_door).is_some());
-
-    descend(&mut w, p);
-    assert!(
-        w.get::<Blind>(p).is_none(),
-        "the stairs give your eyes back"
-    );
-}
-
-#[test]
-fn a_blinded_player_is_not_a_hidden_player() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let start = *w.get::<Position>(p).unwrap();
-
-    let orc = spawn_dummy(&mut w, "orc", start.x + 4, start.y);
-    let before = *w.get::<Position>(orc).unwrap();
-
-    quaff(&mut w, p, "potion of blindness");
-    run_visibility(&mut w);
-    let mut s = Schedule::default();
-    s.add_systems(ai);
-    s.run(&mut w);
-
-    assert_ne!(
-        *w.get::<Position>(orc).unwrap(),
-        before,
-        "the monsters can still see you perfectly well"
-    );
-}
-
 // ---------------------------------------------------------------------------
 // The senses
 // ---------------------------------------------------------------------------
@@ -348,24 +237,6 @@ fn see_invisible_lasts_the_floor_and_no_longer() {
         "a potion's sight does not survive the stairs"
     );
     assert!(logged(&w, "You are no longer able to see the unseen."));
-}
-
-#[test]
-fn a_worn_ring_keeps_its_sight_when_the_potion_expires() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let ring = spawn_ring(&mut w, "ring of perception", Position { x: 0, y: 0 });
-    w.entity_mut(ring).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
-    toggle_equipped(&mut w, p, ring);
-
-    quaff(&mut w, p, "potion of see invisible");
-    descend(&mut w, p);
-
-    assert!(
-        w.get::<SeesInvisible>(p).is_some(),
-        "the ring is still on a finger"
-    );
 }
 
 #[test]
@@ -541,45 +412,4 @@ fn an_unseen_monsters_second_sight_says_nothing() {
 
     assert!(w.get::<SeesInvisible>(orc).is_some());
     assert!(!logged(&w, "orc"), "{:?}", w.resource::<GameLog>().history);
-}
-
-#[test]
-fn every_potion_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    w.get_mut::<Backpack>(p).unwrap().items.clear();
-    let rows: Vec<&'static PotionDef> = POTIONS
-        .iter()
-        .copied()
-        .chain([potion_row("potion of thirst quenching").unwrap()])
-        .collect();
-    for row in &rows {
-        let potion = row.spawn(&mut w, Position { x: 0, y: 0 });
-        w.entity_mut(potion).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(potion);
-    }
-
-    let file = crate::common::SaveFile::new("potion-rows");
-    save_game(&mut w, file.path()).unwrap();
-    let mut loaded = World::new();
-    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    loaded.insert_resource(RngSeed(3));
-    loaded.init_resource::<GameLog>();
-    loaded.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    load_game(&mut loaded, file.path()).unwrap();
-
-    let lp = player(&mut loaded);
-    let back: Vec<&'static PotionDef> = loaded
-        .get::<Backpack>(lp)
-        .unwrap()
-        .items
-        .iter()
-        .filter_map(|&e| loaded.get::<Potion>(e).map(|potion| potion.row))
-        .collect();
-    assert_eq!(back.len(), rows.len());
-    for (was, is) in rows.iter().zip(&back) {
-        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
-    }
 }

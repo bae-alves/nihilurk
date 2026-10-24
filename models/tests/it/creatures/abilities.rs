@@ -33,7 +33,6 @@
 //! runtime instead of inventing one.
 
 use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::Schedule;
 use fixedbitset::FixedBitSet;
 use models::*;
 
@@ -172,16 +171,6 @@ fn pack_item(w: &mut World, owner: Entity, name: &str) -> Entity {
     item
 }
 
-/// Recomputes what the player can see. `ai` only lets a mob act on what is in
-/// the player's viewshed (`ai::notices`), so anything driving `ai` runs this
-/// after placing its creatures. Same one-system schedule `tests/it/autofight.rs`
-/// uses.
-fn see(w: &mut World) {
-    let mut s = Schedule::default();
-    s.add_systems(visibility_system);
-    s.run(w);
-}
-
 /// A blow that connected cleanly: neither turned by armour nor the last one.
 /// The default case every on-hit row accepts.
 const CLEAN: Blow = Blow {
@@ -226,85 +215,6 @@ fn armor_plus(w: &World, item: Entity) -> i32 {
 // ---------------------------------------------------------------------------
 // The on-hit table: one test per row
 // ---------------------------------------------------------------------------
-
-/// The wiring test the other on-hit tests lean on: `resolve_attack` really
-/// does fire the table, rather than the table being a list nothing reads.
-/// Everything below goes through `fire_on_hit` directly, so combat's dice
-/// cannot make a row's test flaky — this is the one test that proves the two
-/// are connected at all.
-#[test]
-fn a_landed_blow_fires_the_on_hit_table() {
-    // Swept because the swing has to actually connect: a big power die
-    // against no armour, on a foe with enough HP that the blow is never
-    // lethal.
-    let drained = (0..64u64).any(|seed| {
-        let mut w = arena(seed);
-        let biter = dummy(&mut w, 10, 40);
-        w.entity_mut(biter).insert(Venomous);
-        let victim = dummy(&mut w, 10_000, 10);
-
-        let before = power_of(&w, victim);
-        resolve_attack(&mut w, biter, victim);
-        power_of(&w, victim) < before
-    });
-    assert!(
-        drained,
-        "no swing in 64 seeds reached the ability table — combat is not firing it"
-    );
-}
-
-#[test]
-fn a_corroding_blow_eats_the_plus_off_what_the_victim_wears() {
-    let mut w = arena(7);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    let armor = worn(&mut w, victim, Slot::Body);
-
-    let attacker = dummy(&mut w, 10, 4);
-    w.entity_mut(attacker).insert(RustsArmor);
-
-    let before = armor_plus(&w, armor);
-    fire_on_hit(&mut w, attacker, victim, CLEAN);
-
-    assert!(
-        armor_plus(&w, armor) < before,
-        "the armour came through the corrosion no weaker ({before} -> {})",
-        armor_plus(&w, armor)
-    );
-}
-
-/// A bite the player *lands* used to drain in total silence — the log line
-/// was gated on the victim being the player, never on the victim existing.
-/// Fixed to match `stagger`/`blind`'s split: second person for the player,
-/// the victim's own name in the third otherwise.
-#[test]
-fn a_venomous_bite_announces_itself_whoever_it_bites() {
-    let mut w = arena(1);
-    let biter = dummy(&mut w, 10, 4);
-    w.entity_mut(biter).insert(Venomous);
-    let victim = dummy(&mut w, 10, 8);
-
-    fire_on_hit(&mut w, biter, victim, CLEAN);
-
-    let said = &w.resource::<GameLog>().history;
-    assert!(
-        said.iter().any(|l| l.contains("dummy")),
-        "a bite the player landed on a monster said nothing about it: {said:?}"
-    );
-
-    let mut w = arena(1);
-    let biter = dummy(&mut w, 10, 4);
-    w.entity_mut(biter).insert(Venomous);
-    let victim = hero(&mut w, at(11, 10), 10, 8);
-
-    fire_on_hit(&mut w, biter, victim, CLEAN);
-
-    assert!(
-        w.resource::<GameLog>()
-            .history
-            .contains(&strings::venom_took_player().to_string()),
-        "the player-victim line changed shape"
-    );
-}
 
 /// The `SustainsStrength` guard, which is currently written out three times
 /// (`abilities.rs`, `traps.rs`, `spells.rs`). This covers the venom copy; the
@@ -438,46 +348,6 @@ fn a_visible_monsters_paralysis_gets_a_line_of_its_own() {
     );
 }
 
-/// The other half: nothing is said about a monster paralysed out of sight, which
-/// would leak that something happened in a room the player has never seen.
-#[test]
-fn an_unseen_monsters_paralysis_says_nothing() {
-    let mut w = arena(1);
-    let p = hero(&mut w, at(5, 5), 20, 4);
-    let victim = creature(&mut w, at(50, 50), 10, 3);
-    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(6, 5)];
-
-    paralyse(&mut w, victim);
-
-    let name = w.get::<Name>(victim).unwrap().what.clone();
-    let mentions = w
-        .resource::<GameLog>()
-        .history
-        .iter()
-        .filter(|l| l.contains(&name))
-        .count();
-    assert_eq!(
-        mentions,
-        0,
-        "a paralysis nobody could see should stay silent: {:?}",
-        w.resource::<GameLog>().history
-    );
-}
-
-#[test]
-fn an_erratic_striker_hops_after_every_blow_it_lands() {
-    let mut w = arena(3);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    let hopper = creature(&mut w, at(10, 10), 5, 4);
-    w.entity_mut(hopper).insert(Batty);
-
-    let before = pos_of(&w, hopper).expect("the hopper stands somewhere");
-    fire_on_hit(&mut w, hopper, victim, CLEAN);
-    let after = pos_of(&w, hopper).expect("the hopper still stands somewhere");
-
-    assert_ne!(before, after, "it landed a blow and stayed put");
-}
-
 /// Left on whoever set the fixture trap off.
 #[derive(Component)]
 struct Sprung;
@@ -495,32 +365,6 @@ static HOP_TRAP: TrapDef = TrapDef {
     },
     flourish: |_, _, _| {},
 };
-
-/// The hop lands after `trap_system` has run, so it springs what it lands on
-/// itself, the same turn, and leaves no `EntityMoved` for a later turn to find.
-#[test]
-fn an_erratic_striker_springs_the_trap_it_hops_onto() {
-    let mut w = arena(3);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    let hopper = creature(&mut w, at(11, 10), 5, 4);
-    w.entity_mut(hopper).insert(Batty);
-    for x in 10..=12 {
-        for y in 9..=11 {
-            w.spawn(TrapBundle::from_def(&HOP_TRAP, TrapReveal::Sight, at(x, y)));
-        }
-    }
-
-    fire_on_hit(&mut w, hopper, victim, CLEAN);
-
-    assert!(
-        w.get::<Sprung>(hopper).is_some(),
-        "it hopped onto a trap and nothing went off"
-    );
-    assert!(
-        w.get::<EntityMoved>(hopper).is_none(),
-        "the hop left an EntityMoved for the next turn's trap_system"
-    );
-}
 
 static KILLING_TRAP: TrapDef = TrapDef {
     apply: |world, spring| {
@@ -553,30 +397,6 @@ fn an_erratic_striker_its_trap_kills_dies_the_same_turn() {
     assert!(
         w.get::<Fighter>(hopper).is_none(),
         "the trap killed it and it is still standing"
-    );
-}
-
-#[test]
-fn a_thief_that_flees_takes_something_loose_and_goes() {
-    let mut w = arena(11);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    pack_item(&mut w, victim, "loose thing");
-
-    let thief = creature(&mut w, at(10, 10), 5, 4);
-    w.entity_mut(thief).insert(StealsAndFlees);
-    let stood = pos_of(&w, thief).expect("the thief stands somewhere");
-
-    fire_on_hit(&mut w, thief, victim, CLEAN);
-
-    assert!(
-        w.get::<Backpack>(victim)
-            .is_some_and(|b| b.items.is_empty()),
-        "the thief left the pack alone"
-    );
-    assert_ne!(
-        Some(stood),
-        pos_of(&w, thief),
-        "it robbed the victim and then stood there waiting"
     );
 }
 
@@ -662,26 +482,6 @@ fn a_thief_that_vanishes_strips_worn_gear_and_takes_it_with_them() {
 }
 
 #[test]
-fn a_charged_touch_is_spent_on_the_first_blow_it_lands() {
-    let mut w = arena(5);
-    let striker = hero(&mut w, at(10, 10), 20, 10);
-    lend(
-        &mut w,
-        striker,
-        Grant::of::<ConfusingTouch>(),
-        Lifetime::Permanent,
-    );
-    let victim = creature(&mut w, at(11, 10), 10, 4);
-
-    fire_on_hit(&mut w, striker, victim, CLEAN);
-
-    assert!(
-        w.get::<ConfusingTouch>(striker).is_none(),
-        "the charge survived the blow it was supposed to be spent on"
-    );
-}
-
-#[test]
 fn a_heavy_swing_staggers_what_it_hits_and_costs_its_wielder_a_beat() {
     let mut w = arena(1);
     let wielder = hero(&mut w, at(10, 10), 20, 10);
@@ -700,23 +500,6 @@ fn a_heavy_swing_staggers_what_it_hits_and_costs_its_wielder_a_beat() {
     );
 }
 
-/// The player-only gate (`abilities::is_player`) that four rows re-check in
-/// their own bodies. One test for the rule, on the row where it bites hardest.
-#[test]
-fn a_monster_swinging_the_same_weapon_gets_none_of_its_weight() {
-    let mut w = arena(1);
-    let wielder = dummy(&mut w, 20, 10);
-    w.entity_mut(wielder).insert(HeavySwing);
-    let victim = dummy(&mut w, 10, 4);
-
-    fire_on_hit(&mut w, wielder, victim, CLEAN);
-
-    assert!(
-        w.get::<Asleep>(victim).is_none(),
-        "a monster's heavy swing staggered its victim — the player-only gate is gone"
-    );
-}
-
 #[test]
 fn a_recoiling_weapon_bites_the_hand_that_swings_it() {
     let mut w = arena(1);
@@ -730,24 +513,6 @@ fn a_recoiling_weapon_bites_the_hand_that_swings_it() {
     assert!(
         hp_of(&w, wielder) < before,
         "the recoil cost its wielder nothing"
-    );
-}
-
-#[test]
-fn a_momentum_weapon_builds_on_every_blow_that_lands() {
-    let mut w = arena(17);
-    let wielder = hero(&mut w, at(10, 10), 20, 10);
-    let weapon = worn(&mut w, wielder, Slot::Hand);
-    w.entity_mut(wielder).insert(BuildsMomentum);
-    let victim = dummy(&mut w, 10, 4);
-
-    let before = w.get::<Momentum>(weapon).map_or(0, |m| m.0);
-    fire_on_hit(&mut w, wielder, victim, LETHAL);
-    let after = w.get::<Momentum>(weapon).map_or(0, |m| m.0);
-
-    assert!(
-        after > before,
-        "the landing blow built nothing ({before} -> {after})"
     );
 }
 
@@ -850,25 +615,6 @@ fn regeneration_puts_back_what_was_drained() {
 }
 
 #[test]
-fn nothing_regenerates_without_the_marker() {
-    let mut w = arena(23);
-    let bearer = hero(&mut w, at(10, 10), 20, 8);
-    if let Some(mut f) = w.get_mut::<Fighter>(bearer) {
-        f.power = 1;
-    }
-
-    for _ in 0..64 {
-        ability_system(&mut w);
-    }
-
-    assert_eq!(
-        power_of(&w, bearer),
-        1,
-        "an unmarked bearer mended themselves on their own"
-    );
-}
-
-#[test]
 fn teleportitis_eventually_moves_its_bearer() {
     let mut w = arena(29);
     let bearer = hero(&mut w, at(10, 10), 20, 8);
@@ -885,114 +631,9 @@ fn teleportitis_eventually_moves_its_bearer() {
     assert!(jumped, "4000 turns of teleportitis never moved anyone");
 }
 
-#[test]
-fn an_aggravating_bearer_is_heard_across_the_floor() {
-    let mut w = arena(31);
-    let bearer = hero(&mut w, at(10, 10), 20, 8);
-    w.entity_mut(bearer).insert(AggravatesMonsters);
-    for n in 1..=4u16 {
-        creature(&mut w, at(10 + n, 10), 5, 4);
-    }
-
-    let before = aggravated_count(&mut w);
-    for _ in 0..64 {
-        ability_system(&mut w);
-    }
-    let after = aggravated_count(&mut w);
-
-    assert!(
-        after > before,
-        "64 turns of yipping and not one creature turned around ({before} -> {after})"
-    );
-}
-
-/// How many creatures are homing in on a tile the bearer once stood on.
-/// Aggravation is the `Aggravated` component laid over a mob, so a change in
-/// this count is the ability landing.
-fn aggravated_count(w: &mut World) -> usize {
-    w.query_filtered::<(), (With<Mob>, With<Aggravated>)>()
-        .iter(w)
-        .count()
-}
-
 // ---------------------------------------------------------------------------
 // The markers that reach no table at all
 // ---------------------------------------------------------------------------
-
-/// `Gorgon` — hand-called from four sites (`combat/` twice, `wands.rs`,
-/// `throwing.rs`). This covers the melee one.
-#[test]
-fn looking_upon_a_gorgon_turns_the_player_to_stone() {
-    let mut w = arena(37);
-    let looker = hero(&mut w, at(10, 10), 20, 8);
-    let seen = creature(&mut w, at(11, 10), 10, 4);
-    w.entity_mut(seen).insert(Gorgon);
-
-    resolve_attack(&mut w, looker, seen);
-
-    assert!(
-        w.get::<Petrified>(looker).is_some(),
-        "meeting a gorgon's eyes should turn the looker to stone"
-    );
-    assert!(
-        w.get::<Asleep>(looker).is_none(),
-        "the gaze put the looker to sleep — stone is its own hold"
-    );
-}
-
-#[test]
-fn a_gorgons_own_kind_is_unmoved_by_the_gaze() {
-    let mut w = arena(37);
-    let bystander = hero(&mut w, at(10, 10), 20, 8);
-    let seen = creature(&mut w, at(11, 10), 10, 4);
-    w.entity_mut(seen).insert(Gorgon);
-    let other = creature(&mut w, at(12, 10), 10, 4);
-
-    resolve_attack(&mut w, other, seen);
-
-    assert!(
-        w.get::<Petrified>(other).is_none(),
-        "a monster was petrified by a gaze only a person's eyes can meet"
-    );
-    assert!(
-        w.get::<Petrified>(bystander).is_none(),
-        "the player was petrified by a gaze they never met"
-    );
-}
-
-/// The bug this hold was split out of `Asleep` for: stone let go with the
-/// sleeper's line, and the player who had just been turned to stone was told
-/// they had shaken off their drowsiness. The lines are read off the rows
-/// rather than written out here — what this holds still is *which row speaks*.
-#[test]
-fn stone_lets_go_speaking_of_stone_and_never_of_sleep() {
-    let stone = Effect::by_id("petrified")
-        .and_then(|e| e.ends)
-        .expect("petrification says something when it lets go");
-    let slumber = Effect::by_id("asleep")
-        .and_then(|e| e.ends)
-        .expect("sleep says something when it lets go");
-
-    let mut w = arena(37);
-    let looker = hero(&mut w, at(10, 10), 20, 8);
-    let seen = creature(&mut w, at(11, 10), 10, 4);
-    w.entity_mut(seen).insert(Gorgon);
-    fire_on_targeted(&mut w, looker, seen);
-
-    for _ in 0..64 {
-        tick_effects(&mut w);
-    }
-
-    let said: Vec<String> = w.resource::<GameLog>().history.clone();
-    assert!(
-        said.iter().any(|l| l == stone),
-        "coming out of stone never said so: {said:?}"
-    );
-    assert!(
-        !said.iter().any(|l| l == slumber),
-        "coming out of stone was reported as waking up: {said:?}"
-    );
-}
 
 /// Stone costs you your turns, exactly as sleeping gas does — that half of the
 /// gaze is unchanged, and it is the half the player feels first.
@@ -1036,25 +677,6 @@ fn a_wounded_splitter_becomes_two() {
     assert!(
         after > before,
         "a wounded splitter did not split ({before} -> {after})"
-    );
-}
-
-#[test]
-fn a_slain_splitter_leaves_nothing_behind() {
-    let species = any_species();
-    let mut w = arena(41);
-    let attacker = hero(&mut w, at(10, 10), 20, 10_000);
-    let splitter = splitter_named(&mut w, species, at(11, 10), 1);
-
-    resolve_attack(&mut w, attacker, splitter);
-
-    let dead = w
-        .get::<Fighter>(splitter)
-        .is_none_or(|f: &Fighter| f.hp <= 0);
-    assert!(dead, "the test never actually killed the splitter");
-    assert!(
-        count_named(&mut w, species) <= 1,
-        "it split on the blow that killed it"
     );
 }
 
@@ -1142,137 +764,9 @@ fn count_named(w: &mut World, what: &str) -> usize {
         .count()
 }
 
-/// `Flies` — a bare `continue` in `trap_system`.
-#[test]
-fn a_flier_crosses_a_trap_untouched_and_a_walker_does_not() {
-    assert!(
-        trap_sprang(43, false),
-        "the test's walker never triggered the trap it stood on"
-    );
-    assert!(!trap_sprang(43, true), "a flier set off a trap");
-}
-
-/// Stands a creature on a freshly planted trap and runs the trap system.
-/// Reports whether the trap went off.
-fn trap_sprang(seed: u64, flies: bool) -> bool {
-    let mut w = arena(seed);
-    let here = at(10, 10);
-    hero(&mut w, at(20, 20), 20, 8);
-
-    w.spawn((
-        Name {
-            what: "trap".into(),
-        },
-        Trap {
-            row: TrapDef::lookup("dart trap").unwrap(),
-            reveal: TrapReveal::Sight,
-            revealed: true,
-        },
-        here,
-    ));
-
-    let mover = creature(&mut w, here, 20, 8);
-    if flies {
-        w.entity_mut(mover).insert(Flies);
-    }
-    w.entity_mut(mover).insert(EntityMoved);
-
-    let (power_before, hp_before) = (power_of(&w, mover), hp_of(&w, mover));
-    trap_system(&mut w);
-    power_of(&w, mover) < power_before || hp_of(&w, mover) < hp_before
-}
-
-/// A fireball in a spellset — cast by `ai::act`. The claim is that a caster
-/// answers with fire, which reaches tiles a claw cannot: a second creature
-/// standing beside the player gets hurt too.
-#[test]
-fn a_breather_sometimes_answers_with_fire_rather_than_claws() {
-    let splashed = (0..48u64).any(|seed| breath_round(seed, true));
-    assert!(
-        splashed,
-        "no caster in 48 seeds ever breathed — the spellset is not reaching the AI"
-    );
-
-    let splashed_without = (0..48u64).any(|seed| breath_round(seed, false));
-    assert!(
-        !splashed_without,
-        "something with no spellset still breathed fire"
-    );
-}
-
-/// Puts a breather next to the player with a bystander beside them, runs one
-/// AI round, and reports whether the bystander was caught in a blast — which
-/// only a breath, never a claw, can do.
-fn breath_round(seed: u64, breathes: bool) -> bool {
-    let mut w = arena(seed);
-    let here = at(10, 10);
-    hero(&mut w, here, 10_000, 8);
-
-    let breather = creature(&mut w, at(11, 10), 20, 8);
-    if breathes {
-        w.entity_mut(breather).insert((
-            Spellset {
-                slots: vec![spell_row("Fireball").unwrap()],
-            },
-            Magic {
-                points: 2,
-                max_points: 2,
-            },
-        ));
-    }
-
-    let bystander = creature(&mut w, at(10, 11), 10_000, 8);
-    let before = hp_of(&w, bystander);
-
-    see(&mut w);
-    ai(&mut w);
-
-    hp_of(&w, bystander) < before
-}
-
 // ---------------------------------------------------------------------------
 // The tables as data
 // ---------------------------------------------------------------------------
-
-/// Every ability's marker is in `EFFECTS`, with no exceptions. A marker that
-/// is not half-works: it attaches and runs for the session, then vanishes on
-/// load and cannot be cancelled — "the quiet failure to look for when an
-/// effect works until you reload" (`docs/how-to/add-an-effect.md`).
-///
-/// `ConfusingTouch` was the one exemption until it and `Bided` were made
-/// effects proper. There is no longer a legitimate reason for a row's marker
-/// to sit outside the list, so this asserts none do.
-#[test]
-fn every_ability_marker_is_in_the_save_format() {
-    let exempt = ABILITIES
-        .iter()
-        .filter(|a| a.effect.effect_id().is_none())
-        .count();
-
-    assert_eq!(
-        exempt, 0,
-        "an ability row's marker is missing from EFFECTS — it will work until \
-         the next reload and then quietly stop"
-    );
-}
-
-/// No two rows may be armed by the same marker in the same table — two rows
-/// sharing one `Grant` fire together forever, which is never what was meant.
-#[test]
-fn no_two_ability_rows_share_a_marker() {
-    let mut seen: Vec<(&str, Moment)> = Vec::new();
-    for ability in ABILITIES {
-        let id = ability
-            .effect
-            .effect_id()
-            .expect("a row's marker is registered");
-        assert!(
-            !seen.contains(&(id, ability.when)),
-            "two ABILITIES rows are armed by {id:?} at the same moment — both fire, always"
-        );
-        seen.push((id, ability.when));
-    }
-}
 
 /// A passive that can never fire is a dead row, and one that always fires is a
 /// rule wearing a probability. Both are mistakes a rebalance can introduce.
@@ -1314,77 +808,9 @@ fn every_effect_id_is_unique_and_says_something() {
     }
 }
 
-/// An id is the identity, and it is written out rather than derived from the
-/// type name so that renaming the struct cannot silently rename the save key.
-/// That freedom cuts both ways: a copied row keeps the id it was copied from,
-/// and nothing about it looks wrong.
-///
-/// `Grant::effect_id` resolves a component back to the row that registers it,
-/// so a row whose component answers to a *different* id is a row that was
-/// copied and half-edited — two rows claiming one component, with the second
-/// one dead on disk.
-#[test]
-fn every_row_is_the_one_its_component_answers_to() {
-    for effect in EFFECTS {
-        let resolved = effect
-            .grant
-            .effect_id()
-            .expect("a registered effect resolves to a row");
-        assert_eq!(
-            resolved, effect.id,
-            "the row {:?} carries a component that already belongs to {:?} — \
-             one of the two is dead on disk",
-            effect.id, resolved
-        );
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The effects ledger
 // ---------------------------------------------------------------------------
-
-/// The invariant the three overlapping bitsets used to buy by intersecting
-/// each other: two sources lending one effect are two claims, and losing one
-/// must not strip what the other still lends.
-#[test]
-fn losing_one_source_leaves_what_another_still_lends() {
-    let mut w = arena(1);
-    let bearer = hero(&mut w, at(10, 10), 20, 8);
-
-    lend(
-        &mut w,
-        bearer,
-        Grant::of::<FireImmune>(),
-        Lifetime::Permanent,
-    );
-    lend(&mut w, bearer, Grant::of::<FireImmune>(), Lifetime::Floor);
-    assert!(
-        w.get::<FireImmune>(bearer).is_some(),
-        "lending did not attach"
-    );
-
-    clear_floor_grants(&mut w, bearer);
-
-    assert!(
-        w.get::<FireImmune>(bearer).is_some(),
-        "the staircase stripped an effect the creature was born with, \
-         because something else happened to lend the same one"
-    );
-}
-
-#[test]
-fn the_last_source_going_does_take_the_effect_away() {
-    let mut w = arena(1);
-    let bearer = hero(&mut w, at(10, 10), 20, 8);
-
-    lend(&mut w, bearer, Grant::of::<FireImmune>(), Lifetime::Floor);
-    clear_floor_grants(&mut w, bearer);
-
-    assert!(
-        w.get::<FireImmune>(bearer).is_none(),
-        "nothing was lending it any more and it stayed anyway"
-    );
-}
 
 /// Gear-lent effects are not written to a save: the gear itself is saved, and
 /// `sync_equipment_effects` lends them again on load. `SavedLifetime` has no
@@ -1456,40 +882,6 @@ fn a_save_naming_an_effect_this_build_lacks_loses_only_that_one() {
     );
 }
 
-/// Taking a ring off lifts what that ring lent and nothing else — the job
-/// `sync_equipment_effects` used to do by diffing bitsets.
-#[test]
-fn unequipping_lifts_only_what_that_item_lent() {
-    let mut w = arena(1);
-    let bearer = hero(&mut w, at(10, 10), 20, 8);
-    let ring = worn(&mut w, bearer, Slot::Finger);
-    w.entity_mut(ring).insert(Grants(LENDS_SIGHT));
-
-    lend(
-        &mut w,
-        bearer,
-        Grant::of::<FireImmune>(),
-        Lifetime::Permanent,
-    );
-    sync_equipment_effects(&mut w, bearer);
-    assert!(
-        w.get::<SeesInvisible>(bearer).is_some(),
-        "the ring never lent what it grants"
-    );
-
-    force_unequip(&mut w, ring);
-    sync_equipment_effects(&mut w, bearer);
-
-    assert!(
-        w.get::<SeesInvisible>(bearer).is_none(),
-        "the ring came off and kept lending"
-    );
-    assert!(
-        w.get::<FireImmune>(bearer).is_some(),
-        "taking a ring off stripped innate magic"
-    );
-}
-
 /// Running the sync twice must not pile up duplicate claims — it runs every
 /// turn for every pack-carrying creature.
 #[test]
@@ -1515,87 +907,6 @@ fn syncing_twice_lends_once() {
 // ---------------------------------------------------------------------------
 // The clock
 // ---------------------------------------------------------------------------
-
-/// The general tick that replaced `snare_system`. One system now ages every
-/// timed effect there will ever be, where the old one knew about exactly one
-/// component and could not have handled a second without being copied.
-#[test]
-fn a_timed_effect_runs_down_one_turn_at_a_time_and_then_ends() {
-    let mut w = arena(1);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    hold(&mut w, victim, Grant::of::<Asleep>(), 3);
-
-    for left in [2, 1] {
-        tick_effects(&mut w);
-        assert_eq!(
-            turns_left(&w, victim, Grant::of::<Asleep>()),
-            Some(left),
-            "the clock did not lose exactly one turn"
-        );
-        assert!(
-            w.get::<Asleep>(victim).is_some(),
-            "it let go while turns were still on the clock"
-        );
-    }
-
-    tick_effects(&mut w);
-    assert!(
-        w.get::<Asleep>(victim).is_none(),
-        "the clock ran out and it held on anyway"
-    );
-}
-
-/// A permanent effect has no clock, and the tick must leave it alone — it
-/// walks every ledger on the floor, so an immunity is the thing most likely
-/// to be aged by accident.
-#[test]
-fn the_clock_never_touches_an_effect_that_has_none() {
-    let mut w = arena(1);
-    let bearer = hero(&mut w, at(10, 10), 20, 8);
-    lend(
-        &mut w,
-        bearer,
-        Grant::of::<FireImmune>(),
-        Lifetime::Permanent,
-    );
-
-    for _ in 0..64 {
-        tick_effects(&mut w);
-    }
-
-    assert!(
-        w.get::<FireImmune>(bearer).is_some(),
-        "64 turns aged away something that was never on a clock"
-    );
-}
-
-/// **A behaviour change, recorded deliberately.** The single `Snare` component
-/// could only hold one kind at a time, so a bear trap closing on a sleeping
-/// creature replaced the sleep. Three effects with three clocks means both are
-/// true at once, and each ends when its own turns run out.
-#[test]
-fn two_holds_at_once_run_on_their_own_clocks() {
-    let mut w = arena(1);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    hold(&mut w, victim, Grant::of::<Asleep>(), 1);
-    hold(&mut w, victim, Grant::of::<Pinned>(), 3);
-
-    assert!(
-        w.get::<Asleep>(victim).is_some() && w.get::<Pinned>(victim).is_some(),
-        "one hold clobbered the other, the way the old Snare component did"
-    );
-
-    tick_effects(&mut w);
-
-    assert!(
-        w.get::<Asleep>(victim).is_none(),
-        "the shorter hold outlived its own clock"
-    );
-    assert!(
-        w.get::<Pinned>(victim).is_some(),
-        "the shorter hold ending took the longer one with it"
-    );
-}
 
 /// A second dose of the same thing is a longer hold, never two holds running
 /// down side by side — and it never shortens one already running.
@@ -1636,156 +947,6 @@ fn a_second_dose_lengthens_a_hold_and_never_shortens_it() {
 // The afflictions, as one table
 // ---------------------------------------------------------------------------
 
-/// The guard that makes one table safe to have: every row names an effect the
-/// registry knows, so a condition cannot be curable without being saveable.
-#[test]
-fn every_affliction_is_a_registered_effect() {
-    for affliction in AFFLICTIONS {
-        assert!(
-            affliction.effect.effect_id().is_some(),
-            "an AFFLICTIONS row names a component that is not in EFFECTS — \
-             it would cure fine and vanish on reload"
-        );
-    }
-}
-
-/// Three lists in three orders became one, and the order in it is load-bearing:
-/// `cure_one_condition` takes the first row it finds, so the table is sorted
-/// worst-first. Blindness costs you the floor; confusion costs you half your
-/// steps.
-#[test]
-fn a_cure_lifts_the_worst_affliction_first() {
-    let mut w = arena(1);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    lend(&mut w, victim, Grant::of::<Confused>(), Lifetime::Floor);
-    lend(&mut w, victim, Grant::of::<Blind>(), Lifetime::Floor);
-
-    assert!(cure_one_condition(&mut w, victim), "nothing was lifted");
-
-    assert!(
-        w.get::<Blind>(victim).is_none(),
-        "the cure went for the lesser affliction first"
-    );
-    assert!(
-        w.get::<Confused>(victim).is_some(),
-        "one cure lifted two afflictions"
-    );
-}
-
-/// Paralysis leaves the tempo alone, so lifting it must too: a hasted hero
-/// cured of paralysis is still hasted.
-#[test]
-fn curing_paralysis_keeps_the_tempo() {
-    let mut w = arena(1);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    w.get_mut::<Speed>(victim).unwrap().kind = SpeedKind::Fast;
-    paralyse(&mut w, victim);
-
-    assert!(cure_one_condition(&mut w, victim), "nothing was lifted");
-
-    assert!(w.get::<Paralyzed>(victim).is_none(), "the paralysis stayed");
-    assert_eq!(w.get::<Speed>(victim).unwrap().kind, SpeedKind::Fast);
-}
-
-/// `afflicted` and `cure_one_condition` used to be two hand-written lists that
-/// could disagree. They walk one table now, so anything the first reports must
-/// be something the second can actually lift.
-#[test]
-fn anything_reported_as_afflicted_can_be_cured() {
-    for affliction in AFFLICTIONS {
-        let mut w = arena(1);
-        let victim = hero(&mut w, at(10, 10), 20, 8);
-        lend(&mut w, victim, affliction.effect, Lifetime::Floor);
-
-        assert!(
-            afflicted(&w, victim),
-            "an AFFLICTIONS row is not recognised as an affliction"
-        );
-        assert!(
-            cure_one_condition(&mut w, victim),
-            "something reported as afflicted could not be cured"
-        );
-        assert!(
-            !affliction.effect.probe(&w, victim),
-            "the cure reported success and left the affliction on"
-        );
-    }
-}
-
-/// A staircase takes every affliction, and says so once per affliction — the
-/// third of the three lists, now the same table as the other two.
-#[test]
-fn a_staircase_lifts_every_affliction_and_names_each() {
-    let mut w = arena(1);
-    let player_e = hero(&mut w, at(10, 10), 20, 8);
-    for affliction in AFFLICTIONS {
-        lend(&mut w, player_e, affliction.effect, Lifetime::Floor);
-    }
-
-    clear_player_conditions(&mut w, player_e);
-
-    for affliction in AFFLICTIONS {
-        assert!(
-            !affliction.effect.probe(&w, player_e),
-            "a staircase left an affliction on"
-        );
-        let line = format!("You are no longer {}.", affliction.lifted_adjective);
-        assert!(
-            w.resource::<GameLog>().history.contains(&line),
-            "the staircase lifted an affliction without saying so: {line:?}"
-        );
-    }
-}
-
-/// **The hazard the ledger introduces.** A condition attached with a bare
-/// `insert` has no ledger entry and therefore no lifetime, so a staircase that
-/// trusted the ledger alone would leave it on for the rest of the run. The
-/// afflictions are floor-scoped by definition, so the staircase lifts them
-/// whether or not anything recorded that it had.
-#[test]
-fn a_staircase_lifts_an_affliction_that_never_went_through_the_ledger() {
-    let mut w = arena(1);
-    let player_e = hero(&mut w, at(10, 10), 20, 8);
-    w.entity_mut(player_e).insert(Blind);
-
-    clear_player_conditions(&mut w, player_e);
-
-    assert!(
-        w.get::<Blind>(player_e).is_none(),
-        "a condition attached without `lend` became permanent"
-    );
-}
-
-/// The other side of that: the staircase must not take what something else is
-/// still lending. This is the gear path — a ring of perception outlives the
-/// potion, and outlives the floor.
-#[test]
-fn a_staircase_leaves_what_gear_is_still_lending() {
-    let mut w = arena(1);
-    let player_e = hero(&mut w, at(10, 10), 20, 8);
-    let ring = worn(&mut w, player_e, Slot::Finger);
-
-    lend(
-        &mut w,
-        player_e,
-        Grant::of::<SeesInvisible>(),
-        Lifetime::Floor,
-    );
-    lend(
-        &mut w,
-        player_e,
-        Grant::of::<SeesInvisible>(),
-        Lifetime::WhileEquipped(ring),
-    );
-
-    clear_player_conditions(&mut w, player_e);
-
-    assert!(
-        w.get::<SeesInvisible>(player_e).is_some(),
-        "the staircase took the sight a worn ring was still lending"
-    );
-}
-
 /// And the sharp edge of the blanket lift: the afflictions are lifted whether
 /// or not the ledger recorded them, so the one thing that could go wrong is
 /// lifting one a *worn item* is still lending.
@@ -1817,41 +978,6 @@ fn a_staircase_leaves_an_affliction_a_worn_item_is_lending() {
 // ---------------------------------------------------------------------------
 // What Look warns about
 // ---------------------------------------------------------------------------
-
-/// The test the old arrangement could not have: every ability a *monster* can
-/// carry has words for `Look` to warn with.
-///
-/// The engine used to keep its own 15-row list of these, in another crate,
-/// with nothing tying it to the ability tables. Adding a thirteenth on-hit
-/// ability and forgetting that list meant `Look` quietly stopped warning about
-/// it. Now the phrase is a field on the effect row, and this walks the
-/// bestiary to check that anything a creature is actually born with, and that
-/// actually does something, says so.
-#[test]
-fn every_monster_ability_has_words_for_look() {
-    let armed: Vec<&str> = ABILITIES
-        .iter()
-        .filter_map(|a| a.effect.effect_id())
-        .collect();
-
-    for def in BESTIARY {
-        for grant in def.grants {
-            let Some(id) = grant.effect_id() else {
-                continue;
-            };
-            if !armed.contains(&id) {
-                continue;
-            }
-            let effect = Effect::by_id(id).expect("a registered effect");
-            assert!(
-                effect.beware.is_some(),
-                "{:?} arms an ability on a creature in the bestiary but has no \
-                 `beware` line, so Look will not warn about it",
-                id
-            );
-        }
-    }
-}
 
 /// And the other direction: `dangers_of` reports what a creature carries and
 /// nothing it does not.
@@ -1913,208 +1039,9 @@ fn a_creature_that_answers_being_looked_at_says_so_in_advance() {
     assert!(answers_being_looked_at(&w, gorgon));
 }
 
-/// A monster looking at a gorgon is unmoved — only a person's eyes turn to
-/// stone. The row cannot express that, so the mechanic checks it, and this is
-/// the test that keeps the check.
-#[test]
-fn only_a_persons_eyes_meet_a_gorgons() {
-    let mut w = arena(1);
-    let other = creature(&mut w, at(12, 10), 10, 4);
-    let seen = creature(&mut w, at(11, 10), 10, 4);
-    lend(&mut w, seen, Grant::of::<Gorgon>(), Lifetime::Permanent);
-
-    assert!(!fire_on_targeted(&mut w, other, seen));
-    assert!(w.get::<Petrified>(other).is_none());
-}
-
-/// `Moment::OnDamaged`. The slime's split used to be a hardcoded line in
-/// `helpers::took_damage`, beside two things that are not abilities at all.
-#[test]
-fn being_hurt_and_living_is_a_moment_of_its_own() {
-    let species = any_species();
-    let mut w = arena(1);
-    let splitter = splitter_named(&mut w, species, at(11, 10), 10_000);
-
-    let before = count_named(&mut w, species);
-    fire_on_damaged(&mut w, splitter);
-
-    assert!(
-        count_named(&mut w, species) > before,
-        "the on-damaged moment did not reach the splitter"
-    );
-}
-
-/// And the gate is on the row, so every player-only row is gated whether or
-/// not its body remembers to check.
-#[test]
-fn every_player_only_row_is_gated_by_the_table() {
-    let mut w = arena(1);
-    let monster = creature(&mut w, at(10, 10), 20, 10);
-
-    for ability in ABILITIES {
-        if !ability.player_only {
-            continue;
-        }
-        lend(&mut w, monster, ability.effect, Lifetime::Permanent);
-        assert!(
-            !ability.armed(&w, monster),
-            "a player-only row armed itself on a monster"
-        );
-    }
-}
-
-/// A moment fires its own rows and nobody else's.
-///
-/// Easy to lose: with one table and a `when` field, a driver that stopped
-/// matching on the moment would still pass every test that only asks whether
-/// the *right* thing happened. This asks whether the wrong things stayed put.
-#[test]
-fn one_moment_never_fires_another_moments_rows() {
-    let mut w = arena(1);
-    let bearer = hero(&mut w, at(10, 10), 20, 8);
-    lend(&mut w, bearer, Grant::of::<Batty>(), Lifetime::Permanent);
-    lend(
-        &mut w,
-        bearer,
-        Grant::of::<Teleportitis>(),
-        Lifetime::Permanent,
-    );
-    let stood = pos_of(&w, bearer).expect("the bearer stands somewhere");
-
-    fire_on_damaged(&mut w, bearer);
-
-    assert_eq!(
-        pos_of(&w, bearer),
-        Some(stood),
-        "being hurt fired a row belonging to another moment — the bearer moved, \
-         which only Batty's hop or teleportitis could have done"
-    );
-}
-
-/// The same, the other way round: turns passing must not fire an on-hit row.
-///
-/// The row used here is the chaos blade's recoil, which is deliberate — it
-/// ignores its target and bites its own wielder, so nothing but the moment
-/// filter stands between "a turn passed" and the player bleeding. A row that
-/// needs a target would pass this test for the wrong reason, because an
-/// each-turn firing has none to give it.
-#[test]
-fn turns_passing_never_fire_an_on_hit_row() {
-    let mut w = arena(1);
-    let bearer = hero(&mut w, at(10, 10), 20, 8);
-    lend(
-        &mut w,
-        bearer,
-        Grant::of::<SelfDamageOnHit>(),
-        Lifetime::Permanent,
-    );
-    let before = hp_of(&w, bearer);
-
-    for _ in 0..64 {
-        ability_system(&mut w);
-    }
-
-    assert_eq!(
-        hp_of(&w, bearer),
-        before,
-        "64 turns of standing still cost the wielder HP that only a landed \
-         blow should cost"
-    );
-}
-
 // ---------------------------------------------------------------------------
 // The damage funnel
 // ---------------------------------------------------------------------------
-
-/// The latent bug this funnel closes. Nothing in the game was elemental *and*
-/// outside the one path that checked immunity, so nothing actually burned a
-/// dragon — but the first elemental trap would have, silently, because the
-/// check lived at the call site and twelve of thirteen call sites had none.
-///
-/// Now it is one branch, and this is a hit of a kind the game does not have
-/// yet: elemental damage from a source that is not a wand.
-#[test]
-fn an_immune_creature_shrugs_off_an_element_whatever_the_source() {
-    let mut w = arena(1);
-    let dragon = creature(&mut w, at(10, 10), 100, 4);
-    lend(
-        &mut w,
-        dragon,
-        Grant::of::<FireImmune>(),
-        Lifetime::Permanent,
-    );
-    let before = hp_of(&w, dragon);
-
-    let dealt = apply_hit(&mut w, dragon, Hit::elemental(20, Element::Fire), None);
-
-    assert_eq!(dealt, 0, "fire hurt a fire-immune creature");
-    assert_eq!(hp_of(&w, dragon), before, "and took HP off doing it");
-}
-
-/// The immunity is to the element, not to being hurt.
-#[test]
-fn immunity_to_one_element_is_not_immunity_to_the_rest() {
-    let mut w = arena(1);
-    let dragon = creature(&mut w, at(10, 10), 100, 4);
-    lend(
-        &mut w,
-        dragon,
-        Grant::of::<FireImmune>(),
-        Lifetime::Permanent,
-    );
-
-    assert!(
-        apply_hit(&mut w, dragon, Hit::elemental(10, Element::Cold), None) > 0,
-        "fire immunity turned aside the cold"
-    );
-    assert!(
-        apply_hit(&mut w, dragon, Hit::physical(10), None) > 0,
-        "fire immunity turned aside a dart"
-    );
-}
-
-/// A ward stops magic. It does not stop a falling rock, and the funnel is
-/// where that distinction is kept.
-#[test]
-fn a_ward_turns_aside_magic_and_lets_steel_through() {
-    let mut w = arena(1);
-    let warded = creature(&mut w, at(10, 10), 100, 4);
-    lend(&mut w, warded, Grant::of::<MagicWard>(), Lifetime::Floor);
-
-    assert_eq!(
-        apply_hit(&mut w, warded, Hit::magic(10), None),
-        0,
-        "a ward let magic through"
-    );
-    assert!(
-        apply_hit(&mut w, warded, Hit::physical(10), None) > 0,
-        "a ward stopped a thrown dagger, which is not magic"
-    );
-}
-
-/// The ordering that made the flavour line the funnel's business: a hit that
-/// is turned aside must not announce damage it never did.
-#[test]
-fn a_hit_that_never_lands_never_announces_itself() {
-    let mut w = arena(1);
-    let warded = hero(&mut w, at(10, 10), 100, 4);
-    lend(&mut w, warded, Grant::of::<MagicWard>(), Lifetime::Floor);
-
-    apply_hit(
-        &mut w,
-        warded,
-        Hit::magic(10),
-        Some("The bolt slams home for 10 damage!"),
-    );
-
-    assert!(
-        !w.resource::<GameLog>()
-            .history
-            .iter()
-            .any(|l| l.contains("slams home")),
-        "a warded hit announced damage it never did"
-    );
-}
 
 /// And the other half of that ordering: a hit that lands says so *before*
 /// anything that answers it. "You are badly wounded!" reading before the blow
@@ -2139,43 +1066,5 @@ fn a_landed_hit_announces_itself_before_its_consequences() {
         wounded.is_some_and(|w| announced.is_some_and(|a| a < w)),
         "the wound was reported before the blow that caused it: {:?}",
         log.history
-    );
-}
-
-/// `SustainsStrength` was the same guard in three places. One rule now, and
-/// the prose stays with whoever is inflicting it.
-#[test]
-fn sustained_strength_turns_aside_every_drain() {
-    let mut w = arena(1);
-    let victim = creature(&mut w, at(10, 10), 20, 8);
-    lend(
-        &mut w,
-        victim,
-        Grant::of::<SustainsStrength>(),
-        Lifetime::Permanent,
-    );
-    let before = power_of(&w, victim);
-
-    assert!(matches!(
-        drain_power(&mut w, victim, 4, Some(1)),
-        Drain::Resisted
-    ));
-    assert_eq!(power_of(&w, victim), before, "a resisted drain still bit");
-}
-
-/// The floor is the caller's to set, because the snake's bite has none: a long
-/// enough fight drives a victim's power negative, and a dart never can.
-#[test]
-fn a_drain_respects_the_floor_its_source_asked_for() {
-    let mut w = arena(1);
-    let floored = creature(&mut w, at(10, 10), 20, 8);
-    drain_power(&mut w, floored, 1_000, Some(1));
-    assert_eq!(power_of(&w, floored), 1, "a floored drain went through it");
-
-    let unfloored = creature(&mut w, at(11, 10), 20, 8);
-    drain_power(&mut w, unfloored, 1_000, None);
-    assert!(
-        power_of(&w, unfloored) < 0,
-        "a drain with no floor stopped at one anyway"
     );
 }

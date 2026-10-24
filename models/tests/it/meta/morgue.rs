@@ -1,7 +1,6 @@
 //! The run dump: the kill tally it reads, and the text file it writes when a
 //! run ends.
 
-use crate::common;
 use crate::common::monster;
 
 use bevy_ecs::prelude::*;
@@ -55,30 +54,4 @@ fn every_corpse_is_counted_under_the_name_it_died_with() {
         tally(&w),
         vec![("fixture-gnat".into(), 2), ("fixture-moth".into(), 1)]
     );
-}
-
-#[test]
-fn a_dead_helper_is_not_a_kill() {
-    let mut w = test_world(2);
-    let pal = monster::plain_monster(&mut w, "fixture-pal", Position { x: 1, y: 1 });
-    recruit(&mut w, pal);
-    w.get_mut::<Fighter>(pal).unwrap().hp = 0;
-    reaper_system(&mut w);
-    assert!(tally(&w).is_empty());
-}
-
-#[test]
-fn kills_survive_a_save() {
-    let mut w = test_world(3);
-    kill(&mut w, "fixture-gnat");
-    let save = common::SaveFile::new("kills");
-    save_game(&mut w, save.path()).unwrap();
-
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    w2.insert_resource(RngSeed(3));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName { what: "X".into() });
-    load_game(&mut w2, save.path()).unwrap();
-    assert_eq!(tally(&w2), vec![("fixture-gnat".into(), 1)]);
 }

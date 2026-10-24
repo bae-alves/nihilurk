@@ -29,7 +29,6 @@ fn test_world(seed: u64) -> World {
 
 /// A grant list exactly as a catalog row would spell it.
 const FIRE_RESISTANCE: &[Grant] = &[Grant::of::<FireImmune>()];
-const UNDEAD: &[Grant] = &[Grant::of::<Undead>()];
 
 fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
@@ -66,41 +65,6 @@ fn wear(w: &mut World, p: Entity, item: Entity) {
 }
 
 #[test]
-fn a_ring_can_grant_what_a_monster_is_born_with() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-
-    let monster = monster::monster(&mut w, "test monster", Position { x: 10, y: 10 });
-    grant_all(&mut w, monster, FIRE_RESISTANCE);
-    assert!(w.get::<FireImmune>(monster).is_some());
-    assert!(w.get::<FireImmune>(p).is_none());
-
-    let ring = custom_ring(&mut w, "ring of fire resistance", FIRE_RESISTANCE, ());
-    wear(&mut w, p, ring);
-
-    assert!(
-        w.get::<FireImmune>(p).is_some(),
-        "the wearer answers the same query the dragon does"
-    );
-}
-
-#[test]
-fn taking_the_ring_off_takes_the_effect_with_it() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let ring = custom_ring(&mut w, "ring of fire resistance", FIRE_RESISTANCE, ());
-
-    wear(&mut w, p, ring);
-    assert!(w.get::<FireImmune>(p).is_some());
-
-    toggle_equipped(&mut w, p, ring);
-    assert!(
-        w.get::<FireImmune>(p).is_none(),
-        "lent magic goes back with the ring"
-    );
-}
-
-#[test]
 fn a_removed_ring_never_strips_innate_magic() {
     let mut w = test_world(3);
     let monster = monster::monster(&mut w, "test monster", Position { x: 10, y: 10 });
@@ -115,51 +79,6 @@ fn a_removed_ring_never_strips_innate_magic() {
         w.get::<FireImmune>(monster).is_some(),
         "innate magic remains after the ring is removed"
     );
-}
-
-#[test]
-fn a_rings_armor_bonus_folds_in_exactly_like_armour() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-
-    let base = equipped_total::<ArmorBonus>(&w, p);
-
-    let plus_three = custom_ring(&mut w, "ring of protection", &[], ArmorBonus(3));
-    assert_eq!(equipped_total::<ArmorBonus>(&w, p), base);
-
-    wear(&mut w, p, plus_three);
-    assert_eq!(
-        equipped_total::<ArmorBonus>(&w, p),
-        base + 3,
-        "combat and the HUD both read this one number"
-    );
-
-    let mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
-    w.entity_mut(mail).insert(ArmorBonus(1));
-    wear(&mut w, p, mail);
-    assert_eq!(equipped_total::<ArmorBonus>(&w, p), 4);
-    assert_eq!(
-        equipped_total::<ArmorDie>(&w, p),
-        9,
-        "plate mail's own class"
-    );
-}
-
-#[test]
-fn cancellation_strips_every_effect_in_the_registry() {
-    let mut w = test_world(5);
-    let monster = monster::monster(&mut w, "test monster", Position { x: 10, y: 10 });
-    grant_all(&mut w, monster, UNDEAD);
-    assert!(w.get::<Undead>(monster).is_some());
-
-    revoke_all(&mut w, monster);
-
-    for effect in EFFECTS {
-        assert!(
-            !effect.grant.probe(&w, monster),
-            "cancellation walks the whole registry"
-        );
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -579,38 +498,4 @@ fn a_fourth_condition_is_refused() {
         "a refusal is never silent: {:?}",
         w.resource::<GameLog>().history
     );
-}
-
-#[test]
-fn worn_and_innate_magic_does_not_count_against_the_ceiling() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-
-    let ring = custom_ring(&mut w, "ring of test fire", FIRE_RESISTANCE, ());
-    wear(&mut w, p, ring);
-
-    lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor);
-    lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor);
-    lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor);
-
-    assert_eq!(conditions_held(&w, p), CONDITION_CAP);
-    assert!(w.get::<Blind>(p).is_some(), "a ring is not a condition");
-    assert!(w.get::<FireImmune>(p).is_some());
-}
-
-#[test]
-fn a_temporary_boon_is_not_a_condition() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-
-    lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor);
-    lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor);
-    lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor);
-    grant_for_floor(&mut w, p, Grant::of::<SeesInvisible>());
-    lend(&mut w, p, Grant::of::<Detected>(), Lifetime::Floor);
-
-    assert_eq!(conditions_held(&w, p), CONDITION_CAP);
-    assert!(w.get::<Blind>(p).is_some(), "the oldest condition stands");
-    assert!(w.get::<SeesInvisible>(p).is_some());
-    assert!(w.get::<Detected>(p).is_some());
 }

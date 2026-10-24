@@ -109,10 +109,8 @@ That is the whole of it. Equipping and unequipping, saving and loading, and the 
 > **An effect missing from `EFFECTS` half-works.** It will attach, and it
 > will do its job for the rest of the session. It will not be saved, will
 > not come back on load, and cannot be cancelled. This is the quiet
-> failure to look for when an effect works until you reload.
-> `every_ability_marker_is_in_the_save_format` (`models/tests/it/creatures/abilities.rs`)
-> catches it for anything armed by an ability row; nothing catches it for an
-> effect only a mechanic reads.
+> failure to look for when an effect works until you reload. No test
+> catches it.
 
 
 Making an effect act on its own

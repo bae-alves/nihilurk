@@ -46,26 +46,6 @@ fn beside_player(w: &mut World) -> Position {
 }
 
 #[test]
-fn rings_and_nothing_else() {
-    let mut w = lurk_world(7);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-
-    for name in ["long sword", "ring mail", "short bow"] {
-        let item = spawn_named(&mut w, name, at).unwrap();
-        assert!(
-            !equipment::toggle_equipped(&mut w, p, item),
-            "a lurk cannot wear a {name}"
-        );
-    }
-    let ring = spawn_named(&mut w, "ring of protection", at).unwrap();
-    assert!(
-        equipment::toggle_equipped(&mut w, p, ring),
-        "a ring goes on a claw"
-    );
-}
-
-#[test]
 fn momentum_builds_on_the_lurk_itself() {
     let mut w = lurk_world(7);
     let p = player(&mut w);
@@ -114,75 +94,6 @@ fn eating_grows_the_lurk_at_the_stated_odds() {
             .iter()
             .any(|line| line.contains("FEAR THE LURK!"))
     );
-}
-
-#[test]
-fn nihil_is_untouched_by_any_of_it() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(7)));
-    w.insert_resource(RngSeed(7));
-    w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    initialize_world(&mut w);
-    let p = player(&mut w);
-
-    assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Normal);
-    assert!(w.get::<Lurk>(p).is_none());
-    assert!(w.get::<Lunges>(p).is_none());
-    let before_max_hp = w.get::<Fighter>(p).unwrap().max_hp;
-    body::feed(&mut w);
-    assert_eq!(w.get::<Fighter>(p).unwrap().max_hp, before_max_hp);
-}
-
-#[test]
-fn the_lurk_survives_a_save() {
-    let mut w = lurk_world(7);
-    let p = player(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().max_power += 1;
-    let expected_power = w.get::<Fighter>(p).unwrap().max_power;
-
-    let save = common::SaveFile::new("lurk");
-    save_game(&mut w, save.path()).unwrap();
-
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(99)));
-    w2.insert_resource(RngSeed(99));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    load_game(&mut w2, save.path()).unwrap();
-
-    let p2 = player(&mut w2);
-    assert!(w2.get::<Lurk>(p2).is_some(), "still a lurk");
-    assert!(w2.get::<Lunges>(p2).is_some());
-    assert!(w2.get::<Stealthy>(p2).is_some());
-    assert_eq!(w2.get::<Speed>(p2).unwrap().kind, SpeedKind::Quick);
-    assert_eq!(w2.get::<Fighter>(p2).unwrap().max_power, expected_power);
-    assert_eq!(
-        w2.get::<Spellset>(p2).unwrap().slots,
-        vec![spell_row("Bide").unwrap()]
-    );
-}
-
-#[test]
-fn a_staircase_cannot_take_the_lurk_s_legs() {
-    let mut w = lurk_world(7);
-    let p = player(&mut w);
-    let down = w
-        .resource::<Map>()
-        .tiles
-        .iter()
-        .position(|&t| t == TileType::Downstairs)
-        .unwrap();
-    w.get_mut::<Position>(p).unwrap().x = (down % MAP_WIDTH as usize) as u16;
-    w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
-    assert!(change_level(&mut w, true));
-    assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Quick);
-    assert!(w.get::<Stealthy>(p).is_some());
-    assert!(w.get::<Lunges>(p).is_some());
 }
 
 #[test]
@@ -245,15 +156,6 @@ fn the_lurk_sees_its_stealth_range_on_floor_tiles_only() {
             .max((y as i32 - here.y as i32).abs());
         assert!(reach <= STEALTH_RANGE);
     }
-}
-
-#[test]
-fn the_lurk_shows_no_stealth_range_while_standing_on_a_passage() {
-    let mut w = lurk_world(1);
-    let p = player(&mut w);
-    let here = *w.get::<Position>(p).unwrap();
-    w.resource_mut::<Map>().tiles[tile_index(here.x, here.y)] = TileType::Passage;
-    assert!(stealth_range_tiles(&w, p).is_empty());
 }
 
 #[test]

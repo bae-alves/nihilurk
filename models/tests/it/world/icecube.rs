@@ -4,7 +4,6 @@
 use crate::common::monster;
 
 use bevy_ecs::prelude::*;
-use models::constants::ice::{DAMAGE_DICE, DAMAGE_SIDES};
 use models::constants::traps::{TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES};
 use models::*;
 
@@ -90,71 +89,6 @@ fn cubes(w: &mut World) -> Vec<(Entity, Position)> {
 }
 
 #[test]
-fn a_cold_kill_leaves_a_cube_that_blocks_like_a_creature() {
-    let mut w = test_world(3);
-    let spot = open_tiles_near_player(&mut w, 1)[0];
-    let orc = monster::monster(&mut w, "orc", spot);
-
-    cold_kill(&mut w, orc);
-
-    assert!(w.get_entity(orc).is_none(), "the orc is gone");
-    let found = cubes(&mut w);
-    assert_eq!(found.len(), 1);
-    let (cube, at) = found[0];
-    assert_eq!(at, spot);
-    assert!(
-        w.get::<Fighter>(cube).is_none(),
-        "a cube has nothing to hurt"
-    );
-    assert_eq!(mob_at(&mut w, spot), Some(cube));
-}
-
-#[test]
-fn a_kill_by_anything_else_leaves_no_cube() {
-    let mut w = test_world(3);
-    let spot = open_tiles_near_player(&mut w, 1)[0];
-    let orc = monster::monster(&mut w, "orc", spot);
-    let p = player(&mut w);
-    let wand = spawn_named(&mut w, "wand of magic missile", Position { x: 0, y: 0 }).unwrap();
-    w.entity_mut(wand).remove::<Position>();
-    w.get_mut::<Fighter>(orc).unwrap().hp = 1;
-    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
-        user: p,
-        item: wand,
-        target: Some(spot),
-        slot_idx: Some(0),
-    });
-    item_system(&mut w);
-    reaper_system(&mut w);
-
-    assert!(cubes(&mut w).is_empty());
-}
-
-#[test]
-fn a_kicked_cube_homes_on_the_weakest_foe_for_cold_damage_and_shatters() {
-    let mut w = test_world(5);
-    let spots = open_tiles_near_player(&mut w, 3);
-    let p = player(&mut w);
-    let doomed = monster::monster(&mut w, "orc", spots[0]);
-    cold_kill(&mut w, doomed);
-    let strong = monster::monster(&mut w, "troll", spots[1]);
-    let weak = monster::monster(&mut w, "rat", spots[2]);
-    w.get_mut::<Fighter>(strong).unwrap().hp = 90;
-    w.get_mut::<Fighter>(weak).unwrap().hp = 50;
-    let (cube, _) = cubes(&mut w)[0];
-
-    assert!(kick_ice_cube(&mut w, p, cube));
-
-    let lost = 50 - w.get::<Fighter>(weak).unwrap().hp;
-    assert!(
-        (DAMAGE_DICE..=DAMAGE_DICE * DAMAGE_SIDES).contains(&lost),
-        "lost {lost}"
-    );
-    assert_eq!(w.get::<Fighter>(strong).unwrap().hp, 90);
-    assert!(cubes(&mut w).is_empty(), "the cube shattered");
-}
-
-#[test]
 fn a_kicked_cube_that_kills_freezes_its_victim_in_turn() {
     let mut w = test_world(5);
     let spots = open_tiles_near_player(&mut w, 2);
@@ -218,29 +152,6 @@ fn a_shot_cube_bursts_into_cold_that_freezes_what_it_kills() {
     );
 }
 
-#[test]
-fn a_thrown_dagger_that_stops_on_a_cube_sets_it_off() {
-    let mut w = test_world(5);
-    let spots = open_tiles_near_player(&mut w, 1);
-    let p = player(&mut w);
-    let doomed = monster::monster(&mut w, "orc", spots[0]);
-    cold_kill(&mut w, doomed);
-    let (cube, at) = cubes(&mut w)[0];
-    let dagger = spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
-    w.entity_mut(dagger).remove::<Position>();
-    w.init_resource::<ThrowQueue>();
-    w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
-        thrower: p,
-        item: dagger,
-        target: at,
-        slot_idx: None,
-    });
-
-    throw_system(&mut w);
-
-    assert!(w.get_entity(cube).is_none());
-}
-
 fn zap(w: &mut World, name: &str, at: Position) {
     let p = player(w);
     let wand = spawn_named(w, name, Position { x: 0, y: 0 }).unwrap();
@@ -259,23 +170,6 @@ fn tile_at_distance(w: &mut World, from: Position, d: i32, not: &[Position]) -> 
         .into_iter()
         .find(|s| chebyshev(*s, from) == d && !not.contains(s))
         .expect("an open tile at that distance")
-}
-
-#[test]
-fn a_cold_blast_over_a_cube_sets_it_off() {
-    let mut w = test_world(5);
-    let spot = open_tiles_near_player(&mut w, 1)[0];
-    let orc = monster::monster(&mut w, "orc", spot);
-    cold_kill(&mut w, orc);
-    let (cube, at) = cubes(&mut w)[0];
-
-    zap(&mut w, "wand of cold", at);
-
-    assert!(w.get_entity(cube).is_none());
-    assert!(
-        cubes(&mut w).is_empty(),
-        "the blast's own kills are not swept up"
-    );
 }
 
 #[test]

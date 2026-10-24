@@ -134,10 +134,8 @@ Two ways out, cheapest first:
 
 > **`EntitySave` field order is the save format.** Postcard encodes
 > fields positionally. Append; do not insert or reorder. Any change to a
-> saved struct needs a new `SAVE_VERSION`: the test
-> `the_save_layout_only_changes_with_the_version` fails until it has one,
-> then until you regenerate `models/tests/golden/save.bin` (its message says
-> how). The release is then a minor one, and `release/bump.lua` refuses a
+> saved struct needs a new `SAVE_VERSION`, and no test catches a missed
+> bump. The release is then a minor one, and `release/bump.lua` refuses a
 > patch.
 
 

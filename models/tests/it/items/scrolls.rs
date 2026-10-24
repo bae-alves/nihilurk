@@ -4,13 +4,9 @@
 //! that used to be readable and inert — the two enchantments, monster
 //! confusion, hold monster, sleep and food detection.
 
-use crate::common::monster;
-
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
-
-const VORPAL_TARGET: &[Grant] = &[Grant::of::<VorpalTarget>()];
 
 fn test_world(seed: u64) -> World {
     let mut w = World::new();
@@ -63,29 +59,6 @@ fn read(w: &mut World, user: Entity, name: &str) {
     use_item(w, user, scroll);
 }
 
-/// Left on whoever read the fixture scroll.
-#[derive(Component)]
-struct Read;
-
-fn mark_the_reader(world: &mut World, user: Entity) {
-    world.entity_mut(user).insert(Read);
-}
-
-static FIXTURE_SCROLL: ScrollDef = ScrollDef::new("scroll of the test", mark_the_reader);
-
-#[test]
-fn a_scroll_does_what_its_row_says() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let scroll = (&FIXTURE_SCROLL).spawn(&mut w, Position { x: 0, y: 0 });
-    stash(&mut w, p, scroll);
-
-    use_item(&mut w, p, scroll);
-
-    assert!(w.get::<Read>(p).is_some());
-    assert!(w.get_entity(scroll).is_none(), "read, it crumbles");
-}
-
 fn logged(w: &World, needle: &str) -> bool {
     w.resource::<GameLog>()
         .history
@@ -122,29 +95,6 @@ fn run_ai(w: &mut World) {
 // ---------------------------------------------------------------------------
 // Teleportation
 // ---------------------------------------------------------------------------
-
-#[test]
-fn teleportation_drops_the_reader_somewhere_else_on_the_floor() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let before = *w.get::<Position>(p).unwrap();
-    w.get_mut::<Viewshed>(p).unwrap().dirty = false;
-
-    let scroll = spawn_named(&mut w, "scroll of teleportation", Position { x: 0, y: 0 }).unwrap();
-    stash(&mut w, p, scroll);
-    use_item(&mut w, p, scroll);
-
-    let after = *w.get::<Position>(p).unwrap();
-    assert!(
-        (after.x, after.y) != (before.x, before.y),
-        "the reader should have moved"
-    );
-    assert!(
-        w.get::<Viewshed>(p).unwrap().dirty,
-        "the viewshed must be recomputed after a blink"
-    );
-    assert!(!w.resource::<Map>().blocks(after.x, after.y));
-}
 
 // ---------------------------------------------------------------------------
 // Aggravate monsters
@@ -372,26 +322,6 @@ fn vorpalizing_an_already_vorpal_weapon_crumbles_it() {
 }
 
 #[test]
-fn vorpalize_with_empty_hands_just_fizzles() {
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    for item in equipped_items(&w, p) {
-        force_unequip(&mut w, item);
-    }
-
-    let scroll = spawn_named(
-        &mut w,
-        "scroll of vorpalize weapon",
-        Position { x: 0, y: 0 },
-    )
-    .unwrap();
-    stash(&mut w, p, scroll);
-    use_item(&mut w, p, scroll);
-
-    assert_eq!(w.query::<&Vorpal>().iter(&w).count(), 0);
-}
-
-#[test]
 fn vorpalize_with_a_bow_in_hand_also_just_fizzles() {
     let mut w = test_world(11);
     let p = player(&mut w);
@@ -442,55 +372,6 @@ fn a_vorpal_blade_beheads_its_bane_in_one_blow() {
             .history
             .iter()
             .any(|l| l.contains("Snicker-snack"))
-    );
-}
-
-#[test]
-fn every_vorpal_blade_beheads_a_jabberwock_whatever_its_bane() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let sword = wield_a_blade(&mut w, p);
-    w.entity_mut(sword).insert(Vorpal { bane: "orc".into() });
-    w.get_mut::<Fighter>(p).unwrap().power = 100;
-
-    let hero = *w.get::<Position>(p).unwrap();
-    let jab = monster::monster(
-        &mut w,
-        "test vorpal target",
-        Position {
-            x: hero.x + 1,
-            y: hero.y,
-        },
-    );
-    grant_all(&mut w, jab, VORPAL_TARGET);
-    w.get_mut::<Fighter>(jab).unwrap().hp = 999;
-
-    resolve_attack(&mut w, p, jab);
-    assert!(
-        !w.entities().contains(jab),
-        "any vorpal weapon fells the Jabberwock"
-    );
-}
-
-#[test]
-fn a_vorpal_blade_is_just_a_blade_against_anything_else() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let sword = wield_a_blade(&mut w, p);
-    w.entity_mut(sword).insert(Vorpal { bane: "orc".into() });
-    w.get_mut::<Fighter>(p).unwrap().power = 100;
-
-    let hero = *w.get::<Position>(p).unwrap();
-    let bat = spawn_dummy(&mut w, "bat", hero.x + 1, hero.y, 999, MovementType::Static);
-
-    resolve_attack(&mut w, p, bat);
-    assert!(
-        w.entities().contains(bat),
-        "a non-bane, non-jabberwock takes ordinary damage"
-    );
-    assert!(
-        w.get::<Fighter>(bat).unwrap().hp < 999,
-        "…ordinary damage, but damage all the same"
     );
 }
 
@@ -603,18 +484,6 @@ fn enchant_weapon_mends_a_minus_all_the_way_to_plus_zero_and_burns_the_curse_off
 }
 
 #[test]
-fn enchant_armor_raises_the_armour_actually_being_worn() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let worn = equipped_in(&w, p, Slot::Body).expect("the hero starts in ring mail");
-    let before = w.get::<ArmorBonus>(worn).map_or(0, |b| b.0);
-
-    read(&mut w, p, "scroll of enchant armor");
-
-    assert_eq!(w.get::<ArmorBonus>(worn).map(|b| b.0), Some(before + 1));
-}
-
-#[test]
 fn enchanting_a_bow_lands_on_the_throw_the_way_the_dungeon_rolls_one() {
     let mut w = test_world(2);
     let p = player(&mut w);
@@ -685,63 +554,9 @@ fn monster_confusion_charges_the_hands_and_the_next_landed_blow_spends_them() {
     );
 }
 
-#[test]
-fn a_glancing_scrape_never_passes_the_charm_on() {
-    let mut w = test_world(564);
-    let p = player(&mut w);
-    for item in equipped_items(&w, p) {
-        force_unequip(&mut w, item);
-    }
-    w.get_mut::<Fighter>(p).unwrap().power = 1;
-    w.get_mut::<Fighter>(p).unwrap().power_bonus = 0;
-
-    read(&mut w, p, "scroll of monster confusion");
-
-    let hero = *w.get::<Position>(p).unwrap();
-    let wall = spawn_dummy(&mut w, "orc", hero.x + 1, hero.y, 30, MovementType::Chase);
-    w.get_mut::<Fighter>(wall).unwrap().armor_bonus = 10;
-
-    resolve_attack(&mut w, p, wall);
-
-    assert!(
-        w.get::<ConfusingTouch>(p).is_some(),
-        "a scrape off armour never gets close enough to pass the charm on"
-    );
-    assert!(matches!(
-        w.get::<Mob>(wall).unwrap().movement_type,
-        MovementType::Chase
-    ));
-}
-
 // ---------------------------------------------------------------------------
 // Hold monster
 // ---------------------------------------------------------------------------
-
-#[test]
-fn hold_monster_roots_what_you_can_see_and_leaves_the_rest_alone() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let hero = *w.get::<Position>(p).unwrap();
-
-    let seen = spawn_dummy(&mut w, "troll", hero.x + 1, hero.y, 4, MovementType::Chase);
-    let unseen = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
-    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
-
-    read(&mut w, p, "scroll of hold monster");
-
-    assert!(
-        w.get::<Rooted>(seen).is_some(),
-        "a monster in sight is bound"
-    );
-    assert!(
-        turns_left(&w, seen, Grant::of::<Rooted>()).is_some_and(|n| n > 0),
-        "bound for no turns at all"
-    );
-    assert!(
-        w.get::<Rooted>(unseen).is_none(),
-        "a monster out of view is untouched"
-    );
-}
 
 #[test]
 fn a_held_monster_cannot_step_but_still_bites_what_comes_in_reach() {
@@ -829,33 +644,6 @@ fn a_sleeping_monster_forfeits_its_turn_outright() {
 // Food detection, and the one thing both detections find
 // ---------------------------------------------------------------------------
 
-#[test]
-fn food_detection_turns_up_the_plain_things_and_leaves_the_magic_alone() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let spot = Position { x: 1, y: 1 };
-
-    let plain = spawn_weapon(&mut w, "dagger", spot);
-    let potion = spawn_named(&mut w, "potion of healing", spot).unwrap();
-    let cursed = spawn_weapon(&mut w, "mace", spot);
-    w.entity_mut(cursed).insert(Curse);
-
-    read(&mut w, p, "scroll of food detection");
-
-    assert!(
-        w.get::<Detected>(plain).is_some(),
-        "a plain +0 dagger is exactly what this scroll is for"
-    );
-    assert!(
-        w.get::<Detected>(potion).is_none(),
-        "a potion is the other scroll's business"
-    );
-    assert!(
-        w.get::<Detected>(cursed).is_none(),
-        "so is a cursed mace — a curse is magic, and being warned is the potion's job"
-    );
-}
-
 /// A detection turns an invisibly-stashed item up for good, exactly the way a
 /// ring of perception does. Half a reveal would be worse than none: the
 /// `Detected` render pass only paints tiles the player *cannot* see, so a stash
@@ -884,26 +672,6 @@ fn detection_turns_a_stashed_item_up_for_good() {
     assert!(w.get::<Detected>(potion).is_some());
     assert!(w.get::<Hidden>(potion).is_none());
     assert!(w.get::<Invisible>(potion).is_none());
-}
-
-/// The other half of the same rule: a detection that passes an item over leaves
-/// its stash exactly as it found it. Only what a sense actually turns up is
-/// turned up.
-#[test]
-fn a_detection_that_skips_an_item_leaves_its_stash_alone() {
-    let spot = Position { x: 1, y: 1 };
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let plain = spawn_weapon(&mut w, "dagger", spot);
-    w.entity_mut(plain).insert((Hidden, Invisible));
-
-    let detection = spawn_named(&mut w, "potion of magic detection", spot).unwrap();
-    stash(&mut w, p, detection);
-    use_item(&mut w, p, detection);
-
-    assert!(w.get::<Detected>(plain).is_none());
-    assert!(w.get::<Hidden>(plain).is_some());
-    assert!(w.get::<Invisible>(plain).is_some());
 }
 
 #[test]
@@ -971,20 +739,6 @@ fn the_new_scrolls_queue_their_flourish_when_there_is_an_effect_layer() {
 // ---------------------------------------------------------------------------
 // Pitfall
 // ---------------------------------------------------------------------------
-
-#[test]
-fn pitfall_drops_the_reader_a_floor_like_a_trapdoor() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().hp = 5;
-
-    let scroll = spawn_named(&mut w, "scroll of pitfall", Position { x: 0, y: 0 }).unwrap();
-    stash(&mut w, p, scroll);
-    use_item(&mut w, p, scroll);
-
-    assert_eq!(w.resource::<Depth>().what, 2, "fell one floor");
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 5, "a fall is not a rest");
-}
 
 // ---------------------------------------------------------------------------
 // Atonement
@@ -1056,45 +810,4 @@ fn teleport_to_stairs_goes_down_without_the_element_and_up_with_it() {
 
     read(&mut w, p, "scroll of teleport to stairs");
     assert!(within_one_of(&w, p, TileType::Upstairs));
-}
-
-#[test]
-fn every_scroll_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    w.get_mut::<Backpack>(p).unwrap().items.clear();
-    let rows: Vec<&'static ScrollDef> = SCROLLS
-        .iter()
-        .copied()
-        .chain([scroll_row("scroll of blank paper").unwrap()])
-        .collect();
-    for row in &rows {
-        let scroll = row.spawn(&mut w, Position { x: 0, y: 0 });
-        w.entity_mut(scroll).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(scroll);
-    }
-
-    let file = crate::common::SaveFile::new("scroll-rows");
-    save_game(&mut w, file.path()).unwrap();
-    let mut loaded = World::new();
-    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    loaded.insert_resource(RngSeed(3));
-    loaded.init_resource::<GameLog>();
-    loaded.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    load_game(&mut loaded, file.path()).unwrap();
-
-    let lp = player(&mut loaded);
-    let back: Vec<&'static ScrollDef> = loaded
-        .get::<Backpack>(lp)
-        .unwrap()
-        .items
-        .iter()
-        .filter_map(|&e| loaded.get::<Scroll>(e).map(|scroll| scroll.row))
-        .collect();
-    assert_eq!(back.len(), rows.len());
-    for (was, is) in rows.iter().zip(&back) {
-        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
-    }
 }

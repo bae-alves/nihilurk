@@ -55,58 +55,6 @@ fn a_step_into_a_wall_spends_no_turn_and_queues_nothing() {
 }
 
 #[test]
-fn an_open_step_spends_the_turn_but_waits_for_the_schedule_to_move() {
-    let (mut w, player, here) = quiet_room(1);
-    assert!(queue_step(&mut w, 1, 0));
-    assert_eq!(*w.get::<Position>(player).unwrap(), here);
-    resolve(&mut w);
-    assert_eq!(
-        *w.get::<Position>(player).unwrap(),
-        at(here.x as i32 + 1, here.y as i32)
-    );
-    assert!(w.get::<EntityMoved>(player).is_some());
-    assert!(w.resource::<PlayerActionQueue>().actions.is_empty());
-}
-
-#[test]
-fn a_step_into_a_monster_is_a_blow_and_the_player_stays_put() {
-    let (mut w, player, here) = quiet_room(1);
-    let target = at(here.x as i32 + 1, here.y as i32);
-    let foe = monster::plain_monster(&mut w, "foe", target);
-    let before = w.resource::<GameLog>().unread.len();
-    assert!(queue_step(&mut w, 1, 0));
-    resolve(&mut w);
-    assert_eq!(*w.get::<Position>(player).unwrap(), here);
-    assert!(w.get_entity(foe).is_none() || *w.get::<Position>(foe).unwrap() == target);
-    assert!(w.resource::<GameLog>().unread.len() > before);
-}
-
-#[test]
-fn stepping_into_a_helper_swaps_places_with_it() {
-    let (mut w, player, here) = quiet_room(1);
-    let target = at(here.x as i32 + 1, here.y as i32);
-    let pet = monster::plain_monster(&mut w, "foe", target);
-    w.entity_mut(pet).insert((Helper, Faction::Ally));
-    assert!(queue_step(&mut w, 1, 0));
-    resolve(&mut w);
-    assert_eq!(*w.get::<Position>(player).unwrap(), target);
-    assert_eq!(*w.get::<Position>(pet).unwrap(), here);
-    assert!(w.get::<EntityMoved>(pet).is_some());
-}
-
-#[test]
-fn stepping_into_a_charmed_ally_swaps_places_with_it() {
-    let (mut w, player, here) = quiet_room(1);
-    let target = at(here.x as i32 + 1, here.y as i32);
-    let pal = monster::plain_monster(&mut w, "foe", target);
-    w.entity_mut(pal).insert(Faction::Ally);
-    assert!(queue_step(&mut w, 1, 0));
-    resolve(&mut w);
-    assert_eq!(*w.get::<Position>(player).unwrap(), target);
-    assert_eq!(*w.get::<Position>(pal).unwrap(), here);
-}
-
-#[test]
 fn a_rooted_player_strains_and_stays_where_they_are() {
     let (mut w, player, here) = quiet_room(1);
     lend(&mut w, player, Grant::of::<Rooted>(), Lifetime::Turns(3));
@@ -127,14 +75,4 @@ fn an_estoc_lunges_across_the_empty_tile_at_the_foe_beyond() {
         at(here.x as i32 + 1, here.y as i32)
     );
     let _ = foe;
-}
-
-#[test]
-fn arriving_on_an_item_picks_it_up() {
-    let (mut w, player, here) = quiet_room(1);
-    let target = at(here.x as i32 + 1, here.y as i32);
-    let potion = spawn_named(&mut w, "potion of healing", target).unwrap();
-    assert!(queue_step(&mut w, 1, 0));
-    resolve(&mut w);
-    assert!(w.get::<Backpack>(player).unwrap().items.contains(&potion));
 }

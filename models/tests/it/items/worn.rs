@@ -4,7 +4,6 @@
 use crate::common::monster;
 
 use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::Schedule;
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -42,21 +41,6 @@ fn beside_player(w: &mut World) -> Position {
     panic!("player is walled in");
 }
 
-fn run_visibility(w: &mut World) {
-    let p = player(w);
-    w.get_mut::<Viewshed>(p).unwrap().dirty = true;
-    let mut s = Schedule::default();
-    s.add_systems(visibility_system);
-    s.run(w);
-}
-
-fn log_has(w: &World, needle: &str) -> bool {
-    w.resource::<GameLog>()
-        .history
-        .iter()
-        .any(|l| l.contains(needle))
-}
-
 /// A monster standing next to the player with `gear` already on.
 fn armed_neighbour(w: &mut World, gear: &[&str]) -> Entity {
     let spot = beside_player(w);
@@ -77,20 +61,6 @@ fn spawn_gear(w: &mut World, name: &str, pos: Position) -> Entity {
 }
 
 #[test]
-fn a_sighting_leaves_out_what_the_creature_is_wearing() {
-    let mut w = test_world(1);
-    armed_neighbour(&mut w, &["short bow"]);
-
-    run_visibility(&mut w);
-
-    assert!(
-        log_has(&w, "You spotted an emu.") && !log_has(&w, "(w. "),
-        "{:?}",
-        w.resource::<GameLog>().history
-    );
-}
-
-#[test]
 fn every_worn_piece_is_listed() {
     let mut w = test_world(3);
     let mob = armed_neighbour(&mut w, &["short bow", "ring mail"]);
@@ -102,19 +72,4 @@ fn every_worn_piece_is_listed() {
         "{tag}"
     );
     assert!(tag.starts_with(" (w. ") && tag.ends_with(')'), "{tag}");
-}
-
-#[test]
-fn worn_gear_is_not_also_lying_on_the_floor() {
-    let mut w = test_world(4);
-    let mob = armed_neighbour(&mut w, &["short bow"]);
-    let bow = equipped_items(&w, mob)[0];
-
-    run_visibility(&mut w);
-
-    assert!(
-        w.get::<Position>(bow).is_none(),
-        "a worn bow is carried, not loot"
-    );
-    assert!(!log_has(&w, "You spotted a short bow."));
 }

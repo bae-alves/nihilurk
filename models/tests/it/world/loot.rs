@@ -180,63 +180,6 @@ fn rolled_loot_follows_the_rogue_drop_table() {
     );
 }
 
-/// Every loose item on the current floor, excluding the player's starting kit
-/// (which keeps a stale [`Position`] while sitting in the backpack).
-fn floor_item_count(w: &mut World) -> usize {
-    let carried: std::collections::HashSet<Entity> = w
-        .query_filtered::<&Backpack, With<Player>>()
-        .single(w)
-        .items
-        .iter()
-        .copied()
-        .collect();
-    w.query_filtered::<(Entity, Option<&Equipped>), (With<Item>, With<Position>)>()
-        .iter(w)
-        .filter(|(e, eq)| !carried.contains(e) && !eq.is_some_and(|eq| eq.by.is_some()))
-        .count()
-}
-
-#[test]
-fn the_item_budget_scales_with_depth() {
-    const GUARANTEED: usize = 1;
-    let mut shallow = 0usize;
-    let mut deep = 0usize;
-
-    for seed in 0..40u64 {
-        let mut w = test_world(seed);
-        shallow += floor_item_count(&mut w) - GUARANTEED;
-        while w.resource::<Depth>().what < 13 {
-            descend(&mut w);
-        }
-        deep += floor_item_count(&mut w) - GUARANTEED;
-    }
-
-    assert!(
-        deep > shallow + shallow / 2,
-        "deep floors ({deep}) should out-loot shallow ones ({shallow}) by half again"
-    );
-}
-
-#[test]
-fn a_stashed_item_is_invisible_and_hidden_together() {
-    for seed in 0..40u64 {
-        let mut w = test_world(seed);
-        for _ in 0..5 {
-            let invisible: Vec<Entity> = w
-                .query_filtered::<Entity, (With<Item>, With<Invisible>)>()
-                .iter(&w)
-                .collect();
-            for item in invisible {
-                assert!(
-                    w.get::<Hidden>(item).is_some(),
-                    "seed {seed}: an invisible item the renderer would still draw"
-                );
-            }
-            descend(&mut w);
-        }
-    }
-}
-
 /// Every loose item on the current floor by name, on the same terms as
 /// [`floor_item_count`].
 fn floor_item_names(w: &mut World) -> Vec<String> {

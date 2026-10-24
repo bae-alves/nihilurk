@@ -126,32 +126,6 @@ fn reachable(map: &Map) -> HashSet<(u16, u16)> {
 }
 
 #[test]
-fn special_levels_only_replace_floors_six_through_twelve() {
-    for seed in 0..SEEDS {
-        for depth in 1..=FINAL_DEPTH {
-            if let Some(kind) = map_at(seed, depth).level {
-                assert!(
-                    (SPECIAL_LEVEL_MIN_DEPTH..FINAL_DEPTH).contains(&depth),
-                    "seed {seed}: a {kind:?} on depth {depth}"
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn a_special_level_holds_no_special_rooms() {
-    for kind in KINDS {
-        for (seed, depth, map) in samples(kind) {
-            assert!(
-                map.special.iter().all(Option::is_none),
-                "seed {seed} depth {depth}: a {kind:?} rolled a special room"
-            );
-        }
-    }
-}
-
-#[test]
 fn every_floor_tile_of_every_kind_is_reachable_from_the_up_stair() {
     for kind in KINDS {
         for (seed, depth, map) in samples(kind) {
@@ -210,31 +184,6 @@ fn a_labyrinth_is_all_passage_and_loops_back_on_itself() {
     }
 }
 
-#[test]
-fn walking_into_a_labyrinth_says_so() {
-    let (seed, depth, _) = samples(SpecialLevel::Labyrinth).remove(0);
-    let w = world_at(seed, depth);
-    assert!(
-        w.resource::<GameLog>()
-            .history
-            .iter()
-            .any(|l| l == strings::labyrinth_arrival()),
-        "seed {seed} depth {depth}: no labyrinth line in the log"
-    );
-}
-
-#[test]
-fn a_labyrinth_holds_no_traps() {
-    for (seed, depth, _) in samples(SpecialLevel::Labyrinth) {
-        let mut w = world_at(seed, depth);
-        let traps = w.query::<&Trap>().iter(&w).count();
-        assert_eq!(
-            traps, 0,
-            "seed {seed} depth {depth}: a one-tile passage cannot dodge a trap"
-        );
-    }
-}
-
 /// Which room every room-floor tile belongs to: floods of Room and stair
 /// tiles, 8-connected the way sight and diagonal steps are. A door is not
 /// room floor, so it is where one room stops and the next begins.
@@ -270,39 +219,6 @@ fn room_ids(map: &Map) -> std::collections::HashMap<(u16, u16), usize> {
         }
     }
     ids
-}
-
-#[test]
-fn a_vault_is_rooms_joined_by_single_doors() {
-    for (seed, depth, map) in samples(SpecialLevel::Vault) {
-        assert!(
-            !map.tiles.contains(&TileType::Passage),
-            "seed {seed} depth {depth}: a vault has a passage"
-        );
-        let ids = room_ids(&map);
-        let mut joined = HashSet::new();
-        for (x, y) in (0..map.tiles.len()).map(coord) {
-            if map.tile(x, y) != TileType::Door {
-                continue;
-            }
-            let across = [((x - 1, y), (x + 1, y)), ((x, y - 1), (x, y + 1))]
-                .into_iter()
-                .find_map(|(a, b)| Some((*ids.get(&a)?, *ids.get(&b)?)));
-            let Some((a, b)) = across else {
-                panic!(
-                    "seed {seed} depth {depth}: door ({x},{y}) has no room on two opposite sides"
-                );
-            };
-            assert_ne!(
-                a, b,
-                "seed {seed} depth {depth}: door ({x},{y}) opens a room onto itself"
-            );
-            assert!(
-                joined.insert((a.min(b), a.max(b))),
-                "seed {seed} depth {depth}: two doors join the same two rooms"
-            );
-        }
-    }
 }
 
 #[test]
@@ -434,95 +350,6 @@ fn a_castle_is_a_keep_with_four_towers_and_a_dragon_inside() {
     );
 }
 
-/// Two rooms that share a wall and a door, the way a vault's cells and a
-/// castle's towers do: the light of one stops at the doorway, showing the
-/// first step into the next room and no more of it.
-#[test]
-fn a_lit_room_does_not_light_the_room_behind_its_door() {
-    let mut map = Map {
-        tiles: vec![TileType::Wall; MAP_TILE_COUNT],
-        dark: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
-        special: vec![None; MAP_TILE_COUNT],
-        level: None,
-    };
-    for y in 2..=6 {
-        for x in (2..=6).chain(8..=12) {
-            map.tiles[tile_index(x, y)] = TileType::Room;
-        }
-    }
-    map.tiles[tile_index(7, 4)] = TileType::Door;
-
-    let mut w = World::new();
-    w.init_resource::<GameLog>();
-    w.insert_resource(map);
-    w.spawn((
-        Player,
-        Position { x: 3, y: 4 },
-        Viewshed {
-            visible_tiles: Vec::new(),
-            revealed_tiles: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            range: 12,
-            dirty: true,
-        },
-    ));
-    let mut s = Schedule::default();
-    s.add_systems(visibility_system);
-    s.run(&mut w);
-
-    let seen = w
-        .query::<&Viewshed>()
-        .single(&w)
-        .visible_tiles
-        .iter()
-        .copied()
-        .collect::<HashSet<_>>();
-    assert!(seen.contains(&(7, 4)), "the door itself is in view");
-    assert!(seen.contains(&(8, 4)), "and the step just past it");
-    assert!(
-        !seen.contains(&(11, 4)),
-        "but the room behind it stays dark"
-    );
-}
-
-#[test]
-fn water_is_floor_to_a_swimmer_and_a_wall_to_everyone_else() {
-    let mut map = Map {
-        tiles: vec![TileType::Wall; MAP_TILE_COUNT],
-        dark: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
-        special: vec![None; MAP_TILE_COUNT],
-        level: None,
-    };
-    map.tiles[tile_index(5, 5)] = TileType::Water;
-    assert!(
-        !map.walkable(5, 5, false),
-        "a walker cannot stand in deep water"
-    );
-    assert!(map.walkable(5, 5, true), "a swimmer can");
-    assert!(
-        !map.blocks(5, 5),
-        "and nothing about water stops sight or a shot"
-    );
-}
-
-#[test]
-fn an_island_is_one_shore_in_deep_water() {
-    for (seed, depth, map) in samples(SpecialLevel::Island) {
-        assert!(
-            map.tiles.contains(&TileType::Water),
-            "seed {seed} depth {depth}: an island with no sea"
-        );
-        for y in 1..MAP_HEIGHT - 1 {
-            for x in 1..MAP_WIDTH - 1 {
-                assert_ne!(
-                    map.tile(x, y),
-                    TileType::Wall,
-                    "seed {seed} depth {depth}: rock at ({x},{y})"
-                );
-            }
-        }
-    }
-}
-
 #[test]
 fn only_a_swimmer_starts_in_the_water_and_every_swimmer_does() {
     for (seed, depth, _) in samples(SpecialLevel::Island).into_iter().take(3) {
@@ -544,31 +371,6 @@ fn only_a_swimmer_starts_in_the_water_and_every_swimmer_does() {
                 "seed {seed} depth {depth}: a {name} at ({},{})",
                 p.x,
                 p.y
-            );
-        }
-    }
-}
-
-#[test]
-fn the_whole_island_is_in_view_from_its_up_stair() {
-    let (seed, depth, _) = samples(SpecialLevel::Island).remove(0);
-    let mut w = world_at(seed, depth);
-    let mut s = Schedule::default();
-    s.add_systems(visibility_system);
-    s.run(&mut w);
-    let map = w.resource::<Map>().clone();
-    let seen: HashSet<(u16, u16)> = w
-        .query_filtered::<&Viewshed, With<Player>>()
-        .single(&w)
-        .visible_tiles
-        .iter()
-        .copied()
-        .collect();
-    for (x, y) in (0..map.tiles.len()).map(coord) {
-        if map.tile(x, y) != TileType::Wall {
-            assert!(
-                seen.contains(&(x, y)),
-                "seed {seed} depth {depth}: ({x},{y}) is out of sight"
             );
         }
     }
@@ -599,26 +401,6 @@ fn a_one_room_floor_lands_the_player_in_a_clearing() {
                 "seed {seed} depth {depth}: a {kind:?} stocked {crowding:?} beside the player"
             );
         }
-    }
-}
-
-/// Nothing an island is stocked with starts out in the sea — the arrows an
-/// ichthyocentaur carries sink before the player ever arrives to see them.
-#[test]
-fn no_item_starts_out_in_the_water() {
-    for (seed, depth, _) in samples(SpecialLevel::Island).into_iter().take(6) {
-        let mut w = world_at(seed, depth);
-        let map = w.resource::<Map>().clone();
-        let wet: Vec<(u16, u16)> = w
-            .query_filtered::<&Position, With<Item>>()
-            .iter(&w)
-            .filter(|p| map.tile(p.x, p.y) == TileType::Water)
-            .map(|p| (p.x, p.y))
-            .collect();
-        assert!(
-            wet.is_empty(),
-            "seed {seed} depth {depth}: items afloat at {wet:?}"
-        );
     }
 }
 

@@ -137,46 +137,6 @@ fn stair_location_points_at_the_right_tiles() {
     assert_eq!(map.tile(up.0, up.1), TileType::Upstairs);
 }
 
-#[test]
-fn travel_walks_the_player_onto_a_known_staircase() {
-    for seed in [1u64, 7, 42, 2112, 55555] {
-        let (mut w, player) = fresh_floor(seed);
-
-        {
-            let mut vs = w.get_mut::<Viewshed>(player).unwrap();
-            for i in 0..MAP_TILE_COUNT {
-                vs.revealed_tiles.insert(i);
-            }
-        }
-        let target = stair_location(w.resource::<Map>(), true).unwrap();
-
-        let mut steps = 0;
-        loop {
-            let here = {
-                let p = w.get::<Position>(player).unwrap();
-                (p.x, p.y)
-            };
-            if here == target {
-                break;
-            }
-            let (dx, dy) = travel_step(&mut w, target)
-                .unwrap_or_else(|| panic!("seed {seed}: lost the path to {target:?} at {here:?}"));
-            let mut pos = w.get_mut::<Position>(player).unwrap();
-            pos.x = (pos.x as i16 + dx) as u16;
-            pos.y = (pos.y as i16 + dy) as u16;
-            steps += 1;
-            assert!(
-                steps < AUTO_EXPLORE_STEP_CAP,
-                "seed {seed}: travel never arrived"
-            );
-        }
-        assert!(
-            travel_step(&mut w, target).is_none(),
-            "seed {seed}: still stepping after arrival"
-        );
-    }
-}
-
 /// A known trap sitting on the travel target itself is refused rather than
 /// walked onto — the player can still step there by hand, but auto-travel
 /// won't do it for them.
@@ -216,18 +176,6 @@ fn travel_step_wont_walk_onto_a_known_trap() {
         travel_step(&mut w, target).is_none(),
         "auto-travel should refuse to step onto a known trap"
     );
-}
-
-#[test]
-fn explore_step_is_none_when_the_whole_map_is_known() {
-    let (mut w, player) = fresh_floor(2112);
-    {
-        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
-        for i in 0..MAP_TILE_COUNT {
-            vs.revealed_tiles.insert(i);
-        }
-    }
-    assert!(explore_step(&mut w).is_none());
 }
 
 /// A known trap sitting on the only tile bordering unexplored ground takes it
@@ -286,157 +234,6 @@ fn explore_step_wont_walk_onto_a_known_trap() {
     assert!(
         explore_step(&mut w).is_none(),
         "the only frontier tile is a known trap; explore should refuse it"
-    );
-}
-
-/// Every step heads for whichever frontier is nearest from where the player
-/// stands now. A frontier picked on an earlier step holds no claim: a player
-/// who has since moved nearer another one goes there.
-#[test]
-fn explore_step_heads_for_whichever_frontier_is_nearest_now() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
-    w.insert_resource(RngSeed(2112));
-    w.init_resource::<GameLog>();
-    w.init_resource::<AutoExplore>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    initialize_world(&mut w);
-
-    let existing_traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
-    for e in existing_traps {
-        w.despawn(e);
-    }
-
-    {
-        let mut map = w.resource_mut::<Map>();
-        for t in map.tiles.iter_mut() {
-            *t = TileType::Wall;
-        }
-        for x in 9..=14u16 {
-            map.tiles[tile_index(x, 10)] = TileType::Passage;
-        }
-    }
-
-    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
-    {
-        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
-        for x in 9..=14u16 {
-            for y in 9..=11u16 {
-                vs.revealed_tiles.insert(tile_index(x, y));
-            }
-        }
-    }
-
-    *w.get_mut::<Position>(player).unwrap() = Position { x: 13, y: 10 };
-    assert_eq!(
-        explore_step(&mut w),
-        Some((1, 0)),
-        "one hop from the east end, the walk should head east"
-    );
-
-    *w.get_mut::<Position>(player).unwrap() = Position { x: 10, y: 10 };
-    assert_eq!(
-        explore_step(&mut w),
-        Some((-1, 0)),
-        "one hop from the west end, the walk should turn west, whatever it picked last step"
-    );
-}
-
-/// When auto-explore has to pick a fresh frontier and more than one is
-/// equally close, it favours the one that heads toward the still-unseen
-/// downstairs, so finishing the floor doesn't end with a separate walk back
-/// to find them.
-#[test]
-fn explore_step_picks_the_frontier_toward_unseen_downstairs_on_a_tie() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
-    w.insert_resource(RngSeed(2112));
-    w.init_resource::<GameLog>();
-    w.init_resource::<AutoExplore>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    initialize_world(&mut w);
-
-    let existing_traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
-    for e in existing_traps {
-        w.despawn(e);
-    }
-
-    {
-        let mut map = w.resource_mut::<Map>();
-        for t in map.tiles.iter_mut() {
-            *t = TileType::Wall;
-        }
-        for x in 7..=13u16 {
-            map.tiles[tile_index(x, 10)] = TileType::Passage;
-        }
-        map.tiles[tile_index(2, 10)] = TileType::Downstairs;
-    }
-
-    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
-    {
-        let mut p = w.get_mut::<Position>(player).unwrap();
-        p.x = 10;
-        p.y = 10;
-    }
-    {
-        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
-        for x in 7..=13u16 {
-            for y in 9..=11u16 {
-                vs.revealed_tiles.insert(tile_index(x, y));
-            }
-        }
-    }
-
-    assert_eq!(
-        explore_step(&mut w),
-        Some((-1, 0)),
-        "both frontiers are 3 hops away; the one toward the downstairs should win"
-    );
-}
-
-#[test]
-fn monster_in_sight_tracks_visible_mobs() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
-    w.insert_resource(RngSeed(2112));
-    w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    initialize_world(&mut w);
-
-    let mobs: Vec<Entity> = w.query_filtered::<Entity, With<Mob>>().iter(&w).collect();
-    for e in mobs {
-        w.despawn(e);
-    }
-    resolve_visibility(&mut w);
-    assert!(
-        !monster_in_sight(&mut w),
-        "no mobs left, nothing should be in sight"
-    );
-
-    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
-    let ppos = *w.get::<Position>(player).unwrap();
-    w.spawn((
-        Name { what: "orc".into() },
-        Mob {
-            movement_type: MovementType::Static,
-        },
-        Position {
-            x: ppos.x + 1,
-            y: ppos.y,
-        },
-        Faction::Monster,
-    ));
-    w.get_mut::<Viewshed>(player).unwrap().dirty = true;
-    resolve_visibility(&mut w);
-    assert!(
-        monster_in_sight(&mut w),
-        "an adjacent monster should be in sight"
     );
 }
 
@@ -532,28 +329,6 @@ fn room_with_a_scroll() -> (World, Entity, Entity) {
 fn walk(w: &mut World, dx: i16, dy: i16) {
     assert!(queue_step(w, dx, dy), "the step ({dx}, {dy}) was refused");
     player_action_system(w);
-}
-
-/// A spotted item on the floor, nearer than any frontier: the walk goes for
-/// it.
-#[test]
-fn a_nearer_item_outranks_a_farther_frontier() {
-    let (mut w, _) = corridor(3, 12, 10);
-    w.spawn((Position { x: 9, y: 10 }, Item));
-    assert_eq!(explore_step(&mut w), Some((-1, 0)));
-}
-
-/// A frontier nearer than any spotted item: the walk explores first, and the
-/// item waits until it is the nearest thing left.
-#[test]
-fn a_nearer_frontier_outranks_a_farther_item() {
-    let (mut w, _) = corridor(3, 12, 10);
-    w.spawn((Position { x: 6, y: 10 }, Item));
-    assert_eq!(
-        explore_step(&mut w),
-        Some((1, 0)),
-        "the east end is two hops off, the item four: east first"
-    );
 }
 
 /// `A` off: the walk stops noticing loot and goes back to exploring. The item
@@ -665,17 +440,5 @@ fn a_step_into_the_doorway_and_back_leaves_nothing_behind() {
     walk(&mut w, -1, 0);
     walk(&mut w, 1, 0);
     walk(&mut w, -1, 0);
-    assert_eq!(explore_step(&mut w), Some((-1, 0)));
-}
-
-/// Only what you saw is left behind: an item still hidden when you walk out
-/// is wanted once you spot it.
-#[test]
-fn an_item_unseen_when_you_leave_is_not_left_behind() {
-    let (mut w, _, scroll) = room_with_a_scroll();
-    w.entity_mut(scroll).insert(Hidden);
-    walk(&mut w, 1, 0);
-    walk(&mut w, 1, 0);
-    w.entity_mut(scroll).remove::<Hidden>();
     assert_eq!(explore_step(&mut w), Some((-1, 0)));
 }

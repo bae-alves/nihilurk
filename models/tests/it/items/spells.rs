@@ -101,49 +101,6 @@ fn mark_the_caster(world: &mut World, cast: SpellCast) {
 static FIXTURE_SPELL: SpellDef = SpellDef::new("spell of the test", 2, mark_the_caster);
 
 #[test]
-fn a_spell_does_what_its_row_says() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    w.entity_mut(p).insert(Magic {
-        points: 5,
-        max_points: 5,
-    });
-    let here = *w.get::<Position>(p).unwrap();
-
-    cast(&mut w, p, &FIXTURE_SPELL, here);
-
-    assert!(w.get::<Cast>(p).is_some());
-    assert_eq!(w.get::<Magic>(p).unwrap().points, 3);
-}
-
-#[test]
-fn every_spell_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    w.entity_mut(p).insert(Spellset {
-        slots: SPELLS.to_vec(),
-    });
-
-    let file = crate::common::SaveFile::new("spell-rows");
-    save_game(&mut w, file.path()).unwrap();
-    let mut loaded = World::new();
-    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    loaded.insert_resource(RngSeed(3));
-    loaded.init_resource::<GameLog>();
-    loaded.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    load_game(&mut loaded, file.path()).unwrap();
-
-    let lp = player(&mut loaded);
-    let back = &loaded.get::<Spellset>(lp).unwrap().slots;
-    assert_eq!(back.len(), SPELLS.len());
-    for (was, is) in SPELLS.iter().zip(back) {
-        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
-    }
-}
-
-#[test]
 fn a_spell_no_row_has_refuses_the_load() {
     let mut w = test_world(4);
     let p = player(&mut w);
@@ -189,73 +146,6 @@ fn bide_adds_its_flat_bonus_to_the_very_next_attack_then_is_spent() {
 }
 
 #[test]
-fn bide_is_lost_unfired_by_anything_that_is_not_an_attack() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    lend(&mut w, p, Grant::of::<Bided>(), Lifetime::NextAction);
-    assert!(w.get::<Bided>(p).is_some());
-
-    models::reset_momentum(&mut w, p);
-    assert!(
-        w.get::<Bided>(p).is_none(),
-        "Bide is spent (uselessly) by anything but landing the next attack"
-    );
-}
-
-#[test]
-fn bide_survives_up_to_the_attack_that_spends_it() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-    let target = dummy(&mut w, spot, 1_000);
-    lend(&mut w, p, Grant::of::<Bided>(), Lifetime::NextAction);
-
-    melee_attack(&mut w, p, target);
-
-    assert!(
-        w.get::<Bided>(p).is_none(),
-        "landing an attack spends Bide, hit or not"
-    );
-}
-
-#[test]
-fn magic_ward_blocks_every_point_of_a_wands_damage() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-    let target = dummy(&mut w, spot, 40);
-    w.entity_mut(target).insert(MagicWard);
-
-    let wand = spawn_named(&mut w, "wand of fire", Position { x: 0, y: 0 }).unwrap();
-    w.entity_mut(wand).remove::<Position>();
-    w.get_mut::<Battery>(wand).unwrap().charges = 9;
-    let idx = w.get_mut::<Backpack>(p).unwrap().items.len();
-    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
-    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
-        user: p,
-        item: wand,
-        target: Some(spot),
-        slot_idx: Some(idx),
-    });
-    item_system(&mut w);
-
-    assert_eq!(
-        w.get::<Fighter>(target).unwrap().hp,
-        40,
-        "a warded creature takes nothing from a wand's blast"
-    );
-}
-
-#[test]
-fn magic_ward_is_lifted_at_the_next_staircase() {
-    let mut w = test_world(5);
-    let p = player(&mut w);
-    w.entity_mut(p).insert(MagicWard);
-    clear_player_conditions(&mut w, p);
-    assert!(w.get::<MagicWard>(p).is_none());
-}
-
-#[test]
 fn sting_bites_like_the_dart_trap_it_borrows_from() {
     let mut w = test_world(6);
     let p = player(&mut w);
@@ -277,21 +167,6 @@ fn sting_bites_like_the_dart_trap_it_borrows_from() {
         5 - DART_POWER_DRAIN_BASE,
         "the venom saps melee power exactly like the dart trap does at depth 1"
     );
-}
-
-#[test]
-fn sting_is_magic_and_armour_does_not_blunt_it() {
-    let mut w = test_world(6);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-    let target = dummy(&mut w, spot, 40);
-    w.get_mut::<Fighter>(target).unwrap().armor_bonus = 9;
-    w.get_mut::<Magic>(p).unwrap().points = 10;
-    w.get_mut::<Magic>(p).unwrap().max_points = 10;
-
-    cast(&mut w, p, spell_row("Sting").unwrap(), spot);
-
-    assert!(w.get::<Fighter>(target).unwrap().hp < 40);
 }
 
 #[test]

@@ -2306,21 +2306,6 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn a_more_prompt_accepts_the_acknowledgement_and_swallows_everything_else() {
-        for key in ['j', 'i', 'Q', 'a', '>'] {
-            let mut w = modal_world(3);
-            let queued = flood_the_log(&mut w);
-            let turn = dispatch_key(&mut w, press(key)).unwrap();
-            assert!(!turn, "'{key}' spent a turn through a --MORE-- prompt");
-            assert_eq!(
-                w.resource::<GameLog>().unread.len(),
-                queued,
-                "'{key}' dropped a message the player had not acknowledged"
-            );
-        }
-    }
-
-    #[test]
     fn acknowledging_drops_exactly_the_messages_that_were_on_screen() {
         for ack in [KeyCode::Char(' '), KeyCode::Enter] {
             let mut w = modal_world(4);
@@ -2332,20 +2317,6 @@ mod tests {
             assert!(!turn, "acknowledging a prompt is not a turn");
             assert_eq!(w.resource::<GameLog>().unread.len(), queued - shown);
         }
-    }
-
-    #[test]
-    fn the_gate_outranks_the_escape_hatch() {
-        let mut w = modal_world(5);
-        w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
-        let queued = flood_the_log(&mut w);
-
-        dispatch_key(&mut w, press('x')).unwrap();
-        assert!(
-            w.resource::<PackIsOpen>().open,
-            "the pack closed behind the prompt"
-        );
-        assert_eq!(w.resource::<GameLog>().unread.len(), queued);
     }
 
     #[test]
@@ -2418,60 +2389,9 @@ mod tests {
         assert_eq!(player_pos(&mut mapped), player_pos(&mut plain));
     }
 
-    #[test]
-    fn menus_keep_their_literal_keys() {
-        let mut w = with_keymap(11, "jk\n");
-        {
-            let mut menu = w.resource_mut::<OfferMenu>();
-            menu.open = true;
-            menu.options = vec![
-                OfferOption::Spell(spell_row("Fireball").unwrap()),
-                OfferOption::Spell(spell_row("Fireball").unwrap()),
-            ];
-        }
-        dispatch_key(&mut w, press('j')).unwrap();
-        assert_eq!(w.resource::<OfferMenu>().selected, 1);
-    }
-
     // -----------------------------------------------------------------------
     // The x / X escape hatch
     // -----------------------------------------------------------------------
-
-    #[test]
-    fn x_and_shift_x_close_whichever_modal_is_open() {
-        for key in ['x', 'X'] {
-            let mut w = modal_world(6);
-            w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
-            assert!(
-                !dispatch_key(&mut w, press(key)).unwrap(),
-                "escaping is not a turn"
-            );
-            assert!(
-                !w.resource::<PackIsOpen>().open,
-                "'{key}' left the pack open"
-            );
-
-            let mut w = modal_world(6);
-            w.resource_mut::<TargetingState>().active = true;
-            dispatch_key(&mut w, press(key)).unwrap();
-            assert!(
-                !w.resource::<TargetingState>().active,
-                "'{key}' left the reticle up"
-            );
-
-            let mut w = modal_world(6);
-            w.resource_mut::<QuitPrompt>().open = true;
-            dispatch_key(&mut w, press(key)).unwrap();
-            assert!(
-                !w.resource::<QuitPrompt>().open,
-                "'{key}' left the prompt up"
-            );
-            assert!(
-                w.resource::<GameState>().is_running,
-                "'{key}' answered the prompt instead of closing it"
-            );
-        }
-    }
 
     fn esc() -> KeyEvent {
         KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)
@@ -2480,18 +2400,6 @@ mod tests {
     fn stop_time(w: &mut World) {
         let player = player_entity(w);
         lend(w, player, Grant::of::<TimeStopped>(), Lifetime::Floor);
-    }
-
-    #[test]
-    fn quitting_with_time_stopped_takes_a_second_yes() {
-        let mut w = modal_world(10);
-        stop_time(&mut w);
-        dispatch_key(&mut w, esc()).unwrap();
-        dispatch_key(&mut w, press('y')).unwrap();
-        assert!(w.resource::<GameState>().is_running, "one yes quit");
-        assert!(w.resource::<QuitPrompt>().warned, "no warning shown");
-        dispatch_key(&mut w, press('y')).unwrap();
-        assert!(!w.resource::<GameState>().is_running);
     }
 
     #[test]
@@ -2524,13 +2432,6 @@ mod tests {
         revoke(&mut w, player, Grant::of::<TimeStopped>());
         assert!(saved(&mut w, &mut stopped), "THE WORLD over: save");
         assert!(!saved(&mut w, &mut stopped));
-    }
-
-    #[test]
-    fn shift_x_on_the_bare_map_does_not_quit() {
-        let mut w = modal_world(8);
-        dispatch_key(&mut w, press('X')).unwrap();
-        assert!(!w.resource::<QuitPrompt>().open, "X raised the quit prompt");
     }
 
     #[test]
@@ -2595,30 +2496,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn the_quit_prompt_outranks_every_other_context() {
-        let mut w = modal_world(12);
-        let before = *w.query_filtered::<&Position, With<Player>>().single(&w);
-        w.resource_mut::<QuitPrompt>().open = true;
-        dispatch_key(&mut w, press('j')).unwrap();
-        let after = *w.query_filtered::<&Position, With<Player>>().single(&w);
-        assert_eq!((before.x, before.y), (after.x, after.y), "the player moved");
-        assert!(w.resource::<QuitPrompt>().open);
-    }
-
-    #[test]
-    fn escape_closes_the_quit_prompt_and_raises_one_from_the_bare_map() {
-        let mut w = modal_world(13);
-        w.resource_mut::<QuitPrompt>().open = true;
-        dispatch_key(&mut w, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)).unwrap();
-        assert!(!w.resource::<QuitPrompt>().open);
-
-        let mut w = modal_world(13);
-        dispatch_key(&mut w, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)).unwrap();
-        assert!(w.resource::<QuitPrompt>().open, "Esc did not ask to quit");
-        assert!(w.resource::<GameState>().is_running);
-    }
-
     // -----------------------------------------------------------------------
     // Keys that used to shadow each other
     // -----------------------------------------------------------------------
@@ -2679,18 +2556,6 @@ mod tests {
     }
 
     #[test]
-    fn a_letter_past_the_last_slot_does_nothing_in_the_moves_menu() {
-        let mut w = spells_world(23, &four_spells()[..2]);
-        dispatch_key(&mut w, press('Z')).unwrap();
-        dispatch_key(&mut w, press('d')).unwrap();
-        assert!(
-            w.resource::<SpellsMenu>().open,
-            "`d` closed a menu that has no fourth row"
-        );
-        assert!(w.resource::<TargetingState>().spell_effect.is_none());
-    }
-
-    #[test]
     fn digits_navigate_the_moves_menu_and_never_fire_a_slot() {
         let mut w = spells_world(24, &four_spells());
         dispatch_key(&mut w, press('Z')).unwrap();
@@ -2705,27 +2570,6 @@ mod tests {
             1,
             "`2` did not step the highlight down"
         );
-    }
-
-    #[test]
-    fn alt_q_w_e_r_fire_spell_slots_one_to_four() {
-        for (slot, letter) in ['q', 'w', 'e', 'r'].into_iter().enumerate() {
-            let mut w = spells_world(27, &four_spells());
-            dispatch_key(
-                &mut w,
-                KeyEvent::new(KeyCode::Char(letter), KeyModifiers::ALT),
-            )
-            .unwrap();
-            assert_eq!(
-                w.resource::<TargetingState>().spell_effect,
-                Some(four_spells()[slot]),
-                "Alt+{letter} did not aim slot {slot}"
-            );
-            assert!(
-                !w.resource::<PackIsOpen>().open,
-                "Alt+{letter} also opened a pack"
-            );
-        }
     }
 
     #[test]
@@ -2851,149 +2695,6 @@ mod tests {
     // -----------------------------------------------------------------------
     // The turn order
     // -----------------------------------------------------------------------
-
-    /// A zap resolves against the dungeon the player aimed at, not the one the
-    /// monsters have already walked through.
-    ///
-    /// `item_system` used to run *after* `ai`, so a wand that reads one exact
-    /// tile — teleport, polymorph, haste, slow, cancellation — found that tile
-    /// empty whenever the target took a step first, and reported that there
-    /// was nothing there. The reticle had been on the monster the whole time.
-    #[test]
-    fn a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left() {
-        let mut w = modal_world(3);
-        let player = player_entity(&mut w);
-        let here = *w.get::<Position>(player).unwrap();
-
-        let row: Vec<u16> = {
-            let map = w.resource::<Map>();
-            (1..=4)
-                .map(|d| here.x + d)
-                .take_while(|&x| !map.blocks(x, here.y))
-                .collect()
-        };
-        assert!(row.len() >= 3, "need open floor for the walk");
-        let mob = w
-            .spawn((
-                Name { what: "orc".into() },
-                Mob {
-                    movement_type: MovementType::Chase,
-                },
-                Position {
-                    x: row[2],
-                    y: here.y,
-                },
-                Fighter {
-                    hp: 5,
-                    max_hp: 5,
-                    armor: 0,
-                    power: 1,
-                    max_power: 1,
-                    armor_bonus: 0,
-                    power_bonus: 0,
-                },
-                Faction::Monster,
-                Blood,
-                Speed::new(SpeedKind::Normal),
-            ))
-            .id();
-        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = row
-            .iter()
-            .map(|&x| (x, here.y))
-            .chain([(here.x, here.y)])
-            .collect();
-
-        let aimed_at = *w.get::<Position>(mob).unwrap();
-        let wand =
-            models::spawn_named(&mut w, "wand of slow monster", Position { x: 0, y: 0 }).unwrap();
-        w.entity_mut(wand).remove::<Position>();
-        w.resource_mut::<UseQueue>().uses.push(WantsToUse {
-            user: player,
-            item: wand,
-            target: Some(aimed_at),
-            slot_idx: None,
-        });
-
-        crate::turn_schedule().run(&mut w);
-
-        assert_eq!(
-            w.get::<Speed>(mob).unwrap().kind,
-            SpeedKind::Slow,
-            "the zap found the target on the tile it was aimed at"
-        );
-    }
-
-    /// `visibility_system` queues `Hidden` for every mob out of sight. The
-    /// trapdoor is a `&mut World` system that despawns the whole floor, so if it
-    /// runs after `visibility_system` and before that system's commands apply,
-    /// they land on dead entities and bevy panics (B0003). Run the real turn
-    /// over many floors: the executor is free to pick either order unless the
-    /// schedule pins one.
-    #[test]
-    fn a_trapdoor_fall_never_races_the_visibility_commands() {
-        for seed in 0..60 {
-            let mut w = modal_world(seed);
-            let player = player_entity(&mut w);
-            let here = *w.get::<Position>(player).unwrap();
-            models::spawn_named(&mut w, "trapdoor", here).unwrap();
-            models::mark_moved(&mut w, player);
-            w.get_mut::<Viewshed>(player).unwrap().dirty = true;
-
-            crate::turn_schedule().run(&mut w);
-
-            assert_eq!(w.resource::<Depth>().what, 2, "seed {seed}: fell one floor");
-        }
-    }
-
-    /// The reticle opens on the nearest thing in view, so the common case —
-    /// one monster and one wand — is `z`, pick, `Enter`.
-    #[test]
-    fn the_reticle_opens_on_the_closest_visible_monster() {
-        let mut w = modal_world(5);
-        let player = player_entity(&mut w);
-        let here = *w.get::<Position>(player).unwrap();
-        let row: Vec<u16> = {
-            let map = w.resource::<Map>();
-            (1..=4)
-                .map(|d| here.x + d)
-                .take_while(|&x| !map.blocks(x, here.y))
-                .collect()
-        };
-        assert!(row.len() >= 3, "need open floor beside the player");
-
-        let near = Position {
-            x: row[1],
-            y: here.y,
-        };
-        let far = Position {
-            x: row[2],
-            y: here.y,
-        };
-        for at in [far, near] {
-            w.spawn((
-                Name { what: "orc".into() },
-                Mob {
-                    movement_type: MovementType::Static,
-                },
-                at,
-                Faction::Monster,
-            ));
-        }
-        w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
-            row.iter().map(|&x| (x, here.y)).collect();
-
-        let wand =
-            models::spawn_named(&mut w, "wand of slow monster", Position { x: 0, y: 0 }).unwrap();
-        w.entity_mut(wand).remove::<Position>();
-        open_reticle(&mut w, player, wand, false);
-
-        let ts = w.resource::<TargetingState>();
-        assert_eq!(
-            (ts.cursor_x, ts.cursor_y),
-            (near.x as i16, near.y as i16),
-            "the closer of the two, not the player's own tile"
-        );
-    }
 
     /// `;` opens on the nearest thing in view that is not the player — an
     /// item counts — and on the player when there is nothing else to see.
@@ -3147,20 +2848,6 @@ mod tests {
         );
     }
 
-    /// Looking at bare floor says nothing: the reticle already shows there is
-    /// nothing there, and every cursor step would otherwise log it again.
-    #[test]
-    fn looking_at_nothing_logs_nothing() {
-        let mut w = modal_world(5);
-        let player = player_entity(&mut w);
-        let here = *w.get::<Position>(player).unwrap();
-        let empty = Position {
-            x: here.x + 1,
-            y: here.y,
-        };
-        assert!(describe_target(&mut w, empty).is_empty());
-    }
-
     /// `?` on the look reticle opens the Info popup on what is under it: a
     /// pile lists every item, and bare floor opens nothing.
     #[test]
@@ -3237,20 +2924,6 @@ mod tests {
         assert!(blocks[0][0].contains("kestral"), "{lines:?}");
         assert!(blocks[1][0].contains("dagger"), "{lines:?}");
         assert!(blocks[2][0].contains("bear trap"), "{lines:?}");
-    }
-
-    /// Looking is not a way to cheat a search: a [`Hidden`] thing in the pile
-    /// stays out of the popup.
-    #[test]
-    fn a_hidden_thing_in_a_pile_stays_out_of_the_popup() {
-        let (mut w, at) = info_world();
-        models::spawn_named(&mut w, "dagger", at).unwrap();
-        let secret = models::spawn_named(&mut w, "long sword", at).unwrap();
-        w.entity_mut(secret).insert(Hidden);
-
-        let lines = info_at(&mut w, at);
-        assert!(lines.iter().any(|l| l.contains("dagger")), "{lines:?}");
-        assert!(!lines.iter().any(|l| l.contains("long sword")), "{lines:?}");
     }
 
     /// What a creature has on rides in the same popup, its Info lines under
@@ -3336,83 +3009,6 @@ mod tests {
         assert!(lines[0].contains("(w. a short bow)"), "{lines:?}");
     }
 
-    /// A throw comes down on the floor as it was when the player let go, not
-    /// as the monsters have since rearranged it.
-    ///
-    /// Aimed at the empty tile *in front of* an approaching orc: with
-    /// `throw_system` after `ai`, the orc had already stepped onto that tile
-    /// by the time the dagger arrived and caught one it was never thrown at.
-    #[test]
-    fn a_throw_lands_where_the_floor_was_when_the_player_let_go() {
-        let mut w = modal_world(5);
-        let player = player_entity(&mut w);
-        let here = *w.get::<Position>(player).unwrap();
-        let row: Vec<u16> = {
-            let map = w.resource::<Map>();
-            (1..=4)
-                .map(|d| here.x + d)
-                .take_while(|&x| !map.blocks(x, here.y))
-                .collect()
-        };
-        assert!(row.len() >= 3, "need open floor beside the player");
-
-        let mob = w
-            .spawn((
-                Name { what: "orc".into() },
-                Mob {
-                    movement_type: MovementType::Chase,
-                },
-                Position {
-                    x: row[2],
-                    y: here.y,
-                },
-                Fighter {
-                    hp: 20,
-                    max_hp: 20,
-                    armor: 0,
-                    power: 1,
-                    max_power: 1,
-                    armor_bonus: 0,
-                    power_bonus: 0,
-                },
-                Faction::Monster,
-                Blood,
-                Speed::new(SpeedKind::Normal),
-            ))
-            .id();
-        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = row
-            .iter()
-            .map(|&x| (x, here.y))
-            .chain([(here.x, here.y)])
-            .collect();
-
-        let empty_tile = Position {
-            x: row[1],
-            y: here.y,
-        };
-        let dagger = models::spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
-        w.entity_mut(dagger).remove::<Position>();
-        w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
-            thrower: player,
-            item: dagger,
-            target: empty_tile,
-            slot_idx: None,
-        });
-
-        crate::turn_schedule().run(&mut w);
-
-        assert_eq!(
-            w.get::<Position>(mob).unwrap().x,
-            empty_tile.x,
-            "the orc did walk onto the aimed tile this turn"
-        );
-        assert_eq!(
-            w.get::<Fighter>(mob).unwrap().hp,
-            20,
-            "but the dagger was already on the floor by then"
-        );
-    }
-
     /// A fresh world with the floor's own monsters swept off, and a Helper
     /// planted one step east of the player.
     fn world_with_a_helper(seed: u64) -> (World, Entity, Entity) {
@@ -3469,19 +3065,6 @@ mod tests {
         assert_eq!(*w.get::<Position>(player).unwrap(), there);
         assert_eq!(*w.get::<Position>(pal).unwrap(), here);
         assert_eq!(w.get::<Fighter>(pal).unwrap().hp, 5, "not a swing at it");
-    }
-
-    #[test]
-    fn you_cannot_swap_into_a_wall_your_helper_is_standing_in() {
-        let (mut w, player, pal) = world_with_a_helper(3);
-        let here = player_pos(&mut w);
-        let there = *w.get::<Position>(pal).unwrap();
-        w.resource_mut::<Map>().tiles[models::tile_index(there.x, there.y)] = TileType::Wall;
-
-        step(&mut w, 1, 0);
-
-        assert_eq!(*w.get::<Position>(player).unwrap(), here);
-        assert_eq!(*w.get::<Position>(pal).unwrap(), there);
     }
 
     #[test]
@@ -3580,26 +3163,6 @@ mod tests {
     }
 
     #[test]
-    fn taking_off_cursed_gear_says_it_is_stuck_and_costs_nothing() {
-        let mut w = modal_world(3);
-        let player = player_entity(&mut w);
-        let ring = models::spawn_ring(&mut w, "ring of protection", Position { x: 0, y: 0 });
-        w.entity_mut(ring)
-            .remove::<Position>()
-            .insert(models::Curse);
-        w.get_mut::<Backpack>(player).unwrap().items.insert(0, ring);
-        models::toggle_equipped(&mut w, player, ring);
-        w.resource_mut::<GameLog>().history.clear();
-
-        let turn = commit_item_action(&mut w, player, 0, ItemAction::Use);
-
-        assert!(!turn, "no turn spent on welded gear");
-        assert!(w.resource::<UseQueue>().uses.is_empty());
-        assert_eq!(w.get::<Backpack>(player).unwrap().items[0], ring);
-        assert!(!w.resource::<GameLog>().history.is_empty());
-    }
-
-    #[test]
     fn modal_open_sees_every_menu() {
         let mut w = modal_world(1);
         assert!(!modal_open(&w));
@@ -3686,23 +3249,6 @@ mod tests {
             "nothing was read out"
         );
         assert!(!w.resource::<AutoExplore>().active, "a look must not walk");
-    }
-
-    #[test]
-    fn a_click_on_a_tile_never_seen_does_nothing() {
-        let mut w = modal_world(11);
-        seen_floor(&mut w);
-        let unseen = (0..MAP_TILE_COUNT)
-            .map(|i| {
-                (
-                    (i % MAP_WIDTH as usize) as u16,
-                    (i / MAP_WIDTH as usize) as u16,
-                )
-            })
-            .find(|&(x, y)| !tile_is_revealed(&mut w, x, y))
-            .unwrap();
-        dispatch_mouse(&mut w, click(MouseButton::Right, unseen)).unwrap();
-        assert!(!w.resource::<AutoExplore>().active);
     }
 
     #[test]

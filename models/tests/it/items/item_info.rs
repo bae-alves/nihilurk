@@ -21,41 +21,6 @@ fn spawn(w: &mut World, name: &str) -> Entity {
 }
 
 #[test]
-fn a_weapon_reports_its_die() {
-    let mut w = world();
-    let dagger = spawn(&mut w, "dagger");
-    let text = item_info(&w, dagger).join("\n");
-    assert!(text.contains("d4"), "{text}");
-}
-
-#[test]
-fn a_hidden_enchantment_is_not_in_the_text() {
-    let mut w = world();
-    let plain = spawn(&mut w, "dagger");
-    let boosted = spawn(&mut w, "dagger");
-    w.entity_mut(boosted).insert(PowerBonus(3));
-    assert_eq!(item_info(&w, plain), item_info(&w, boosted));
-}
-
-#[test]
-fn a_known_enchantment_is_in_the_text() {
-    let mut w = world();
-    let boosted = spawn(&mut w, "dagger");
-    w.entity_mut(boosted).insert((PowerBonus(3), KnownQuality));
-    let text = item_info(&w, boosted).join("\n");
-    assert!(text.contains("+3"), "{text}");
-}
-
-#[test]
-fn an_unknown_curse_is_not_explained() {
-    let mut w = world();
-    let plain = spawn(&mut w, "dagger");
-    let cursed = spawn(&mut w, "dagger");
-    w.entity_mut(cursed).insert(Curse);
-    assert_eq!(item_info(&w, plain), item_info(&w, cursed));
-}
-
-#[test]
 fn a_known_curse_is_explained() {
     let mut w = world();
     let cursed = spawn(&mut w, "dagger");

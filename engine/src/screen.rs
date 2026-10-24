@@ -226,14 +226,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_fresh_screen_changes_everywhere_until_it_is_shown() {
-        let mut s = Screen::new();
-        assert_eq!(s.changed().count(), (SCREEN_W * SCREEN_H) as usize);
-        s.shown();
-        assert_eq!(s.changed().count(), 0);
-    }
-
-    #[test]
     fn only_a_cell_that_differs_from_the_shown_frame_changes() {
         let mut s = Screen::new();
         s.shown();

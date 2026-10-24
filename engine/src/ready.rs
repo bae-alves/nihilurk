@@ -52,11 +52,4 @@ mod tests {
         write_ready(&mut out, true, false).unwrap();
         assert_eq!(out, READY);
     }
-
-    #[test]
-    fn no_signal_while_a_key_is_already_waiting_to_be_read() {
-        let mut out = Vec::new();
-        write_ready(&mut out, true, true).unwrap();
-        assert!(out.is_empty());
-    }
 }

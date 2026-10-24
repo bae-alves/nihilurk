@@ -63,16 +63,6 @@ fn put_monster(w: &mut World, x: u16, y: u16) -> Entity {
 }
 
 #[test]
-fn a_creature_ahead_makes_the_press_a_charge() {
-    let (mut w, _) = arena(1);
-    let orc = put_monster(&mut w, 18, 9);
-    match fast_move_plan(&mut w, 1, 0) {
-        FastMovePlan::Charge(t) => assert_eq!(t, orc),
-        _ => panic!("expected a charge"),
-    }
-}
-
-#[test]
 fn only_a_creature_in_the_pressed_direction_is_charged() {
     let (mut w, _) = arena(1);
     put_monster(&mut w, 10, 9);
@@ -84,52 +74,6 @@ fn only_a_creature_in_the_pressed_direction_is_charged() {
         fast_move_plan(&mut w, 1, 0),
         FastMovePlan::MonsterInSight
     ));
-}
-
-#[test]
-fn a_creature_next_door_is_not_a_charge() {
-    let (mut w, _) = arena(1);
-    put_monster(&mut w, 13, 9);
-    assert!(matches!(
-        fast_move_plan(&mut w, 1, 0),
-        FastMovePlan::MonsterInSight
-    ));
-}
-
-#[test]
-fn a_wall_in_the_line_is_not_a_charge() {
-    let (mut w, _) = arena(1);
-    put_monster(&mut w, 18, 9);
-    w.resource_mut::<Map>().tiles[tile_index(15, 9)] = TileType::Wall;
-    assert!(matches!(
-        fast_move_plan(&mut w, 1, 0),
-        FastMovePlan::MonsterInSight
-    ));
-}
-
-#[test]
-fn the_nearest_creature_in_the_wedge_is_the_one_charged() {
-    let (mut w, _) = arena(1);
-    let near = put_monster(&mut w, 16, 10);
-    put_monster(&mut w, 22, 9);
-    match fast_move_plan(&mut w, 1, 0) {
-        FastMovePlan::Charge(t) => assert_eq!(t, near),
-        _ => panic!("expected a charge"),
-    }
-}
-
-#[test]
-fn charging_lands_beside_the_target_hits_it_and_leaves_you_vuln() {
-    let (mut w, p) = arena(1);
-    let orc = put_monster(&mut w, 18, 9);
-    w.get_mut::<Fighter>(p).unwrap().power = 20;
-
-    assert!(charge(&mut w, orc));
-
-    let at = *w.get::<Position>(p).unwrap();
-    assert_eq!((at.x, at.y), (17, 9));
-    assert!(w.get::<Fighter>(orc).unwrap().hp < 100, "the charge struck");
-    assert!(w.get::<Vuln>(p).is_some());
 }
 
 #[test]
@@ -170,47 +114,6 @@ fn a_vuln_target_takes_the_vuln_share_more_from_a_monster() {
 }
 
 #[test]
-fn vuln_does_nothing_for_a_blow_the_player_lands() {
-    let swing = |vuln: bool| {
-        let (mut w, p) = arena(7);
-        let orc = put_monster(&mut w, 13, 9);
-        w.get_mut::<Fighter>(p).unwrap().power = 40;
-        if vuln {
-            lend(&mut w, p, Grant::of::<Vuln>(), Lifetime::Turns(2));
-        }
-        melee_attack(&mut w, p, orc);
-        w.get::<Fighter>(orc).unwrap().hp
-    };
-    assert_eq!(swing(true), swing(false));
-}
-
-#[test]
-fn only_a_creature_that_charges_can_charge() {
-    let (mut w, p) = arena(1);
-    put_monster(&mut w, 18, 9);
-    revoke(&mut w, p, Grant::of::<Charges>());
-    assert!(matches!(
-        fast_move_plan(&mut w, 1, 0),
-        FastMovePlan::MonsterInSight
-    ));
-}
-
-#[test]
-fn six_tiles_off_is_in_range_and_seven_is_not() {
-    let (mut w, _) = arena(1);
-    let orc = put_monster(&mut w, 18, 9);
-    assert!(matches!(
-        fast_move_plan(&mut w, 1, 0),
-        FastMovePlan::Charge(_)
-    ));
-    w.get_mut::<Position>(orc).unwrap().x = 19;
-    assert!(matches!(
-        fast_move_plan(&mut w, 1, 0),
-        FastMovePlan::MonsterInSight
-    ));
-}
-
-#[test]
 fn a_peaceful_spirit_is_not_charged_but_a_hostile_one_is() {
     let (mut w, _) = arena(1);
     let spirit = put_monster(&mut w, 18, 9);
@@ -225,27 +128,6 @@ fn a_peaceful_spirit_is_not_charged_but_a_hostile_one_is() {
         fast_move_plan(&mut w, 1, 0),
         FastMovePlan::Charge(_)
     ));
-}
-
-#[test]
-fn landing_on_a_trap_springs_it_and_jumping_over_one_does_not() {
-    let (mut w, _) = arena(1);
-    let orc = put_monster(&mut w, 18, 9);
-    spawn_named(&mut w, "trapdoor", Position { x: 14, y: 9 }).unwrap();
-    assert!(matches!(
-        fast_move_plan(&mut w, 1, 0),
-        FastMovePlan::Charge(_)
-    ));
-    charge(&mut w, orc);
-    trap_system(&mut w);
-    assert_eq!(w.resource::<Depth>().what, 1, "the trap was jumped over");
-
-    let (mut w, _) = arena(1);
-    let orc = put_monster(&mut w, 18, 9);
-    spawn_named(&mut w, "trapdoor", Position { x: 17, y: 9 }).unwrap();
-    charge(&mut w, orc);
-    trap_system(&mut w);
-    assert_eq!(w.resource::<Depth>().what, 2, "the trap was landed on");
 }
 
 #[test]

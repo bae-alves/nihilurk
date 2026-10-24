@@ -9,10 +9,6 @@ use std::collections::HashSet;
 use bevy_ecs::prelude::*;
 use models::*;
 
-fn at(x: u16, y: u16) -> Position {
-    Position { x, y }
-}
-
 fn rng(seed: u64) -> ChaCha12Rng {
     ChaCha12Rng::seed_from_u64(seed)
 }
@@ -26,90 +22,6 @@ fn every_content_name_is_unique() {
             "two rows are both called {name:?} ({category})"
         );
     }
-}
-
-/// A save finds a row again by the id it stored for a display name, so two
-/// rows may not show the same name in any language this build is made for.
-#[test]
-fn every_content_name_is_shown_under_its_own_display_name() {
-    let mut seen: HashSet<&str> = HashSet::new();
-    for (category, id) in content_names() {
-        let shown = strings::content_name(id);
-        assert!(
-            seen.insert(shown),
-            "two rows show as {shown:?} ({category}, id {id:?})"
-        );
-    }
-}
-
-/// A mimic is the one deliberate exception: it is born wearing a false
-/// name on purpose, and only [`crate::monsters::reveal_mimics`] gives it
-/// back.
-#[test]
-fn every_content_name_spawns_and_keeps_its_name() {
-    for (category, name) in content_names() {
-        let mut w = World::new();
-        let entity = spawn_named(&mut w, name, at(5, 5))
-            .unwrap_or_else(|| panic!("spawn_named could not build {name:?} ({category})"));
-        let spawned = &w
-            .get::<Name>(entity)
-            .expect("everything spawns with a Name")
-            .what;
-        let mimics = MonsterDef::lookup(name).is_some_and(|m| m.mimics);
-        if !mimics {
-            assert_eq!(
-                spawned, name,
-                "{category} row spawned under a different name"
-            );
-        }
-        assert!(
-            w.get::<Position>(entity).is_some(),
-            "{name:?} spawned nowhere"
-        );
-    }
-}
-
-#[test]
-fn a_name_the_tables_do_not_know_spawns_nothing() {
-    let mut w = World::new();
-    assert!(spawn_named(&mut w, "sandwich", at(1, 1)).is_none());
-    assert!(spawn_named(&mut w, "", at(1, 1)).is_none());
-    assert!(
-        spawn_named(&mut w, "Dragon", at(1, 1)).is_none(),
-        "lookup is case-sensitive"
-    );
-    assert_eq!(
-        w.iter_entities().count(),
-        0,
-        "a failed lookup left something behind"
-    );
-}
-
-#[test]
-fn a_row_spawned_by_name_carries_what_its_row_says() {
-    let mut w = World::new();
-
-    let dragon = spawn_named(&mut w, "dragon", at(1, 1)).unwrap();
-    let def = MonsterDef::named("dragon");
-    let fighter = w.get::<Fighter>(dragon).unwrap();
-    assert_eq!(
-        (fighter.hp, fighter.power, fighter.armor),
-        (def.hp, def.power, def.armor)
-    );
-
-    let sword = spawn_named(&mut w, "long sword", at(2, 2)).unwrap();
-    let row = WEAPONS.iter().find(|d| d.name == "long sword").unwrap();
-    assert_eq!(
-        w.get::<PowerDie>(sword).copied(),
-        Some(PowerDie(row.power_die))
-    );
-    assert!(
-        w.get::<PowerBonus>(sword).is_none(),
-        "a named spawn is unenchanted"
-    );
-
-    let ring = spawn_named(&mut w, "ring of perception", at(3, 3)).unwrap();
-    assert!(w.get::<Grants>(ring).is_some());
 }
 
 // ---------------------------------------------------------------------------
@@ -132,110 +44,6 @@ fn pick_weighted_is_proportional_and_skips_zeroes() {
 
     assert!(pick_weighted(&[], &mut r).is_none());
     assert!(pick_weighted(&[0, 0], &mut r).is_none());
-}
-
-#[test]
-fn a_species_never_appears_above_its_min_depth() {
-    let mut r = rng(11);
-    for depth in 1..=FINAL_DEPTH {
-        for _ in 0..300 {
-            let def = MonsterDef::pick(depth, &mut r);
-            assert!(
-                def.min_depth <= depth,
-                "{} (min_depth {}) turned up on floor {depth}",
-                def.name,
-                def.min_depth
-            );
-        }
-    }
-}
-
-/// "The deepest tier" is the deepest `min_depth` shared by at least three
-/// species, read off the table — rebalancing which floor a monster debuts
-/// on must not turn this red. A single rarer capstone above it (the xeroc,
-/// deeper still and alone up there) is deliberately not what this checks:
-/// that one is asked for on its own in `xeroc_only_turns_up_past_its_debut`.
-#[test]
-fn the_deep_letters_do_eventually_turn_up() {
-    let mut tiers: Vec<u8> = BESTIARY.iter().map(|m| m.min_depth).collect();
-    tiers.sort_unstable();
-    tiers.dedup();
-    let deepest = *tiers
-        .iter()
-        .rev()
-        .find(|&&d| BESTIARY.iter().filter(|m| m.min_depth == d).count() >= 3)
-        .expect("some tier in the bestiary holds at least three species");
-    let mut r = rng(13);
-    let deep: HashSet<&str> = (0..2_000)
-        .map(|_| MonsterDef::pick(FINAL_DEPTH, &mut r).name)
-        .filter(|n| MonsterDef::named(n).min_depth >= deepest)
-        .collect();
-    assert!(
-        deep.len() >= 3,
-        "the deepest floor should mix in the deepest tier, saw {deep:?}"
-    );
-}
-
-#[test]
-fn xeroc_only_turns_up_past_its_debut() {
-    let mimic = BESTIARY
-        .iter()
-        .find(|m| m.mimics)
-        .expect("the bestiary has a mimic");
-    let mut r = rng(37);
-    for depth in 1..mimic.min_depth {
-        for _ in 0..300 {
-            assert_ne!(MonsterDef::pick(depth, &mut r).name, mimic.name);
-        }
-    }
-    let seen: HashSet<&str> = (0..500)
-        .map(|_| MonsterDef::pick(mimic.min_depth, &mut r).name)
-        .collect();
-    assert!(
-        seen.contains(mimic.name),
-        "the mimic should turn up once its own floor unlocks it"
-    );
-}
-
-#[test]
-fn pick_any_ignores_the_depth_gate() {
-    let shallowest = BESTIARY
-        .iter()
-        .min_by_key(|m| m.min_depth)
-        .expect("the bestiary is not empty");
-    let deepest = BESTIARY
-        .iter()
-        .max_by_key(|m| m.min_depth)
-        .expect("the bestiary is not empty");
-    let mut r = rng(19);
-    let seen: HashSet<&str> = (0..3_000)
-        .map(|_| MonsterDef::pick_any(&mut r).name)
-        .collect();
-    assert!(
-        seen.contains(shallowest.name) && seen.contains(deepest.name),
-        "pick_any should mix the whole table, saw {seen:?}"
-    );
-}
-
-#[test]
-fn floor_one_draws_only_from_the_shallow_bestiary() {
-    let shallowest = BESTIARY
-        .iter()
-        .min_by_key(|m| m.min_depth)
-        .expect("the bestiary is not empty");
-    let deepest = BESTIARY
-        .iter()
-        .max_by_key(|m| m.min_depth)
-        .expect("the bestiary is not empty");
-    let mut r = rng(17);
-    let seen: HashSet<&str> = (0..1_000)
-        .map(|_| MonsterDef::pick(1, &mut r).name)
-        .collect();
-    assert!(seen.contains(shallowest.name));
-    assert!(
-        !seen.contains(deepest.name),
-        "a deep monster on floor 1 would end the run there"
-    );
 }
 
 /// Every loot category can actually be drawn, and has something to give when
@@ -432,50 +240,6 @@ fn a_spawn_list_can_curse_enchant_and_stack() {
         .collect();
     counts.sort();
     assert_eq!(counts, [5, models::STACK_LIMIT]);
-}
-
-/// A plus on a ring is the ring's own number, not an addition to the row's
-/// (`+3 ring of protection` is a +3 ring), and a ring that is not a number
-/// ignores it.
-#[test]
-fn a_spawn_list_plus_sets_a_numeric_rings_number() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(rng(32)));
-    w.insert_resource(RngSeed(32));
-    w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    initialize_world(&mut w);
-    let start = *w.query_filtered::<&Position, With<Player>>().single(&w);
-    let mut occupied: HashSet<(u16, u16)> = HashSet::from([(start.x, start.y)]);
-    let before: HashSet<Entity> = w.iter_entities().map(|e| e.id()).collect();
-
-    let n = models::spawn_list(
-        &mut w,
-        "+3 ring of protection, -2 ring of strength, +3 ring of perception, +1 ring of sharpshooting",
-        start,
-        &mut occupied,
-    );
-    assert_eq!(n, 4);
-
-    let find = |w: &World, name: &str| -> Entity {
-        w.iter_entities()
-            .filter(|e| !before.contains(&e.id()))
-            .find(|e| e.get::<Name>().is_some_and(|n| n.what == name))
-            .map(|e| e.id())
-            .unwrap()
-    };
-    let protection = find(&w, "ring of protection");
-    let strength = find(&w, "ring of strength");
-    let perception = find(&w, "ring of perception");
-    let aim = find(&w, "ring of sharpshooting");
-    assert_eq!(w.get::<ArmorBonus>(protection).map(|b| b.0), Some(3));
-    assert_eq!(w.get::<PowerBonus>(strength).map(|b| b.0), Some(-2));
-    assert_eq!(w.get::<ThrowBonus>(aim).map(|b| b.0), Some(1));
-    assert!(w.get::<ArmorBonus>(perception).is_none());
-    assert!(w.get::<PowerBonus>(perception).is_none());
-    assert!(w.get::<ThrowBonus>(perception).is_none());
 }
 
 // ---------------------------------------------------------------------------

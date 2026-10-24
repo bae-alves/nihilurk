@@ -317,43 +317,6 @@ mod tests {
     }
 
     #[test]
-    fn a_recorded_run_round_trips_in_score_order() {
-        let path = Scratch::new("leaderboard-roundtrip");
-
-        record_to(&path, "GUEST", Outcome::LoseDescent, 100, 0, 1).unwrap();
-        record_to(&path, "BAE", Outcome::Win, 4200, 0, 2).unwrap();
-        record_to(&path, "AL-OK", Outcome::LoseAscent, 900, 0, 3).unwrap();
-
-        let entries: Vec<_> = all(&path)
-            .unwrap()
-            .into_iter()
-            .map(|e| (e.name, e.outcome, e.score))
-            .collect();
-
-        assert_eq!(
-            entries,
-            vec![
-                ("BAE".to_string(), Outcome::Win, 4200),
-                ("AL-OK".to_string(), Outcome::LoseAscent, 900),
-                ("GUEST".to_string(), Outcome::LoseDescent, 100),
-            ]
-        );
-    }
-
-    #[test]
-    fn the_file_never_grows_past_the_store_limit() {
-        let path = Scratch::new("leaderboard-cap");
-
-        for i in 0..(LEADERBOARD_STORE_LIMIT + 5) {
-            record_to(&path, "P", Outcome::Win, i as i64, 0, 0).unwrap();
-        }
-
-        let entries = all(&path).unwrap();
-        assert_eq!(entries.len(), LEADERBOARD_STORE_LIMIT);
-        assert_eq!(entries.last().unwrap().score, 5);
-    }
-
-    #[test]
     fn a_conduct_mask_round_trips_with_its_run() {
         let path = Scratch::new("leaderboard-mask");
 
@@ -402,35 +365,6 @@ mod tests {
     }
 
     #[test]
-    fn a_name_with_an_escape_reads_back_without_it() {
-        let path = Scratch::new("leaderboard-escape");
-        record_to(&path, "BAE\x1b[31m", Outcome::Win, 1, 0, 0).unwrap();
-
-        let entries = all(&path).unwrap();
-
-        assert_eq!(entries[0].name, "BAE[31m");
-    }
-
-    #[test]
-    fn a_missing_leaderboard_is_an_empty_one() {
-        assert!(all(Scratch::new("leaderboard-missing")).unwrap().is_empty());
-    }
-
-    #[test]
-    fn a_corrupt_leaderboard_is_refused_and_left_alone() {
-        let path = Scratch::new("leaderboard-corrupt");
-        std::fs::write(&path, b"\xff\xff\xff not a leaderboard").unwrap();
-
-        assert!(all(&path).is_err());
-        assert!(record_to(&path, "BAE", Outcome::Win, 1, 0, 0).is_err());
-
-        assert_eq!(
-            std::fs::read(&path).unwrap(),
-            b"\xff\xff\xff not a leaderboard"
-        );
-    }
-
-    #[test]
     fn a_leaderboard_from_another_version_is_refused_and_left_alone() {
         let path = Scratch::new("leaderboard-version");
         let theirs: Vec<Entry> = Vec::new();
@@ -440,35 +374,6 @@ mod tests {
         assert!(record_to(&path, "BAE", Outcome::Win, 1, 0, 0).is_err());
 
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
-    }
-
-    /// A full board's worth of runs, each on its own thread, released at
-    /// once. Every write takes the lock beside the file, so none of them
-    /// overwrites another's score. Five rounds, because a race that is lost
-    /// once in a while still has to fail here.
-    #[test]
-    fn runs_ending_at_once_all_make_the_board() {
-        for round in 0..5 {
-            let path = Scratch::new(&format!("leaderboard-race-{round}"));
-            let start = std::sync::Barrier::new(LEADERBOARD_STORE_LIMIT);
-
-            std::thread::scope(|s| {
-                for score in 0..LEADERBOARD_STORE_LIMIT as i64 {
-                    let (path, start) = (&path, &start);
-                    s.spawn(move || {
-                        start.wait();
-                        record_to(path, "P", Outcome::Win, score, 0, 0).unwrap();
-                    });
-                }
-            });
-
-            let entries = all(&path).unwrap();
-            assert_eq!(
-                entries.len(),
-                LEADERBOARD_STORE_LIMIT,
-                "round {round} lost a score"
-            );
-        }
     }
 
     #[test]

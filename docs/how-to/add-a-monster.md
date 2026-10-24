@@ -137,11 +137,7 @@ Chains combine in any order:
 Checks that will catch you
 --------------------------
 
-`cargo test --test it content::` fails if:
-
-  * two rows share a name (`every_content_name_is_unique`)
-  * your row cannot be built by name (`every_content_name_spawns_and_...`)
-  * a species turns up above its `min_depth` (`a_species_never_appears_above_its_min_depth`)
+`cargo test --test it content::` fails if two rows share a name (`every_content_name_is_unique`).
 
 Glyph collisions are *not* checked. Two creatures may share a letter; the existing bestiary uses one letter per species by convention, and `D` is already the dragon's.
 

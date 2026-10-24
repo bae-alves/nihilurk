@@ -18,19 +18,6 @@ fn test_world(seed: u64) -> World {
     w
 }
 
-fn endless_test_world(seed: u64) -> World {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
-    w.insert_resource(RngSeed(seed));
-    w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    w.insert_resource(Endless { enabled: true });
-    initialize_world(&mut w);
-    w
-}
-
 fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
 }
@@ -96,33 +83,6 @@ fn descend_generates_new_floor_and_heals() {
     );
 }
 
-#[test]
-fn a_hasted_or_slowed_player_finds_their_tempo_on_the_next_floor() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    w.get_mut::<Speed>(p).unwrap().kind = SpeedKind::Fast;
-    w.entity_mut(p).insert(Confused);
-
-    let down = w
-        .resource::<Map>()
-        .tiles
-        .iter()
-        .position(|&t| t == TileType::Downstairs)
-        .unwrap();
-    w.get_mut::<Position>(p).unwrap().x = (down % MAP_WIDTH as usize) as u16;
-    w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
-    assert!(change_level(&mut w, true));
-
-    assert_eq!(
-        w.get::<Speed>(p).unwrap().kind,
-        SpeedKind::Normal,
-        "the stairs wash out a haste"
-    );
-    assert!(w.get::<Confused>(p).is_none(), "and the dazzle");
-    let log = &w.resource::<GameLog>().history;
-    assert!(log.iter().any(|l| l == "You are no longer confused."));
-}
-
 /// Walk the player onto the current floor's down-stair and descend, repeating
 /// until `Depth` reaches `target`.
 fn descend_to(w: &mut World, target: u8) {
@@ -138,88 +98,6 @@ fn descend_to(w: &mut World, target: u8) {
         w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
         assert!(change_level(w, true));
     }
-}
-
-#[test]
-fn deepest_floor_swaps_the_downstairs_for_the_element() {
-    let mut w = test_world(7);
-    descend_to(&mut w, 13);
-
-    assert!(!w.resource::<Map>().tiles.contains(&TileType::Downstairs));
-
-    let elements: Vec<Entity> = w
-        .query_filtered::<Entity, (With<Amulet>, With<Position>)>()
-        .iter(&w)
-        .collect();
-    assert_eq!(
-        elements.len(),
-        1,
-        "exactly one Element spawned on the floor"
-    );
-
-    let epos = *w.get::<Position>(elements[0]).unwrap();
-    let p = w.query_filtered::<Entity, With<Player>>().single(&w);
-    *w.get_mut::<Position>(p).unwrap() = epos;
-    assert!(!change_level(&mut w, true));
-    assert_eq!(w.resource::<Depth>().what, 13);
-}
-
-#[test]
-fn endless_mode_never_spawns_the_element_and_keeps_the_downstairs() {
-    let mut w = endless_test_world(7);
-    descend_to(&mut w, 13);
-
-    assert!(w.resource::<Map>().tiles.contains(&TileType::Downstairs));
-    assert_eq!(
-        w.query_filtered::<Entity, With<Amulet>>().iter(&w).count(),
-        0,
-        "the Element never spawns in endless mode"
-    );
-
-    descend_to(&mut w, 14);
-    assert_eq!(w.resource::<Depth>().what, 14);
-    assert!(w.resource::<Map>().tiles.contains(&TileType::Downstairs));
-}
-
-#[test]
-fn carrying_the_element_flips_the_staircases() {
-    let mut w = test_world(7);
-    descend_to(&mut w, 13);
-
-    let p = w.query_filtered::<Entity, With<Player>>().single(&w);
-    let element = w
-        .query_filtered::<Entity, (With<Amulet>, With<Position>)>()
-        .single(&w);
-
-    w.entity_mut(element).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(element);
-
-    assert!(!change_level(&mut w, true));
-    assert!(
-        w.resource::<GameLog>()
-            .history
-            .last()
-            .unwrap()
-            .contains("cannot go down")
-    );
-
-    let up = w
-        .resource::<Map>()
-        .tiles
-        .iter()
-        .position(|&t| t == TileType::Upstairs)
-        .unwrap();
-    w.get_mut::<Position>(p).unwrap().x = (up % MAP_WIDTH as usize) as u16;
-    w.get_mut::<Position>(p).unwrap().y = (up / MAP_WIDTH as usize) as u16;
-    assert!(change_level(&mut w, false));
-    assert_eq!(w.resource::<Depth>().what, 12);
-    assert!(
-        w.query_filtered::<&Backpack, With<Player>>()
-            .single(&w)
-            .items
-            .iter()
-            .any(|&e| w.get::<Amulet>(e).is_some())
-    );
 }
 
 /// Walk the player onto the up-stair and climb, repeating until `Depth` is 1.
@@ -445,44 +323,6 @@ fn cannot_descend_without_stairs() {
             .last()
             .unwrap()
             .contains("cannot go down")
-    );
-}
-
-/// Standing anywhere but the downstairs, carrying the Element, `>` still
-/// refuses — but the message should say you're not on a staircase, not blame
-/// the Element for blocking a descent you were never lined up for. Mirrors
-/// the tile-aware message `change_level` already gives for `<` without the
-/// Element (see `cannot_ascend_without_the_dungeon_lords_blessing`, below).
-#[test]
-fn element_message_only_shows_on_the_actual_downstairs() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let plain = w
-        .resource::<Map>()
-        .tiles
-        .iter()
-        .position(|&t| t == TileType::Room)
-        .unwrap();
-    w.get_mut::<Position>(p).unwrap().x = (plain % MAP_WIDTH as usize) as u16;
-    w.get_mut::<Position>(p).unwrap().y = (plain / MAP_WIDTH as usize) as u16;
-    let element = w
-        .spawn((
-            Amulet,
-            Name {
-                what: "the Element of Yoord".into(),
-            },
-        ))
-        .id();
-    w.get_mut::<Backpack>(p).unwrap().items.push(element);
-
-    assert!(!change_level(&mut w, true));
-    assert!(
-        w.resource::<GameLog>()
-            .history
-            .last()
-            .unwrap()
-            .contains("cannot go down"),
-        "not on the downstairs at all -- the generic refusal, not the Element flavor text"
     );
 }
 

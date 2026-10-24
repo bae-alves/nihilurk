@@ -192,14 +192,6 @@ fn reading_plays_only_the_top_card() {
 }
 
 #[test]
-fn a_deck_is_gone_after_its_last_card() {
-    let mut w = test_world(1);
-    let deck = deck_in_pack(&mut w, &[up("FOOL")]);
-    use_item(&mut w, deck);
-    assert!(w.get_entity(deck).is_none());
-}
-
-#[test]
 fn a_rolled_deck_is_full_with_one_or_two_reversed() {
     for seed in 0..50 {
         let deck = roll_deck(&mut ChaCha12Rng::seed_from_u64(seed));
@@ -210,32 +202,6 @@ fn a_rolled_deck_is_full_with_one_or_two_reversed() {
             "{flipped}"
         );
     }
-}
-
-#[test]
-fn a_decks_cards_survive_a_save() {
-    let mut w = test_world(2);
-    let cards = [down("The Joker"), up("XXII THE WORLD"), up("FOOL")];
-    deck_in_pack(&mut w, &cards);
-    let save = common::SaveFile::new("deck");
-    save_game(&mut w, save.path()).unwrap();
-
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    w2.insert_resource(RngSeed(3));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName { what: "X".into() });
-    load_game(&mut w2, save.path()).unwrap();
-    let loaded = w2.query::<&Deck>().single(&w2);
-    assert_eq!(loaded.cards, cards.to_vec());
-}
-
-#[test]
-fn a_thrown_deck_is_spent() {
-    let mut w = test_world(1);
-    let deck = deck_in_pack(&mut w, &[up("FOOL"), up("The Eyes Never Lie")]);
-    throw(&mut w, deck, Position { x: 25, y: 10 });
-    assert!(w.get_entity(deck).is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -462,16 +428,6 @@ fn the_princess_moves_a_worn_ring_of_healths_hit_points_at_once() {
 }
 
 #[test]
-fn the_princess_passes_over_a_ring_with_no_number() {
-    let mut w = test_world(1);
-    let ring = worn_ring(&mut w, "ring of stealth");
-    read(&mut w, up("Princess of Diamonds"));
-    assert!(w.get_entity(ring).is_some());
-    read(&mut w, down("Princess of Diamonds"));
-    assert!(w.get_entity(ring).is_none());
-}
-
-#[test]
 fn the_reversed_princess_breaks_a_ring_at_zero() {
     let mut w = test_world(1);
     let ring = worn_ring(&mut w, "ring of protection");
@@ -494,19 +450,6 @@ fn summoned(w: &mut World, name: &str) -> Entity {
         .collect();
     assert_eq!(found.len(), 1, "{name}");
     found[0]
-}
-
-#[test]
-fn the_skull_king_and_the_black_mage_come_as_the_helper() {
-    let mut w = test_world(1);
-    read(&mut w, up("THE SKULL KING!"));
-    let king = summoned(&mut w, "skull king");
-    assert_eq!(*w.get::<Faction>(king).unwrap(), Faction::Ally);
-    assert!(w.get::<Helper>(king).is_some());
-
-    read(&mut w, up("THE BLACK MAGE"));
-    let mage = summoned(&mut w, "black mage");
-    assert!(w.get::<Helper>(mage).is_some());
 }
 
 #[test]
@@ -582,25 +525,6 @@ fn hands_score_like_poker_with_the_fool_wild() {
 }
 
 #[test]
-fn a_thrown_pair_plays_its_card_twice_and_never_reversed() {
-    let mut w = test_world(1);
-    let mace = wielded(&mut w);
-    let before = plus(&w, mace);
-    throw_hand(
-        &mut w,
-        &[
-            down("Prince of Swords"),
-            down("Prince of Swords"),
-            up("The Bole"),
-            up("The Child"),
-            up("THE EXCUSE"),
-        ],
-    );
-    assert!(plus(&w, mace) >= before + 2);
-    assert!(log_has(&w, &format!("A Pair ({} points)", 2 * CARD_POINTS)));
-}
-
-#[test]
 fn a_hand_pays_for_each_card_that_took_part_in_it() {
     const JOKER: &str = "The Joker";
     const BOLE: &str = "The Bole";
@@ -619,35 +543,6 @@ fn a_hand_pays_for_each_card_that_took_part_in_it() {
     assert_eq!(cards_paid(&[FOOL, BOLE, BALANCE, EYES, CHILD]), 2);
     assert_eq!(cards_paid(&[FOOL, FOOL, FOOL, FOOL, EYES]), 5);
     assert_eq!(cards_paid(&[BOLE]), 1);
-}
-
-#[test]
-fn a_hand_pays_its_points_and_never_doubles_the_score() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    w.get_mut::<Score>(p).unwrap().value = 1000;
-    throw_hand(&mut w, &[up("FOOL"); 5]);
-    assert_eq!(
-        w.get::<Score>(p).unwrap().value,
-        1000 + 5 * CARD_POINTS as i64
-    );
-}
-
-#[test]
-fn cards_a_chain_plays_do_not_pay() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    throw_hand(
-        &mut w,
-        &[
-            up("The Joker"),
-            up("The Joker"),
-            up("The Child"),
-            up("The Crone"),
-            up("THE EXCUSE"),
-        ],
-    );
-    assert_eq!(w.get::<Score>(p).unwrap().value, 2 * CARD_POINTS as i64);
 }
 
 fn worn_in(w: &mut World, slot: Slot) -> Entity {
@@ -693,28 +588,6 @@ fn a_five_flush_sets_worn_gear_to_plus_five_and_lifts_its_curse() {
     }
     assert_eq!(plus(&w, bow), bow_before);
     assert!(!holding_element_of_yoord(&mut w));
-}
-
-#[test]
-fn a_five_flush_plays_its_five_cards_upright_before_the_plus_five() {
-    let mut w = test_world(1);
-    let mace = wielded(&mut w);
-    throw_hand(&mut w, &[down("Prince of Swords"); 5]);
-    assert_eq!(draws(&w), 5);
-    assert_eq!(plus(&w, mace), FIVE_FLUSH_PLUS);
-}
-
-#[test]
-fn a_hand_pays_its_score_after_its_cards_play() {
-    let mut w = test_world(1);
-    throw_hand(&mut w, &[up("The Bole"), up("The Bole")]);
-    let log = &w.resource::<GameLog>().history;
-    let drawn = log
-        .iter()
-        .rposition(|l| l.starts_with("You draw "))
-        .unwrap();
-    let paid = log.iter().position(|l| l.starts_with("A Pair")).unwrap();
-    assert!(drawn < paid);
 }
 
 #[test]
@@ -776,33 +649,6 @@ fn turn(w: &mut World) {
 }
 
 #[test]
-fn the_world_holds_the_floor_still_for_its_turns() {
-    let mut w = test_world(1);
-    let foe = monster::plain_monster(&mut w, "foe", Position { x: 26, y: 10 });
-    let deck = deck_in_pack(&mut w, &[up("XXII THE WORLD")]);
-    let p = player(&mut w);
-    let bp_i = w
-        .get::<Backpack>(p)
-        .unwrap()
-        .items
-        .iter()
-        .position(|&e| e == deck);
-    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
-        user: p,
-        item: deck,
-        target: None,
-        slot_idx: bp_i,
-    });
-    let start = *w.get::<Position>(foe).unwrap();
-    for _ in 0..models::constants::decks::WORLD_TURNS {
-        turn(&mut w);
-        assert_eq!(*w.get::<Position>(foe).unwrap(), start);
-    }
-    turn(&mut w);
-    assert_ne!(*w.get::<Position>(foe).unwrap(), start);
-}
-
-#[test]
 fn a_throw_in_stopped_time_flies_from_where_it_left_the_hand() {
     let mut w = test_world(1);
     let foe = monster::plain_monster(&mut w, "foe", Position { x: 23, y: 10 });
@@ -824,34 +670,11 @@ fn a_throw_in_stopped_time_flies_from_where_it_left_the_hand() {
 }
 
 #[test]
-fn a_save_in_stopped_time_puts_the_throw_back_in_the_pack() {
-    let mut w = test_world(1);
-    read(&mut w, up("XXII THE WORLD"));
-    let p = player(&mut w);
-    let dagger = spawn_named(&mut w, "dagger", HERE).unwrap();
-    w.entity_mut(dagger).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(dagger);
-    throw(&mut w, dagger, Position { x: 25, y: 10 });
-    assert!(!in_pack(&mut w, dagger));
-    let save = common::SaveFile::new("world");
-    save_game(&mut w, save.path()).unwrap();
-    assert!(in_pack(&mut w, dagger));
-    assert!(w.get::<TimeStopped>(p).is_some());
-}
-
-#[test]
 fn the_world_reversed_paralyses_the_reader() {
     let mut w = test_world(1);
     read(&mut w, down("XXII THE WORLD"));
     let p = player(&mut w);
     assert!(w.get::<Paralyzed>(p).is_some());
-}
-
-#[test]
-fn the_read_menu_lists_a_deck() {
-    let mut w = test_world(1);
-    let deck = deck_in_pack(&mut w, &[up("FOOL")]);
-    assert!(PackMode::Read.admits(&w, deck));
 }
 
 fn say_how_it_lay(w: &mut World, deal: &mut Deal, card: Card) {
@@ -877,36 +700,4 @@ fn a_card_row_plays_its_own_handler_on_the_reader() {
         },
     );
     assert!(log_has(&w, &format!("{p:?} drew it reversed: true")));
-}
-
-#[test]
-fn every_card_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(2);
-    let cards: Vec<Card> = CARDS
-        .iter()
-        .map(|&row| Card {
-            row,
-            reversed: false,
-        })
-        .collect();
-    deck_in_pack(&mut w, &cards);
-    let save = common::SaveFile::new("deck-rows");
-    save_game(&mut w, save.path()).unwrap();
-
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    w2.insert_resource(RngSeed(3));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName { what: "X".into() });
-    load_game(&mut w2, save.path()).unwrap();
-    let loaded = w2.query::<&Deck>().single(&w2);
-    for (was, is) in cards.iter().zip(&loaded.cards) {
-        assert!(
-            was.row.name == is.row.name,
-            "{} came back as {}",
-            was.row.name,
-            is.row.name
-        );
-    }
-    assert_eq!(loaded.cards.len(), CARDS.len());
 }

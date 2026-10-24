@@ -49,7 +49,7 @@ The number says what an upgrade costs a player:
 
 So a release that breaks saves is a minor bump, and a release that breaks everything the old version made is a major one.
 
-The script checks one cause. If `SAVE_VERSION` in `models/src/meta/saveload.rs` changed since the last tag, it refuses any new version that keeps the same major and minor, so a save break cannot ship as a patch. A changed save layout cannot reach that point without a new `SAVE_VERSION`: `the_save_layout_only_changes_with_the_version` fails until it has one (`add-an-item-category.md`). The other usual cause is a renamed content row, because a save stores row ids (`add-a-monster.md`). Nothing catches that, so read the diff since the last tag for renames.
+The script checks one cause. If `SAVE_VERSION` in `models/src/meta/saveload.rs` changed since the last tag, it refuses any new version that keeps the same major and minor, so a save break cannot ship as a patch. Nothing checks that a changed save layout got a new `SAVE_VERSION` (`add-an-item-category.md`). The other usual cause is a renamed content row, because a save stores row ids (`add-a-monster.md`). Nothing catches that, so read the diff since the last tag for renames.
 
 
 What the script does

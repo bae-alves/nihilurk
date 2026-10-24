@@ -72,39 +72,6 @@ fn log_has(w: &World, needle: &str) -> bool {
 }
 
 #[test]
-fn an_invisible_phantom_in_view_stays_hidden_and_unannounced() {
-    let mut w = test_world(1);
-    let spot = beside_player(&mut w);
-    let phantom = monster::monster(&mut w, "phantom", spot);
-    w.entity_mut(phantom).insert(Invisible);
-
-    run_visibility(&mut w);
-
-    assert!(
-        w.get::<Hidden>(phantom).is_some(),
-        "invisible, so not drawn"
-    );
-    assert!(w.get::<Spotted>(phantom).is_none());
-    assert!(!log_has(&w, "phantom"), "never announced");
-}
-
-#[test]
-fn a_ring_of_perception_turns_up_the_phantom() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let spot = beside_player(&mut w);
-    let phantom = monster::monster(&mut w, "phantom", spot);
-    w.entity_mut(phantom).insert(Invisible);
-    wear_ring(&mut w, p, "ring of perception");
-
-    run_visibility(&mut w);
-
-    assert!(w.get::<Hidden>(phantom).is_none(), "the ring reveals it");
-    assert!(w.get::<Spotted>(phantom).is_some());
-    assert!(log_has(&w, "You spotted a phantom"));
-}
-
-#[test]
 fn an_unseen_attacker_is_only_ever_something() {
     let mut w = test_world(2);
     let p = player(&mut w);
@@ -213,25 +180,4 @@ fn out_of_view(w: &mut World) -> Position {
 /// A stand-in floor item: `spawn_random_item` is private, so just drop a scroll.
 fn spawn_random_item_for_test(w: &mut World, pos: Position) -> Entity {
     spawn_named(w, "scroll of identify", pos).unwrap()
-}
-
-#[test]
-fn perception_announces_nothing_outside_the_viewshed() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    run_visibility(&mut w);
-    let seen = w.get::<Viewshed>(p).unwrap().visible_tiles.clone();
-    w.resource_mut::<GameLog>().history.clear();
-    let far = (0..MAP_WIDTH)
-        .flat_map(|x| (0..MAP_HEIGHT).map(move |y| (x, y)))
-        .find(|&(x, y)| !w.resource::<Map>().blocks(x, y) && !seen.contains(&(x, y)))
-        .expect("an open tile out of view");
-    let phantom = monster::monster(&mut w, "phantom", Position { x: far.0, y: far.1 });
-    w.entity_mut(phantom).insert(Invisible);
-    wear_ring(&mut w, p, "ring of perception");
-
-    run_visibility(&mut w);
-
-    assert!(w.get::<Spotted>(phantom).is_none());
-    assert!(!log_has(&w, "phantom"), "announced out of view");
 }

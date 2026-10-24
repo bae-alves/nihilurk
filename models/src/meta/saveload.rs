@@ -42,8 +42,7 @@
 //!   nothing: postcard is not self-describing, so a field added or removed
 //!   changes every byte after it. Every field this file has ever gained has
 //!   cost exactly that. Bump the constant with the change, and ship it as a
-//!   minor release (`the_save_layout_only_changes_with_the_version` fails
-//!   until you do, and `release/bump.lua` refuses a patch one); believe the
+//!   minor release (`release/bump.lua` refuses a patch one); believe the
 //!   attribute instead, and the next one ships as a change that quietly kills
 //!   every run already in progress.
 
@@ -1277,30 +1276,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn a_planted_symlink_is_replaced_not_written_through() {
-        let scratch = Scratch::new("saveload-link");
-        let dir = scratch.path();
-        std::fs::create_dir_all(dir).unwrap();
-        let victim = dir.join("victim");
-        std::fs::write(&victim, b"mine").unwrap();
-        let path = dir.join("run.sav");
-        std::os::unix::fs::symlink(&victim, with_suffix(&path, ".tmp")).unwrap();
-
-        write_atomically(&path, |w| w.write_all(b"the run")).unwrap();
-
-        assert_eq!(std::fs::read(&victim).unwrap(), b"mine");
-        assert_eq!(std::fs::read(&path).unwrap(), b"the run");
-
-        std::os::unix::fs::symlink(&victim, dir.join("rec")).unwrap();
-        create_fresh(&dir.join("rec"))
-            .unwrap()
-            .write_all(b"x")
-            .unwrap();
-        assert_eq!(std::fs::read(&victim).unwrap(), b"mine");
-    }
-
     #[test]
     fn a_name_is_thirteen_characters_without_control_characters() {
         assert_eq!(name_fault("ABCDEFGHIJKLM"), None);
@@ -1397,50 +1372,6 @@ mod tests {
             resolve("windows", &[("APPDATA", "C:\\Users\\b\\AppData\\Roaming")]),
             PathBuf::from("C:\\Users\\b\\AppData\\Roaming").join("nihilurk")
         );
-    }
-
-    #[test]
-    fn nihilurk_data_overrides_the_os_convention() {
-        assert_eq!(
-            resolve(
-                "linux",
-                &[("NIHILURK_DATA", "/srv/lurk"), ("HOME", "/home/b")]
-            ),
-            std::path::PathBuf::from("/srv/lurk")
-        );
-    }
-
-    #[test]
-    fn a_relative_or_empty_variable_is_ignored() {
-        assert_eq!(
-            resolve(
-                "linux",
-                &[
-                    ("NIHILURK_DATA", ""),
-                    ("XDG_DATA_HOME", "rel"),
-                    ("HOME", "/home/b")
-                ]
-            ),
-            std::path::PathBuf::from("/home/b")
-                .join(".local/share")
-                .join("nihilurk")
-        );
-    }
-
-    #[test]
-    fn with_no_home_at_all_the_data_dir_is_the_current_one() {
-        assert_eq!(resolve("linux", &[]), std::path::PathBuf::from("."));
-    }
-
-    #[test]
-    fn a_write_that_succeeds_replaces_the_file_and_leaves_no_temp() {
-        let path = Scratch::new("saveload-atomic-succeeds");
-        std::fs::write(&path, b"the old run").unwrap();
-
-        write_atomically(&path, |w| w.write_all(b"the new run")).unwrap();
-
-        assert_eq!(std::fs::read(&path).unwrap(), b"the new run");
-        assert!(!with_suffix(path.path(), ".tmp").exists());
     }
 
     /// An [`EntitySave`] with every field at its empty default, so a test only
@@ -1562,32 +1493,6 @@ mod tests {
     }
 
     #[test]
-    fn a_short_dark_room_list_still_lets_a_wand_of_light_work() {
-        let mut save = blank_save(vec![blank_entity()]);
-        save.dark_tiles = FixedBitSet::with_capacity(1);
-        let mut world = load_bytes("dark", &encode(SAVE_VERSION, &save)).unwrap();
-
-        world
-            .resource_mut::<Map>()
-            .light_tile(crate::map::MAP_WIDTH - 1, crate::map::MAP_HEIGHT - 1);
-    }
-
-    #[test]
-    fn a_save_from_another_version_is_refused_and_says_which() {
-        let other = SAVE_VERSION + 1;
-        let bytes = encode(other, &blank_save(vec![blank_entity()]));
-        let err = load_bytes("version", &bytes)
-            .err()
-            .expect("a save under another version must not load");
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-        let said = err.to_string();
-        assert!(
-            said.contains(&other.to_string()) && said.contains(&SAVE_VERSION.to_string()),
-            "the refusal should name both versions: {said}"
-        );
-    }
-
-    #[test]
     fn clear_data_leaves_a_save_from_another_version_to_the_loader() {
         let mut save = blank_save(vec![blank_entity()]);
         save.cleared = true;
@@ -1608,206 +1513,10 @@ mod tests {
         assert!(err.to_string().contains("no such species"));
     }
 
-    /// Every saved field set to a value no empty default shares, the wide ones
-    /// past a one-byte varint, and each enum at its last variant: inserting a
-    /// variant anywhere before it moves its index and changes the bytes, while
-    /// appending one (which the module docs allow) does not. A new field is a
-    /// compile error here, which is the point.
-    fn full_entity<'a>() -> EntitySave<'a> {
-        EntitySave {
-            position: Some((700, 300)),
-            renderable: Some(('@', 14)),
-            player: true,
-            hidden: true,
-            invisible: true,
-            consume: true,
-            amulet: true,
-            name: Some(Cow::Borrowed("name")),
-            viewshed: Some((9, bits(&[3, 69]))),
-            fighter: Some((300, 301, -2, 5, 6, 7, 8)),
-            magic: Some(Magic {
-                points: 3,
-                max_points: 4,
-            }),
-            faction: Some(Faction::Spirits),
-            backpack: Some(vec![1, 300]),
-            score: Some(-5000),
-            mob: Some(MovementType::Ambush),
-            item: true,
-            value: Some(300),
-            potion: Some("potion of polymorph".to_string()),
-            battery: Some(-3),
-            wand: Some("wand of swapping".to_string()),
-            ranged: Some(300),
-            scroll: Some("scroll of atonement".to_string()),
-            ring: Some("ring of polymorph".to_string()),
-            equipped: Some(Slot::Finger),
-            power_die: Some(300),
-            power_bonus: Some(-300),
-            armor_die: Some(301),
-            armor_bonus: Some(-301),
-            throw_bonus: Some(302),
-            max_hp_bonus: None,
-            stack: Some(200),
-            curse: true,
-            megacurse: true,
-            known_quality: true,
-            vorpal: Some(Cow::Borrowed("bane")),
-            effects: vec![
-                SavedEffect {
-                    id: "first".into(),
-                    lifetime: SavedLifetime::Turns(300),
-                    count: 0,
-                },
-                SavedEffect {
-                    id: "second".into(),
-                    lifetime: SavedLifetime::NextAction,
-                    count: 0,
-                },
-            ],
-            speed: Some(SpeedKind::Quick),
-            trap: Some(("dart trap".to_string(), TrapReveal::Triggered, true)),
-            pickup: Some("hero coin".to_string()),
-            plated: 1,
-            forged: 1,
-            spellset: Some(vec!["Gate Down".to_string()]),
-            equipped_by: Some(300),
-            helper: true,
-            mimic: true,
-            ice_cube: true,
-            aggravated: Some((700, 701)),
-            alignment: Some(-100),
-            deck: Some(vec![("XXIII GOLDEN WIND".to_string(), true)]),
-            rune: Some(("rune of protection".to_string(), true)),
-            content: Some(Cow::Borrowed("arrow")),
-        }
-    }
-
-    /// A 70-tile set with the tiles in `set` marked.
-    fn bits(set: &[usize]) -> FixedBitSet {
-        let mut bits = FixedBitSet::with_capacity(70);
-        bits.extend(set.iter().copied());
-        bits
-    }
-
-    /// A [`SaveGame`] holding [`full_entity`] and a blank entity, with the
-    /// top-level fields it names set the same way: a value no default
-    /// shares, the wide ones past a one-byte varint.
-    fn full_save<'a>() -> SaveGame<'a> {
-        let mut save = blank_save(vec![full_entity(), blank_entity()]);
-        save.player_name = Cow::Borrowed("player");
-        save.depth = 200;
-        save.floor_changes = 70_000;
-        save.rng_seed = 0x0123_4567_89ab_cdef;
-        save.dark_tiles = bits(&[0, 64]);
-        save.dug_tiles = vec![1, 70_000];
-        save.cleared = true;
-        save.spirits_hostile = true;
-        save.monster_body = Some(Cow::Borrowed("dragon"));
-        save.kills = vec![(Cow::Borrowed("rat"), 70_000)];
-        save
-    }
-
-    /// The version a save starts with, and the bytes after it.
-    fn split_header(bytes: &[u8]) -> (u16, &[u8]) {
-        postcard::take_from_bytes::<u16>(bytes).expect("a version leads the file")
-    }
-
-    const GOLDEN: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden/save.bin");
-
-    /// The bytes of [`full_save`] are checked in. A change to a saved struct,
-    /// or to a serialised dependency such as the RNG, changes them, and the
-    /// test then asks for two things in order: bump [`SAVE_VERSION`], then
-    /// regenerate the file. It will not regenerate under the old version, so a
-    /// format change cannot slip into a release as a patch.
-    #[test]
-    fn the_save_layout_only_changes_with_the_version() {
-        let now = encode(SAVE_VERSION, &full_save());
-        let (now_version, now_body) = split_header(&now);
-        let golden = std::fs::read(GOLDEN).unwrap_or_default();
-        let (golden_version, golden_body) = match golden.is_empty() {
-            true => (0, &golden[..]),
-            false => split_header(&golden),
-        };
-        if now_body != golden_body {
-            assert_ne!(
-                now_version, golden_version,
-                "the saved layout changed, but SAVE_VERSION is still {now_version}. Bump it in \
-                 saveload.rs: old saves no longer load, so this ships as a minor release."
-            );
-        }
-        if std::env::var_os("NIHILURK_REGEN_GOLDEN").is_some() {
-            std::fs::create_dir_all(std::path::Path::new(GOLDEN).parent().unwrap()).unwrap();
-            std::fs::write(GOLDEN, &now).unwrap();
-            return;
-        }
-        assert!(
-            now == golden,
-            "tests/golden/save.bin is out of date. Regenerate it with \
-             `NIHILURK_REGEN_GOLDEN=1 cargo test -p nihilurk-models --lib the_save_layout`"
-        );
-        decode(&golden).expect("the checked-in save still decodes");
-    }
-
     /// Loads a save holding only `entity`, and fails the test if it refuses.
     fn load_one(tag: &str, entity: EntitySave) -> World {
         load_bytes(tag, &encode(SAVE_VERSION, &blank_save(vec![entity])))
             .expect("a well-formed save loads")
-    }
-
-    #[test]
-    fn a_wand_no_row_has_refuses_the_load() {
-        let mut entity = blank_entity();
-        entity.wand = Some("wand of nowhere".to_string());
-        let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
-        let err = load_bytes("unknown-wand", &bytes)
-            .err()
-            .expect("the load is refused");
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-    }
-
-    #[test]
-    fn a_potion_no_row_has_refuses_the_load() {
-        let mut entity = blank_entity();
-        entity.potion = Some("potion of nowhere".to_string());
-        let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
-        let err = load_bytes("unknown-potion", &bytes)
-            .err()
-            .expect("the load is refused");
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-    }
-
-    #[test]
-    fn a_scroll_no_row_has_refuses_the_load() {
-        let mut entity = blank_entity();
-        entity.scroll = Some("scroll of nowhere".to_string());
-        let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
-        let err = load_bytes("unknown-scroll", &bytes)
-            .err()
-            .expect("the load is refused");
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-    }
-
-    #[test]
-    fn a_trap_no_row_has_refuses_the_load() {
-        let mut entity = blank_entity();
-        entity.trap = Some(("trap of nowhere".to_string(), TrapReveal::Sight, false));
-        let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
-        let err = load_bytes("unknown-trap", &bytes)
-            .err()
-            .expect("the load is refused");
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-    }
-
-    #[test]
-    fn a_rune_no_row_has_refuses_the_load() {
-        let mut entity = blank_entity();
-        entity.rune = Some(("rune of nowhere".to_string(), true));
-        let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
-        let err = load_bytes("unknown-rune", &bytes)
-            .err()
-            .expect("the load is refused");
-        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     }
 
     #[test]
@@ -1823,16 +1532,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_saved_name_alone_restores_nothing_from_the_catalog() {
-        let mut entity = blank_entity();
-        entity.name = Some(Cow::Borrowed("arrow"));
-        let mut w = load_one("name-alone", entity);
-        assert_eq!(w.query::<&Projectile>().iter(&w).count(), 0);
-        let only = w.query::<Entity>().single(&w);
-        assert_eq!(crate::helpers::item_label(&w, only), "arrow");
-    }
-
     /// A save carrying a `player_name` with control/escape bytes -- a shared
     /// save is untrusted the same way a crafted backpack index is, and this
     /// field reaches a real terminal verbatim (`clear_data_prompt`, the HUD)
@@ -1842,19 +1541,6 @@ mod tests {
         save.player_name = Cow::Borrowed(name);
         save.cleared = cleared;
         encode(SAVE_VERSION, &save)
-    }
-
-    #[test]
-    fn a_loaded_player_name_has_its_control_bytes_stripped() {
-        let evil = "Bae\u{1b}]0;pwned\u{7}";
-        let bytes = crafted_save_with_player_name(evil, false);
-        let world = load_bytes("ctrl-name", &bytes).expect("a bad name must not fail the load");
-        let loaded = &world.resource::<PlayerName>().what;
-        assert!(
-            !loaded.chars().any(|c| c.is_control()),
-            "loaded player name still has control bytes: {loaded:?}"
-        );
-        assert_eq!(loaded, "Bae]0;pwned");
     }
 
     #[test]

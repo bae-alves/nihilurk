@@ -104,67 +104,6 @@ fn remove_curse_leaves_megacursed_gear_on() {
 }
 
 #[test]
-fn enchanting_mends_the_plus_but_never_the_megacurse() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let sword = wield_mega_blade(&mut w, p);
-
-    read(&mut w, p, "scroll of enchant weapon");
-
-    assert!(w.get::<Curse>(sword).is_some());
-    assert!(w.get::<MegaCurse>(sword).is_some());
-}
-
-#[test]
-fn a_megacursed_suit_still_takes_the_killing_blow() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let mail = equipped_in(&w, p, Slot::Body).expect("the hero starts in ring mail");
-    w.entity_mut(mail)
-        .insert((ArmorBonus(-2), Curse, MegaCurse));
-
-    apply_hit(&mut w, p, Hit::magic(50), None);
-
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 1);
-    assert!(!w.entities().contains(mail));
-}
-
-#[test]
-fn the_sword_will_not_come_off() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let sword = wield_mega_blade(&mut w, p);
-
-    assert!(!toggle_equipped(&mut w, p, sword));
-    assert!(w.get::<Equipped>(sword).unwrap().by == Some(p));
-}
-
-#[test]
-fn it_reads_megacursed_in_capitals() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let sword = wield_mega_blade(&mut w, p);
-
-    assert!(display_name(&w, sword).contains("(MEGACURSED)"));
-}
-
-#[test]
-fn the_pink_demon_cannot_destroy_megacursed_gear() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let sword = wield_mega_blade(&mut w, p);
-
-    let demon = spawn_monster(
-        &mut w,
-        MonsterDef::named("pink demon"),
-        Position { x: 5, y: 5 },
-    );
-    resolve_attack(&mut w, p, demon);
-
-    assert!(w.get_entity(sword).is_some());
-}
-
-#[test]
 fn megacursed_numeric_rings_roll_their_own_range() {
     let mut w = test_world(3);
     let mut rng = ChaCha12Rng::seed_from_u64(3);

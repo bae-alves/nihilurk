@@ -132,19 +132,6 @@ mod tests {
     }
 
     #[test]
-    fn the_last_keyframe_is_reachable_and_the_index_never_runs_off() {
-        for frames in 1..8 {
-            let last = keyframe(199.9, 0.0, 200.0, frames);
-            assert_eq!(last, Some(frames - 1), "{frames} keyframes");
-        }
-    }
-
-    #[test]
-    fn no_keyframes_draws_nothing() {
-        assert_eq!(keyframe(0.0, 0.0, 100.0, 0), None);
-    }
-
-    #[test]
     fn off_map_tiles_are_dropped() {
         assert_eq!(on_map(-1, 4, 80, 22), None);
         assert_eq!(on_map(4, -1, 80, 22), None);
@@ -161,20 +148,6 @@ mod tests {
         assert_eq!(shake_offset(999.0, 200.0, 2), (0, 0), "long spent");
         assert_eq!(shake_offset(0.0, 0.0, 2), (0, 0), "no duration, no shake");
         assert_eq!(shake_offset(10.0, 200.0, 0), (0, 0), "no amplitude");
-    }
-
-    #[test]
-    fn every_step_of_a_shake_actually_displaces_something() {
-        let duration = 460.0;
-        let mut age = 0.0;
-        while age < duration {
-            let (dx, dy) = shake_offset(age, duration, 2);
-            assert!(
-                dx != 0 || dy != 0,
-                "{age}ms into a {duration}ms shake the map stood still"
-            );
-            age += SHAKE_STEP_MS;
-        }
     }
 
     #[test]

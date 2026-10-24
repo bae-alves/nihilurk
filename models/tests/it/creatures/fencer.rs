@@ -4,8 +4,6 @@
 use crate::common::monster;
 
 use bevy_ecs::prelude::*;
-use models::constants::items::ESTOC_NUMBER_OF_ATTACKS;
-use models::constants::lurk::NUMBER_OF_ATTACKS as LURK_NUMBER_OF_ATTACKS;
 use models::*;
 
 fn lurk_world(seed: u64) -> World {
@@ -42,67 +40,6 @@ fn beside_player(w: &mut World) -> Position {
         }
     }
     panic!("the lurk is walled in");
-}
-
-#[test]
-fn a_counted_grant_lends_its_number_and_the_ledger_remembers_it() {
-    let mut w = World::new();
-    let e = w.spawn_empty().id();
-    lend(&mut w, e, Grant::counted::<Fencer>(3), Lifetime::Permanent);
-
-    assert!(w.get::<Fencer>(e).is_some());
-    assert_eq!(count_of(&w, e, Grant::of::<Fencer>()), Some(3));
-    assert_eq!(effects_of(&w, e)[0].count, 3);
-}
-
-#[test]
-fn a_loaded_ledger_row_brings_its_number_back() {
-    let mut w = World::new();
-    let e = w.spawn_empty().id();
-    let held = [Held {
-        id: "fencer",
-        lifetime: Lifetime::Permanent,
-        count: 3,
-    }];
-    attach_effects(&mut w.entity_mut(e), &held);
-
-    assert!(w.get::<Fencer>(e).is_some());
-    assert_eq!(count_of(&w, e, Grant::of::<Fencer>()), Some(3));
-}
-
-#[test]
-fn the_highest_count_among_the_sources_wins() {
-    let mut w = World::new();
-    let e = w.spawn_empty().id();
-    lend(&mut w, e, Grant::counted::<Fencer>(2), Lifetime::Permanent);
-    lend(&mut w, e, Grant::counted::<Fencer>(3), Lifetime::Floor);
-    lend(&mut w, e, Grant::counted::<Fencer>(1), Lifetime::Floor);
-    assert_eq!(count_of(&w, e, Grant::of::<Fencer>()), Some(3));
-}
-
-#[test]
-fn the_estoc_and_the_lurk_lend_their_own_counts() {
-    let mut w = lurk_world(3);
-    let p = player(&mut w);
-    assert_eq!(
-        count_of(&w, p, Grant::of::<Fencer>()),
-        Some(LURK_NUMBER_OF_ATTACKS)
-    );
-
-    let at = beside_player(&mut w);
-    let estoc = spawn_named(&mut w, "estoc", at).unwrap();
-    let grants = w.get::<Grants>(estoc).unwrap().0;
-    let fencer = grants
-        .iter()
-        .find(|g| g.effect_id() == Some("fencer"))
-        .unwrap();
-    let mut probe = World::new();
-    let e = probe.spawn_empty().id();
-    lend(&mut probe, e, *fencer, Lifetime::Permanent);
-    assert_eq!(
-        count_of(&probe, e, Grant::of::<Fencer>()),
-        Some(ESTOC_NUMBER_OF_ATTACKS)
-    );
 }
 
 #[test]

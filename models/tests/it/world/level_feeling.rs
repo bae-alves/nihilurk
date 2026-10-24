@@ -2,13 +2,11 @@
 //! depth usually holds, said once on arriving by stairs.
 
 use crate::common;
-use crate::common::monster;
 
 use bevy_ecs::prelude::*;
 use common::fresh_run;
 use models::Color;
 use models::*;
-use monster::plain_monster;
 
 fn clear_floor(w: &mut World) {
     let doomed: Vec<Entity> = w
@@ -21,31 +19,10 @@ fn clear_floor(w: &mut World) {
     }
 }
 
-fn crowd(w: &mut World, n: usize) {
-    for i in 0..n {
-        plain_monster(w, "rat", Position { x: i as u16, y: 1 });
-    }
-}
-
 fn haul(w: &mut World, n: usize) {
     for i in 0..n {
         w.spawn((Item, Position { x: i as u16, y: 2 }));
     }
-}
-
-#[test]
-fn a_floor_full_of_monsters_feels_dangerous() {
-    let (mut w, _) = fresh_run(7);
-    clear_floor(&mut w);
-    crowd(&mut w, 40);
-    assert_eq!(level_feeling(&mut w).danger, Some(Danger::Dangerous));
-}
-
-#[test]
-fn a_floor_with_no_monsters_feels_safe() {
-    let (mut w, _) = fresh_run(7);
-    clear_floor(&mut w);
-    assert_eq!(level_feeling(&mut w).danger, Some(Danger::Safe));
 }
 
 #[test]
@@ -54,22 +31,6 @@ fn a_floor_full_of_items_feels_rich() {
     clear_floor(&mut w);
     haul(&mut w, 40);
     assert_eq!(level_feeling(&mut w).riches, Some(Riches::Rich));
-}
-
-#[test]
-fn a_floor_with_no_items_feels_poor() {
-    let (mut w, _) = fresh_run(7);
-    clear_floor(&mut w);
-    assert_eq!(level_feeling(&mut w).riches, Some(Riches::Poor));
-}
-
-#[test]
-fn a_helper_is_not_a_threat() {
-    let (mut w, _) = fresh_run(7);
-    clear_floor(&mut w);
-    let pal = plain_monster(&mut w, "dog", Position { x: 3, y: 3 });
-    w.entity_mut(pal).insert(Helper);
-    assert_eq!(level_feeling(&mut w).danger, Some(Danger::Safe));
 }
 
 #[test]

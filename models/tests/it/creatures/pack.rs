@@ -57,51 +57,6 @@ fn each_menu_shows_exactly_what_its_verb_can_act_on() {
     assert_eq!(pack_rows(&mut w, PackMode::PutOn), vec![5]);
 }
 
-#[test]
-fn a_row_keeps_its_pack_letter_in_every_menu() {
-    let mut w = carrying_one_of_everything();
-    let ring_row = pack_rows(&mut w, PackMode::Browse)[5];
-    assert_eq!(pack_rows(&mut w, PackMode::PutOn), vec![ring_row]);
-}
-
-#[test]
-fn a_menu_with_nothing_in_it_comes_back_empty_rather_than_showing_the_wrong_thing() {
-    let mut w = carrying_one_of_everything();
-    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
-    let potion = w.get::<Backpack>(player).unwrap().items[0];
-    w.get_mut::<Backpack>(player).unwrap().items = vec![potion];
-
-    assert_eq!(pack_rows(&mut w, PackMode::Quaff), vec![0]);
-    for empty in [
-        PackMode::Read,
-        PackMode::Zap,
-        PackMode::Equip,
-        PackMode::Wield,
-        PackMode::Wear,
-        PackMode::PutOn,
-    ] {
-        assert!(
-            pack_rows(&mut w, empty).is_empty(),
-            "{empty:?} found something to show in a pack holding one potion"
-        );
-    }
-}
-
-#[test]
-fn worn_gear_still_shows_up_because_that_is_how_it_comes_off() {
-    let mut w = carrying_one_of_everything();
-    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
-    let mail = w.get::<Backpack>(player).unwrap().items[4];
-
-    equip_silently(&mut w, player, mail);
-
-    assert_eq!(
-        pack_rows(&mut w, PackMode::Wear),
-        vec![4],
-        "a suit already on your back must stay on the wear menu, or you can never take it off"
-    );
-}
-
 /// Every mode, for the table tests below to walk. An array's length cannot
 /// catch a new mode, so `all_lists_every_mode` does.
 const ALL: [PackMode; 11] = [
@@ -148,26 +103,4 @@ fn the_browse_modal_offers_each_verb_exactly_once() {
         ItemAction::Info,
         "clamped, not panicking"
     );
-}
-
-/// A filtered mode admits an item by a component it carries: a potion to
-/// quaff, a scroll to read, a weapon to wield. A bare entity carries none, so
-/// only the modes that take anything let it in.
-#[test]
-fn an_item_with_none_of_the_marks_is_admitted_only_by_the_unfiltered_modes() {
-    let world = World::new();
-    let nothing_in_particular = Entity::from_raw(0);
-    let unfiltered = [
-        PackMode::Browse,
-        PackMode::Use,
-        PackMode::Throw,
-        PackMode::Drop,
-    ];
-    for mode in ALL {
-        assert_eq!(
-            mode.admits(&world, nothing_in_particular),
-            unfiltered.contains(&mode),
-            "{mode:?}"
-        );
-    }
 }

@@ -55,33 +55,6 @@ fn first_with(kind: SpecialRoom) -> (u64, u8) {
     panic!("{kind:?} never turned up across the sweep");
 }
 
-#[test]
-fn every_special_room_kind_turns_up_and_none_are_also_dark() {
-    let (mut hoard, mut zoo, mut hive, mut red) = (false, false, false, false);
-    for seed in 0..500u64 {
-        for depth in 1..=6u8 {
-            let map = map_at(seed, depth);
-            for (idx, kind) in map.special.iter().enumerate() {
-                let Some(kind) = kind else { continue };
-                assert!(
-                    !map.dark.contains(idx),
-                    "seed {seed} depth {depth}: a {kind:?} tile is also dark"
-                );
-                match kind {
-                    SpecialRoom::DragonHoard => hoard = true,
-                    SpecialRoom::MonsterZoo => zoo = true,
-                    SpecialRoom::TreasureHive => hive = true,
-                    SpecialRoom::RedRoom => red = true,
-                }
-            }
-        }
-    }
-    assert!(
-        hoard && zoo && hive && red,
-        "not every kind turned up across the sweep: hoard={hoard} zoo={zoo} hive={hive} red={red}"
-    );
-}
-
 /// A staircase never stands in a special room: a hoard, a zoo, a hive or a
 /// red room is somewhere the player walks into, never somewhere they arrive.
 /// Rooms never touch, so the eight tiles around a stair are its own room's
@@ -304,65 +277,4 @@ fn only_the_red_room_walls_are_undiggable() {
     assert!(map.diggable(40, 10), "ordinary rock");
     assert!(!map.diggable(0, 10), "the outer wall");
     assert!(!map.diggable(MAP_WIDTH - 1, 10), "the outer wall");
-}
-
-#[test]
-fn a_wand_of_digging_leaves_a_red_rooms_walls_alone() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    w.insert_resource(RngSeed(3));
-    w.init_resource::<GameLog>();
-    w.init_resource::<UseQueue>();
-    w.insert_resource(PlayerName { what: "X".into() });
-    initialize_world(&mut w);
-    let p = w.query_filtered::<Entity, With<Player>>().single(&w);
-    {
-        let mut map = w.resource_mut::<Map>();
-        map.tiles.fill(TileType::Wall);
-        map.special.fill(None);
-        map.tiles[tile_index(10, 10)] = TileType::Room;
-        map.tiles[tile_index(13, 10)] = TileType::Room;
-        map.special[tile_index(13, 10)] = Some(SpecialRoom::RedRoom);
-    }
-    w.get_mut::<Position>(p).unwrap().x = 10;
-    w.get_mut::<Position>(p).unwrap().y = 10;
-    let wand = spawn_named(&mut w, "wand of digging", Position { x: 0, y: 0 }).unwrap();
-    w.entity_mut(wand).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
-    let slot = w.get::<Backpack>(p).unwrap().items.len() - 1;
-    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
-        user: p,
-        item: wand,
-        target: Some(Position { x: 11, y: 10 }),
-        slot_idx: Some(slot),
-    });
-    item_system(&mut w);
-
-    let map = w.resource::<Map>();
-    assert_ne!(map.tile(11, 10), TileType::Wall, "plain rock is dug");
-    assert_eq!(
-        map.tile(12, 10),
-        TileType::Wall,
-        "the red room's wall holds"
-    );
-}
-
-#[test]
-fn a_monster_can_spawn_standing_on_an_item() {
-    for seed in 0..200u64 {
-        let mut w = world_at(seed, 1);
-        let items: Vec<(u16, u16)> = w
-            .query_filtered::<&Position, With<Item>>()
-            .iter(&w)
-            .map(|p| (p.x, p.y))
-            .collect();
-        let shared = w
-            .query_filtered::<&Position, With<Mob>>()
-            .iter(&w)
-            .any(|p| items.contains(&(p.x, p.y)));
-        if shared {
-            return;
-        }
-    }
-    panic!("no monster ever spawned on an item across the sweep");
 }

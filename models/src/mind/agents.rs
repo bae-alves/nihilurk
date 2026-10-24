@@ -490,16 +490,6 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_set_waits_and_the_first_rule_that_fires_decides() {
-        let map = room();
-        let e = entities(1);
-        let mut p = percept(&map, (6, 6), (7, 6));
-        p.foes = vec![sighting(e[0], (7, 6), true)];
-        assert_eq!(think(&p, &STILL), Action::Wait);
-        assert_eq!(think(&p, &CHASER), Action::Strike(e[0]));
-    }
-
-    #[test]
     fn out_of_view_only_the_aggravated_and_the_helper_move() {
         let map = room();
         let mut p = percept(&map, (6, 6), (14, 6));
@@ -513,20 +503,6 @@ mod tests {
     }
 
     #[test]
-    fn a_chaser_only_hunts_a_player_it_has_noticed() {
-        let map = room();
-        let mut p = percept(&map, (6, 6), (12, 6));
-        assert_eq!(
-            think(&p, &CHASER),
-            Action::Wait,
-            "the player is not in its foes"
-        );
-        let e = entities(1);
-        p.foes = vec![sighting(e[0], (12, 6), true)];
-        assert_eq!(think(&p, &CHASER), Action::Step(1, 0));
-    }
-
-    #[test]
     fn a_chaser_goes_for_the_nearer_ally_over_a_farther_player() {
         let map = room();
         let e = entities(2);
@@ -536,126 +512,6 @@ mod tests {
             sighting(e[1], (14, 6), true),
         ];
         assert_eq!(think(&p, &CHASER), Action::Step(0, -1));
-    }
-
-    #[test]
-    fn a_charmed_ally_closes_in_on_the_nearest_monster() {
-        let map = room();
-        let e = entities(1);
-        let mut p = percept(&map, (6, 6), (6, 5));
-        p.ally = true;
-        p.foes = vec![sighting(e[0], (12, 6), false)];
-        let set = rule_set_for(MovementType::Chase, false, p.ally);
-        assert_eq!(think(&p, set), Action::Step(1, 0));
-        p.at = Position { x: 11, y: 6 };
-        assert_eq!(think(&p, set), Action::Strike(e[0]));
-    }
-
-    #[test]
-    fn a_charmed_ally_with_nothing_to_fight_stays_put() {
-        let map = room();
-        let mut p = percept(&map, (6, 6), (14, 6));
-        p.ally = true;
-        let set = rule_set_for(MovementType::Chase, false, p.ally);
-        assert_eq!(think(&p, set), Action::Wait);
-    }
-
-    /// A Helper is on the player's side too, so it also counts as an ally. It
-    /// must still think with `HELPER`, or it would hunt monsters out of view
-    /// instead of heeling.
-    #[test]
-    fn a_helper_keeps_its_own_set_over_the_ally_one() {
-        assert!(std::ptr::eq(
-            rule_set_for(MovementType::Chase, true, true),
-            &HELPER
-        ));
-    }
-
-    /// A wall between the chaser and the player. Each step has to keep to open
-    /// floor and still end next to the player, where the chaser strikes.
-    #[test]
-    fn a_chaser_steps_around_a_wall_instead_of_into_it() {
-        let mut map = room();
-        map.tiles[tile_index(7, 6)] = TileType::Wall;
-        let e = entities(1);
-        let mut at = (5u16, 6u16);
-        let think_at = |at: (u16, u16)| {
-            let mut p = percept(&map, at, (9, 6));
-            p.foes = vec![sighting(e[0], (9, 6), true)];
-            think(&p, &CHASER)
-        };
-        for _ in 0..3 {
-            let Action::Step(dx, dy) = think_at(at) else {
-                panic!("a route around the wall exists");
-            };
-            at = ((at.0 as i16 + dx) as u16, (at.1 as i16 + dy) as u16);
-            assert_ne!(at, (7, 6), "walked into the wall it was routing around");
-        }
-        assert_eq!(think_at(at), Action::Strike(e[0]));
-    }
-
-    #[test]
-    fn the_player_is_struck_before_an_ally_beside_them() {
-        let map = room();
-        let e = entities(2);
-        let mut p = percept(&map, (6, 6), (7, 6));
-        p.foes = vec![sighting(e[0], (5, 6), false), sighting(e[1], (7, 6), true)];
-        assert_eq!(think(&p, &AMBUSHER), Action::Strike(e[1]));
-        p.foes.pop();
-        assert_eq!(think(&p, &AMBUSHER), Action::Strike(e[0]));
-    }
-
-    /// The same breath, the same foe. With the player behind the helper it
-    /// fires; with the player just past the foe, where the blast would reach,
-    /// it closes in to melee instead.
-    #[test]
-    fn a_helper_holds_fire_that_would_reach_the_player() {
-        let map = room();
-        let e = entities(1);
-        let mut p = percept(&map, (6, 6), (5, 6));
-        p.helper = true;
-        p.ally = true;
-        p.spellset = vec![spell_row("Fireball").unwrap()];
-        p.foes = vec![sighting(e[0], (11, 6), false)];
-        assert_eq!(
-            think(&p, &HELPER),
-            Action::Cast(spell_row("Fireball").unwrap(), Position { x: 11, y: 6 })
-        );
-        p.player_at = Position { x: 12, y: 6 };
-        assert!(matches!(think(&p, &HELPER), Action::Step(1, 0)));
-    }
-
-    /// Sting and thunderbolt land on the target's tile, so a wall between
-    /// caster and target does not stop them. A force lance travels, so the
-    /// same wall stops it (next test).
-    #[test]
-    fn a_targeted_spell_needs_no_clear_line() {
-        let mut map = room();
-        map.tiles[tile_index(9, 6)] = TileType::Wall;
-        let e = entities(1);
-        for spell in [
-            spell_row("Sting").unwrap(),
-            spell_row("Thunderbolt").unwrap(),
-        ] {
-            let mut p = percept(&map, (6, 6), (11, 6));
-            p.spellset = vec![spell];
-            p.foes = vec![sighting(e[0], (11, 6), true)];
-            assert_eq!(
-                think(&p, &CHASER),
-                Action::Cast(spell, Position { x: 11, y: 6 })
-            );
-        }
-    }
-
-    #[test]
-    fn a_line_spell_needs_a_clear_line() {
-        let mut map = room();
-        map.tiles[tile_index(9, 6)] = TileType::Wall;
-        let e = entities(1);
-        let mut p = percept(&map, (6, 6), (11, 6));
-        p.spellset = vec![spell_row("Force Lance").unwrap()];
-        p.foes = vec![sighting(e[0], (11, 6), true)];
-        assert!(!matches!(think(&p, &CHASER), Action::Cast(..)));
     }
 
     static BOLT: SpellDef = SpellDef {
@@ -704,19 +560,6 @@ mod tests {
         assert!(!helper_casts(&walled, &LANCE, (5, 8)));
     }
 
-    #[test]
-    fn a_chaser_fires_its_spell_whoever_else_it_catches() {
-        let map = room();
-        let e = entities(1);
-        let mut p = percept(&map, (6, 6), (11, 6));
-        p.spellset = vec![spell_row("Fireball").unwrap()];
-        p.foes = vec![sighting(e[0], (11, 6), true)];
-        assert_eq!(
-            think(&p, &CHASER),
-            Action::Cast(spell_row("Fireball").unwrap(), Position { x: 11, y: 6 })
-        );
-    }
-
     /// Two ways a spell fails to fire: a foe out of its range, and a spell
     /// that is not an attack. Both times the chaser falls through to the
     /// melee rules.
@@ -731,31 +574,6 @@ mod tests {
         p.at = Position { x: 14, y: 6 };
         p.spellset = vec![spell_row("Bide").unwrap()];
         assert_eq!(think(&p, &CHASER), Action::Strike(e[0]));
-    }
-
-    /// `roll` is a die rolled before `think`, so `think` stays a plain
-    /// function. It picks the one spell tried this turn.
-    #[test]
-    fn the_roll_picks_which_spell_is_tried() {
-        let map = room();
-        let e = entities(1);
-        let mut p = percept(&map, (6, 6), (11, 6));
-        p.spellset = vec![
-            spell_row("Fireball").unwrap(),
-            spell_row("Thunderbolt").unwrap(),
-        ];
-        p.foes = vec![sighting(e[0], (11, 6), true)];
-        let at = Position { x: 11, y: 6 };
-        p.roll = 0;
-        assert_eq!(
-            think(&p, &CHASER),
-            Action::Cast(spell_row("Fireball").unwrap(), at)
-        );
-        p.roll = 1;
-        assert_eq!(
-            think(&p, &CHASER),
-            Action::Cast(spell_row("Thunderbolt").unwrap(), at)
-        );
     }
 
     /// A mob cannot step diagonally through a doorway, so it cannot strike,

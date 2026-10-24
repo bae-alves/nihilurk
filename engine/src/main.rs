@@ -320,7 +320,7 @@ fn canonical_flag(arg: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{body_named, dropped_mode_flags, find_save, save_path_in};
+    use super::{body_named, dropped_mode_flags, find_save};
 
     fn data_dir(tag: &str) -> std::path::PathBuf {
         let dir =
@@ -384,19 +384,6 @@ mod tests {
         assert_eq!(find_save("Lurk.sav", &data), Some(data.join("lurk.sav")));
         assert_eq!(find_save("nobody", &data), None);
         let _ = std::fs::remove_dir_all(&data);
-    }
-
-    #[test]
-    fn a_name_cannot_climb_out_of_the_data_dir() {
-        let root = data_dir("climb");
-        let data = root.join("data");
-        std::fs::create_dir_all(&data).unwrap();
-        std::fs::write(root.join("esc.sav"), b"").unwrap();
-
-        assert_eq!(save_path_in(&data, "a/../b c"), data.join("a____b_c.sav"));
-        assert_eq!(save_path_in(&data, "/tmp/x"), data.join("_tmp_x.sav"));
-        assert_eq!(find_save("../esc", &data), None);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

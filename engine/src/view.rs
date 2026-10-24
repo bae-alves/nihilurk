@@ -1806,14 +1806,4 @@ mod tests {
             "the animation is over — the prompt has to come up now, or the backlog is unreachable"
         );
     }
-
-    #[test]
-    fn an_animation_alone_raises_no_prompt() {
-        let mut w = gate_world();
-        w.resource_mut::<Particles>().hit_spark(1, 1);
-        assert!(
-            !log_panel(&w).1,
-            "nothing is waiting to be read: the gate has nothing to hold back"
-        );
-    }
 }

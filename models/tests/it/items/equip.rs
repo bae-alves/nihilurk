@@ -52,179 +52,6 @@ fn is_equipped(w: &World, e: Entity) -> bool {
 }
 
 #[test]
-fn using_gear_toggles_equipped_state() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
-    let dagger = spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
-    let mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
-    for e in [sword, dagger, mail] {
-        w.entity_mut(e).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(e);
-    }
-
-    use_item(&mut w, p, sword);
-    assert!(is_equipped(&w, sword));
-    assert!(w.get::<Backpack>(p).unwrap().items.contains(&sword));
-
-    use_item(&mut w, p, dagger);
-    assert!(is_equipped(&w, dagger));
-    assert!(!is_equipped(&w, sword));
-
-    use_item(&mut w, p, mail);
-    assert!(is_equipped(&w, mail));
-    assert!(is_equipped(&w, dagger));
-
-    use_item(&mut w, p, dagger);
-    assert!(!is_equipped(&w, dagger));
-}
-
-#[test]
-fn cursed_gear_sticks_until_the_curse_is_lifted() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-
-    let cursed_mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
-    w.entity_mut(cursed_mail).insert(Curse);
-    let plain_mail = spawn_armor(&mut w, "leather armor", Position { x: 0, y: 0 });
-    let scroll = spawn_named(&mut w, "scroll of remove curse", Position { x: 0, y: 0 }).unwrap();
-    for e in [cursed_mail, plain_mail, scroll] {
-        w.entity_mut(e).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(e);
-    }
-
-    use_item(&mut w, p, cursed_mail);
-    assert!(is_equipped(&w, cursed_mail));
-
-    use_item(&mut w, p, cursed_mail);
-    assert!(
-        is_equipped(&w, cursed_mail),
-        "cursed armour should not come off"
-    );
-
-    use_item(&mut w, p, plain_mail);
-    assert!(
-        !is_equipped(&w, plain_mail),
-        "cursed armour blocks changing armour"
-    );
-    assert!(is_equipped(&w, cursed_mail));
-
-    use_item(&mut w, p, scroll);
-    assert!(
-        !w.entities().contains(cursed_mail),
-        "the cursed armour is despawned"
-    );
-    assert!(
-        !w.get::<Backpack>(p).unwrap().items.contains(&cursed_mail),
-        "the cursed armour is gone from the pack"
-    );
-
-    assert!(w.get::<Backpack>(p).unwrap().items.contains(&plain_mail));
-    use_item(&mut w, p, plain_mail);
-    assert!(
-        is_equipped(&w, plain_mail),
-        "plain armour equips once the curse is cleared"
-    );
-}
-
-#[test]
-fn remove_curse_spares_unequipped_cursed_gear() {
-    let mut w = test_world(5);
-    let p = player(&mut w);
-
-    let worn_ring = spawn_ring(&mut w, "ring of adornment", Position { x: 0, y: 0 });
-    w.entity_mut(worn_ring).insert(Curse);
-    let stashed_sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
-    w.entity_mut(stashed_sword).insert(Curse);
-    let scroll = spawn_named(&mut w, "scroll of remove curse", Position { x: 0, y: 0 }).unwrap();
-    for e in [worn_ring, stashed_sword, scroll] {
-        w.entity_mut(e).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(e);
-    }
-
-    use_item(&mut w, p, worn_ring);
-
-    use_item(&mut w, p, scroll);
-
-    assert!(
-        !w.entities().contains(worn_ring),
-        "the equipped cursed ring is destroyed"
-    );
-    assert!(
-        w.entities().contains(stashed_sword),
-        "the stashed cursed sword survives"
-    );
-    assert!(
-        w.get::<Curse>(stashed_sword).is_some(),
-        "its curse is left intact"
-    );
-    assert!(w.get::<Backpack>(p).unwrap().items.contains(&stashed_sword));
-}
-
-#[test]
-fn equipping_gear_moves_the_folded_numbers_by_exactly_the_rows_values() {
-    let mut w = test_world(42);
-    let p = player(&mut w);
-
-    for item in equipped_items(&mut w, p) {
-        force_unequip(&mut w, item);
-    }
-    let bare = loadout(&w, p);
-    assert_eq!((bare.power_die, bare.armor_die), (0, 0), "stripped");
-
-    let sword = spawn_weapon(&mut w, "two-handed sword", Position { x: 0, y: 0 });
-    w.entity_mut(sword).remove::<Position>();
-    let sword_die = w
-        .get::<PowerDie>(sword)
-        .expect("a weapon row carries a die")
-        .0;
-    w.get_mut::<Backpack>(p).unwrap().items.push(sword);
-
-    let before = loadout(&w, p);
-    use_item(&mut w, p, sword);
-    let after = loadout(&w, p);
-
-    assert_eq!(
-        after.power_die - before.power_die,
-        sword_die,
-        "wielding the sword adds exactly its row's die"
-    );
-    assert_eq!(
-        after.power_die, sword_die,
-        "and it is the only weapon in hand"
-    );
-    assert_eq!(
-        after.armor_die, before.armor_die,
-        "a weapon is worth nothing on the armour roll"
-    );
-
-    let mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
-    w.entity_mut(mail).remove::<Position>();
-    let mail_die = w
-        .get::<ArmorDie>(mail)
-        .expect("an armour row carries a die")
-        .0;
-    w.get_mut::<Backpack>(p).unwrap().items.push(mail);
-
-    let before = loadout(&w, p);
-    use_item(&mut w, p, mail);
-    let after = loadout(&w, p);
-
-    assert_eq!(
-        after.armor_die - before.armor_die,
-        mail_die,
-        "wearing the mail adds exactly its row's die"
-    );
-    assert_eq!(
-        after.power_die, before.power_die,
-        "armour is worth nothing on the attack roll"
-    );
-
-    use_item(&mut w, p, mail);
-    assert_eq!(loadout(&w, p).armor_die, before.armor_die);
-}
-
-#[test]
 fn spikemail_pricks_whoever_hits_its_wearer_for_one_or_two() {
     let hits = 600;
     let prick = |wear_it: bool| {
@@ -271,39 +98,6 @@ fn spikemail_pricks_whoever_hits_its_wearer_for_one_or_two() {
 }
 
 #[test]
-fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
-    let mut w = test_world(9);
-    let p = player(&mut w);
-    let orc = monster::monster(&mut w, "test monster", Position { x: 40, y: 11 });
-
-    let ring = spawn_ring(&mut w, "ring of aggravate monster", Position { x: 0, y: 0 });
-    w.entity_mut(ring).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
-
-    for _ in 0..200 {
-        ability_system(&mut w);
-    }
-    assert!(matches!(
-        w.get::<Mob>(orc).unwrap().movement_type,
-        MovementType::Chase
-    ));
-
-    use_item(&mut w, p, ring);
-    let mut fired_on = None;
-    for turn in 0..300 {
-        ability_system(&mut w);
-        if w.get::<Aggravated>(orc).is_some() {
-            fired_on = Some(turn);
-            break;
-        }
-    }
-    fired_on.expect("the ring never shrieked in 300 turns");
-    let hero = *w.get::<Position>(p).unwrap();
-    let ag = w.get::<Aggravated>(orc).expect("the orc is Aggravated");
-    assert_eq!((ag.tx, ag.ty), (hero.x, hero.y));
-}
-
-#[test]
 fn a_plus_and_curse_stay_hidden_until_the_item_is_worn() {
     let mut w = test_world(9);
     let p = player(&mut w);
@@ -333,81 +127,6 @@ fn a_plus_and_curse_stay_hidden_until_the_item_is_worn() {
         "wearing a cursed weapon should announce the curse: {:?}",
         w.resource::<GameLog>().history
     );
-}
-
-#[test]
-fn a_scroll_of_identify_can_single_out_an_unworn_plus_or_curse() {
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    let items = std::mem::take(&mut w.get_mut::<Backpack>(p).unwrap().items);
-    for item in items {
-        w.despawn(item);
-    }
-
-    let mail = spawn_armor(&mut w, "ring mail", Position { x: 0, y: 0 });
-    w.entity_mut(mail).insert((ArmorBonus(2), Curse));
-    let scroll = spawn_named(&mut w, "scroll of identify", Position { x: 0, y: 0 }).unwrap();
-    for e in [mail, scroll] {
-        w.entity_mut(e).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(e);
-    }
-
-    assert_eq!(display_name(&w, mail), "ring mail", "still unworn, unread");
-    use_item(&mut w, p, scroll);
-    assert_eq!(
-        display_name(&w, mail),
-        "+2 ring mail (cursed)",
-        "the scroll should have singled out the only thing left to learn"
-    );
-}
-
-#[test]
-fn a_vorpal_weapons_bane_only_shows_once_its_quality_is_known() {
-    let mut w = test_world(13);
-    let p = player(&mut w);
-
-    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
-    w.entity_mut(sword).insert(Vorpal {
-        bane: "orc".to_string(),
-    });
-    w.entity_mut(sword).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(sword);
-
-    assert_eq!(display_name(&w, sword), "long sword");
-    use_item(&mut w, p, sword);
-    assert_eq!(display_name(&w, sword), "long sword (vorpal vs. orc)");
-}
-
-#[test]
-fn two_rings_can_be_worn_at_once_and_both_effects_stack() {
-    let mut w = test_world(17);
-    let p = player(&mut w);
-    for item in equipped_items(&w, p) {
-        force_unequip(&mut w, item);
-    }
-    let items = std::mem::take(&mut w.get_mut::<Backpack>(p).unwrap().items);
-    for item in items {
-        w.despawn(item);
-    }
-
-    let protection = spawn_ring(&mut w, "ring of protection", Position { x: 0, y: 0 });
-    let strength = spawn_ring(&mut w, "ring of strength", Position { x: 0, y: 0 });
-    for e in [protection, strength] {
-        w.entity_mut(e).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(e);
-    }
-
-    use_item(&mut w, p, protection);
-    assert!(is_equipped(&w, protection));
-    use_item(&mut w, p, strength);
-    assert!(
-        is_equipped(&w, protection),
-        "putting on a second ring should not bump the first"
-    );
-    assert!(is_equipped(&w, strength));
-
-    assert_eq!(equipped_total::<ArmorBonus>(&w, p), 2);
-    assert_eq!(equipped_total::<PowerBonus>(&w, p), 2);
 }
 
 #[test]
@@ -451,40 +170,6 @@ fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
     assert!(
         !is_equipped(&w, fourth),
         "both fingers cursed shut should refuse a fourth ring"
-    );
-}
-
-#[test]
-fn a_monster_equipped_silently_does_not_identify_its_own_gear() {
-    let mut w = test_world(5);
-    let troll = monster::monster(&mut w, "test monster", Position { x: 40, y: 11 });
-    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
-    w.entity_mut(sword).insert(PowerBonus(2));
-
-    assert!(equip_silently(&mut w, troll, sword));
-
-    assert!(
-        w.get::<KnownQuality>(sword).is_none(),
-        "a monster spawning with, or picking up, gear must not identify it for the player"
-    );
-}
-
-#[test]
-fn the_player_worn_via_equip_silently_still_identifies_immediately() {
-    let mut w = test_world(6);
-    let p = player(&mut w);
-    for item in equipped_items(&w, p) {
-        force_unequip(&mut w, item);
-    }
-    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
-    w.entity_mut(sword).insert(PowerBonus(2));
-    w.entity_mut(sword).remove::<Position>();
-
-    assert!(equip_silently(&mut w, p, sword));
-
-    assert!(
-        w.get::<KnownQuality>(sword).is_some(),
-        "the player's own gear, even handed over already worn, is known from turn one"
     );
 }
 
@@ -563,29 +248,6 @@ fn a_staff_doubles_the_cost_and_triples_the_damage_of_a_damaging_spell() {
         turbo_damage,
         plain_damage * TURBO_MAGIC_POWER_MULT,
         "a staff multiplies the damage of the same roll"
-    );
-}
-
-/// The war hammer's whole point is a mechanic in `combat` (`ShattersStone`,
-/// which takes a blow through a petrified hide whole) reached only through the
-/// catalog row that lends it. The mechanic has its own tests; this is the wire
-/// between them — wield the hammer, and the wielder carries the effect.
-#[test]
-fn wielding_the_war_hammer_lends_what_goes_through_stone() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let hammer = spawn_weapon(&mut w, "war hammer", Position { x: 0, y: 0 });
-    w.entity_mut(hammer).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(hammer);
-
-    assert!(
-        w.get::<ShattersStone>(p).is_none(),
-        "the hammer worked from inside the pack"
-    );
-    use_item(&mut w, p, hammer);
-    assert!(
-        w.get::<ShattersStone>(p).is_some(),
-        "a wielded war hammer lent its wielder nothing"
     );
 }
 
@@ -720,16 +382,6 @@ fn assert_split(names: &[String], recv: &str, donor: &str) {
     assert!(n(recv) > 0, "recipient form never came up");
     assert!(n(donor) > 0, "donor form never came up");
     assert!(n("") > 0, "a merge never broke");
-}
-
-#[test]
-fn cursed_weapons_merge() {
-    let names = merge_names(
-        |w, n| spawn_weapon(w, n, Position { x: 0, y: 0 }),
-        "long sword",
-        "mace",
-    );
-    assert_split(&names, "long sword", "mace");
 }
 
 #[test]

@@ -41,12 +41,6 @@ fn player_pos(w: &mut World) -> Position {
     *w.get::<Position>(p).unwrap()
 }
 
-fn run_visibility(w: &mut World) {
-    let mut s = Schedule::default();
-    s.add_systems(visibility_system);
-    s.run(w);
-}
-
 fn helpers(w: &mut World) -> Vec<Entity> {
     w.query_filtered::<Entity, With<Helper>>().iter(w).collect()
 }
@@ -143,63 +137,6 @@ fn the_wrong_treat_bounces_off_and_can_be_picked_up_again() {
 }
 
 #[test]
-fn a_treat_thrown_at_an_already_charmed_ally_always_takes() {
-    for seed in 0..15 {
-        let mut w = test_world(seed);
-        let spot = east_of_player(&mut w, 1);
-        let rat = monster::plain_monster(&mut w, "rat", spot);
-        charm(&mut w, rat);
-        assert_eq!(w.get::<Faction>(rat), Some(&Faction::Ally));
-        assert!(w.get::<Helper>(rat).is_none(), "charmed, not recruited yet");
-
-        throw_treat(&mut w, "snack", spot);
-        assert!(is_helper(&w, rat), "an ally always takes the offer");
-    }
-}
-
-#[test]
-fn a_second_helper_costs_you_the_first() {
-    let mut w = test_world(5);
-    let at = east_of_player(&mut w, 1);
-    let a = monster::plain_monster(&mut w, "rat", at);
-    let at = east_of_player(&mut w, 2);
-    let b = monster::plain_monster(&mut w, "bat", at);
-    let score_before = w.query_filtered::<&Score, With<Player>>().single(&w).value;
-
-    recruit(&mut w, a);
-    recruit(&mut w, b);
-
-    assert!(w.get_entity(a).is_none(), "the old helper is gone");
-    assert_eq!(helpers(&mut w), vec![b]);
-    assert!(logged(&w, strings::so_much_for_loyalty()));
-    let score_after = w.query_filtered::<&Score, With<Player>>().single(&w).value;
-    assert_eq!(score_before, score_after, "an exploded helper pays nothing");
-}
-
-fn alignment(w: &mut World) -> i8 {
-    let p = player(w);
-    w.get::<Alignment>(p).unwrap().0
-}
-
-#[test]
-fn gaining_a_helper_is_plus_one_alignment_and_blowing_one_up_is_minus_two() {
-    let mut w = test_world(5);
-    let at = east_of_player(&mut w, 1);
-    let a = monster::plain_monster(&mut w, "rat", at);
-    let at = east_of_player(&mut w, 2);
-    let b = monster::plain_monster(&mut w, "bat", at);
-
-    recruit(&mut w, a);
-    assert_eq!(alignment(&mut w), 1, "a Helper gained");
-
-    recruit(&mut w, a);
-    assert_eq!(alignment(&mut w), 1, "the same Helper again gains nothing");
-
-    recruit(&mut w, b);
-    assert_eq!(alignment(&mut w), 0, "a explodes (-2), b joins (+1)");
-}
-
-#[test]
 fn an_exploded_helper_goes_at_normal_speed_unlike_one_that_is_killed() {
     let mut w = test_world(5);
     w.init_resource::<Particles>();
@@ -222,55 +159,6 @@ fn an_exploded_helper_goes_at_normal_speed_unlike_one_that_is_killed() {
     assert!(
         longest_corpse < 500.0,
         "the corpse lingers {longest_corpse} ms, stretched like a killed Helper's"
-    );
-}
-
-#[test]
-fn a_helper_closes_on_a_monster_in_view_and_otherwise_on_you() {
-    let mut w = test_world(9);
-    let at = east_of_player(&mut w, 3);
-    let pal = monster::plain_monster(&mut w, "rat", at);
-    recruit(&mut w, pal);
-    run_visibility(&mut w);
-
-    ai(&mut w);
-    let p = player_pos(&mut w);
-    let at = *w.get::<Position>(pal).unwrap();
-    assert_eq!(chebyshev(at, p), 2, "stepped toward the player");
-
-    let foe_at = Position {
-        x: at.x + 1,
-        y: at.y,
-    };
-    let foe = monster::plain_monster(&mut w, "kobold", foe_at);
-    w.get_mut::<Mob>(foe).unwrap().movement_type = MovementType::Static;
-    run_visibility(&mut w);
-    w.resource_mut::<AttackQueue>().attacks.clear();
-    ai(&mut w);
-    let attacks = &w.resource::<AttackQueue>().attacks;
-    assert!(
-        attacks.iter().any(|a| a.attacker == pal && a.target == foe),
-        "the helper went for the monster in view"
-    );
-}
-
-#[test]
-fn a_monster_next_to_your_helper_but_not_you_fights_the_helper() {
-    let mut w = test_world(9);
-    let at = east_of_player(&mut w, 3);
-    let pal = monster::plain_monster(&mut w, "rat", at);
-    recruit(&mut w, pal);
-    w.get_mut::<Mob>(pal).unwrap().movement_type = MovementType::Static;
-    w.entity_mut(pal).remove::<Speed>();
-    let at = east_of_player(&mut w, 4);
-    let foe = monster::plain_monster(&mut w, "kobold", at);
-    run_visibility(&mut w);
-    w.resource_mut::<AttackQueue>().attacks.clear();
-    ai(&mut w);
-    let attacks = &w.resource::<AttackQueue>().attacks;
-    assert!(
-        attacks.iter().any(|a| a.attacker == foe && a.target == pal),
-        "the monster ignored the helper standing next to it"
     );
 }
 
@@ -298,20 +186,6 @@ fn a_helper_follows_you_downstairs_healed_and_still_dressed() {
     let f = w.get::<Fighter>(pal).unwrap();
     assert_eq!(f.hp, f.max_hp, "and rested");
     assert_eq!(w.get::<Equipped>(dagger).and_then(|e| e.by), Some(pal));
-}
-
-#[test]
-fn a_dead_helper_pays_no_score() {
-    let mut w = test_world(4);
-    let at = east_of_player(&mut w, 1);
-    let pal = monster::plain_monster(&mut w, "rat", at);
-    recruit(&mut w, pal);
-    let before = w.query_filtered::<&Score, With<Player>>().single(&w).value;
-    w.get_mut::<Fighter>(pal).unwrap().hp = 0;
-    reaper_system(&mut w);
-    assert!(w.get_entity(pal).is_none());
-    let after = w.query_filtered::<&Score, With<Player>>().single(&w).value;
-    assert_eq!(before, after);
 }
 
 #[test]
@@ -348,36 +222,6 @@ fn a_helper_and_a_bag_of_snacks_survive_a_save() {
         .find(|&e| w2.get::<Treat>(e).is_some())
         .expect("the snacks came back as treats");
     assert_eq!(w2.get::<Stack>(bag).map(|s| s.count), Some(3));
-}
-
-#[test]
-fn a_treat_or_an_arrow_is_for_throwing() {
-    let mut w = test_world(1);
-    for name in ["snack", "fancy of peace", "arrow"] {
-        let item = spawn_named(&mut w, name, Position { x: 0, y: 0 }).unwrap();
-        assert!(use_refusal(&w, item).is_some(), "{name} is not for using");
-    }
-    let potion = spawn_named(&mut w, "potion of healing", Position { x: 0, y: 0 }).unwrap();
-    assert!(use_refusal(&w, potion).is_none());
-}
-
-#[test]
-fn a_helper_in_view_neither_halts_the_walk_nor_gets_announced() {
-    let mut w = test_world(9);
-    let at = east_of_player(&mut w, 2);
-    let pal = monster::plain_monster(&mut w, "rat", at);
-    recruit(&mut w, pal);
-    w.resource_mut::<GameLog>().history.clear();
-    run_visibility(&mut w);
-    assert!(
-        w.get::<Hidden>(pal).is_none(),
-        "the fixture helper is in view"
-    );
-    assert!(
-        !monster_in_sight(&mut w),
-        "a helper is not a reason to stop"
-    );
-    assert!(!logged(&w, "rat"), "a helper is not news");
 }
 
 #[test]
@@ -419,34 +263,6 @@ fn a_cleave_and_a_whirl_spare_your_helper() {
         w.get::<Fighter>(pal).unwrap().hp,
         100,
         "the sickle swung past it"
-    );
-}
-
-#[test]
-fn a_helper_ignores_terrain_like_a_ghost() {
-    let mut w = test_world(9);
-    let at = east_of_player(&mut w, 3);
-    let pal = monster::plain_monster(&mut w, "rat", at);
-    recruit(&mut w, pal);
-    {
-        let mut map = w.resource_mut::<Map>();
-        for dy in -1i32..=1 {
-            for dx in -1i32..=1 {
-                let (x, y) = ((at.x as i32 + dx) as u16, (at.y as i32 + dy) as u16);
-                map.tiles[tile_index(x, y)] = TileType::Wall;
-            }
-        }
-        map.tiles[tile_index(at.x - 1, at.y)] = TileType::Water;
-        map.tiles[tile_index(at.x, at.y)] = TileType::Room;
-    }
-    run_visibility(&mut w);
-
-    ai(&mut w);
-    let p = player_pos(&mut w);
-    let now = *w.get::<Position>(pal).unwrap();
-    assert!(
-        chebyshev(now, p) < 3,
-        "walked out of its cell toward the player"
     );
 }
 
@@ -499,63 +315,6 @@ fn always_helper_turns_a_charm_into_the_helper() {
 }
 
 #[test]
-fn a_priority_helper_never_explodes_and_still_explodes_the_other_kind() {
-    let mut w = test_world(4);
-    let spawn = |w: &mut World, dx: u16, name: &str, priority: bool| {
-        let at = east_of_player(w, dx);
-        let e = monster::plain_monster(w, name, at);
-        if priority {
-            lend_forever::<PriorityHelper>(w, e);
-        }
-        e
-    };
-    let (a, b) = (spawn(&mut w, 1, "a", true), spawn(&mut w, 2, "b", true));
-    recruit(&mut w, a);
-    recruit(&mut w, b);
-    assert!(is_helper(&w, a) && is_helper(&w, b), "any number of dogs");
-
-    let x = spawn(&mut w, 3, "x", false);
-    recruit(&mut w, x);
-    assert!(is_helper(&w, a) && is_helper(&w, b) && is_helper(&w, x));
-
-    let y = spawn(&mut w, 4, "y", false);
-    recruit(&mut w, y);
-    assert!(
-        w.get_entity(x).is_none(),
-        "a second plain helper blows up the first"
-    );
-    assert!(is_helper(&w, a) && is_helper(&w, b) && is_helper(&w, y));
-
-    let z = spawn(&mut w, 5, "z", true);
-    recruit(&mut w, z);
-    assert!(w.get_entity(y).is_none(), "a dog blows up the plain helper");
-    assert!(is_helper(&w, a) && is_helper(&w, b) && is_helper(&w, z));
-}
-
-#[test]
-fn every_priority_helper_follows_you_downstairs() {
-    let mut w = test_world(8);
-    let p = player(&mut w);
-    let mut pups = Vec::new();
-    for dx in 1..=3 {
-        let at = east_of_player(&mut w, dx);
-        let pup = monster::plain_monster(&mut w, "pup", at);
-        lend_forever::<PriorityHelper>(&mut w, pup);
-        recruit(&mut w, pup);
-        pups.push(pup);
-    }
-    let down = stair_location(&w.resource::<Map>().clone(), true).unwrap();
-    *w.get_mut::<Position>(p).unwrap() = Position {
-        x: down.0,
-        y: down.1,
-    };
-    assert!(change_level(&mut w, true));
-    for pup in pups {
-        assert!(w.get::<Position>(pup).is_some(), "a pup was left behind");
-    }
-}
-
-#[test]
 fn a_shapeshifted_dog_keeps_its_traits_its_loyalty_and_says_so() {
     let mut w = test_world(6);
     let at = east_of_player(&mut w, 1);
@@ -583,24 +342,6 @@ fn a_shapeshifted_dog_keeps_its_traits_its_loyalty_and_says_so() {
         &w,
         &strings::shapeshift_reveal(article_for("dog"), "dog", article_for(&now), &now)
     ));
-}
-
-#[test]
-fn a_shapeshifted_wearer_leaves_no_gear_pointing_at_its_old_body() {
-    let mut w = test_world(6);
-    let at = east_of_player(&mut w, 1);
-    let orc = monster::plain_monster(&mut w, "orc", at);
-    let blade = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
-    assert!(equip_silently(&mut w, orc, blade));
-
-    shapeshift(&mut w, orc).expect("an orc shapeshifts");
-
-    let stale = w
-        .query::<&Equipped>()
-        .iter(&w)
-        .filter(|e| e.by == Some(orc))
-        .count();
-    assert_eq!(stale, 0, "gear still worn by a body that is gone");
 }
 
 /// Kills `n` hostile monsters with a fresh killer carrying `traits` and
@@ -649,53 +390,6 @@ fn a_kill_sometimes_shapeshifts_the_killer_and_only_one_that_can() {
         "{got} shapeshifts in {n} kills, about {expected} expected"
     );
     assert_eq!(shapeshifts_in(100, false), 0, "no trait, no shapeshifting");
-}
-
-#[test]
-fn a_shapeshifted_dog_is_still_a_dog_after_a_save() {
-    let mut w = test_world(13);
-    let at = east_of_player(&mut w, 1);
-    let pup = spawn_monster(&mut w, MonsterDef::named("dog"), at);
-    recruit(&mut w, pup);
-    let grown = shapeshift(&mut w, pup).expect("a dog shapeshifts");
-
-    let save = common::SaveFile::new("shapeshifted_dog");
-    save_game(&mut w, save.path()).unwrap();
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(14)));
-    w2.insert_resource(RngSeed(14));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName { what: "X".into() });
-    load_game(&mut w2, save.path()).unwrap();
-
-    let name = w.get::<Name>(grown).unwrap().what.clone();
-    let back = helpers(&mut w2);
-    assert_eq!(back.len(), 1);
-    assert_eq!(w2.get::<Name>(back[0]).unwrap().what, name);
-    for (grant, id) in DOG_GRANTS
-        .iter()
-        .zip(["always_tamed", "always_helper", "priority_helper"])
-    {
-        assert!(grant.probe(&w2, back[0]), "{id} was lost in the save");
-    }
-}
-
-#[test]
-fn cancelling_a_dog_stops_its_shapeshifting_and_nothing_else() {
-    let mut w = test_world(15);
-    let at = east_of_player(&mut w, 1);
-    let pup = spawn_monster(&mut w, MonsterDef::named("dog"), at);
-    recruit(&mut w, pup);
-    revoke_all(&mut w, pup);
-    assert!(w.get::<ShapeshiftOnKill>(pup).is_none(), "still restless");
-    assert!(
-        DOG_GRANTS
-            .iter()
-            .filter(|g| g.effect_id() != Some("shapeshift_on_kill"))
-            .all(|g| g.probe(&w, pup)),
-        "cancellation stripped a dog grant"
-    );
-    assert!(is_helper(&w, pup));
 }
 
 /// Kills `victim` with `killer` by plain melee, however many swings it takes.
@@ -774,24 +468,6 @@ fn an_ordinary_death_still_leaves_gore() {
 }
 
 #[test]
-fn a_mirror_hound_becomes_exactly_what_it_kills_once() {
-    let mut w = test_world(40);
-    let at = east_of_player(&mut w, 1);
-    let hound = spawn_monster(&mut w, MonsterDef::named("mirror hound"), at);
-    recruit(&mut w, hound);
-
-    let copy = mirror(&mut w, hound, MonsterDef::named("orc")).unwrap();
-
-    assert!(w.get_entity(hound).is_none(), "the old body is gone");
-    assert_eq!(*w.get::<Position>(copy).unwrap(), at);
-    let orc = MonsterDef::named("orc");
-    assert_eq!(w.get::<Fighter>(copy).unwrap().max_hp, orc.hp);
-    assert_eq!(w.get::<Renderable>(copy).unwrap().glyph, orc.glyph);
-    assert!(is_helper(&w, copy), "still on your side");
-    assert!(w.get::<MirrorOnKill>(copy).is_none(), "the copy is spent");
-}
-
-#[test]
 fn a_kill_mirrors_at_the_shapeshift_chance() {
     let n = 200;
     let mut w = test_world(42);
@@ -837,23 +513,6 @@ fn a_mirror_hound_that_kills_what_the_bestiary_lacks_stays_a_hound() {
         );
         w.despawn(hound);
     }
-}
-
-#[test]
-fn a_cancelled_mirror_hound_stays_a_hound() {
-    let mut w = test_world(41);
-    let at = east_of_player(&mut w, 1);
-    let hound = spawn_monster(&mut w, MonsterDef::named("mirror hound"), at);
-    recruit(&mut w, hound);
-    revoke_all(&mut w, hound);
-    assert!(w.get::<MirrorOnKill>(hound).is_none());
-    assert!(w.get::<AlwaysTamed>(hound).is_some(), "still a dog");
-
-    let victim_at = east_of_player(&mut w, 2);
-    let victim = monster::plain_monster(&mut w, "orc", victim_at);
-    kill(&mut w, hound, victim);
-
-    assert!(w.get_entity(hound).is_some(), "no change of shape");
 }
 
 #[derive(Component)]

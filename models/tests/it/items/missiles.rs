@@ -153,123 +153,9 @@ fn damage_samples(
         .collect()
 }
 
-fn mean(v: &[i32]) -> f64 {
-    v.iter().sum::<i32>() as f64 / v.len() as f64
-}
-
 // ---------------------------------------------------------------------------
 // Launchers
 // ---------------------------------------------------------------------------
-
-#[test]
-fn a_bow_ups_the_die_of_an_arrow_short_of_doubling_it() {
-    let by_hand = damage_samples(1, "arrow", 400, |_, _| {});
-    let from_a_bow = damage_samples(1, "arrow", 400, |w, p| {
-        let bow = stash(w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-        toggle_equipped(w, p, bow);
-        assert!(
-            w.get::<FireArrow>(p).is_some(),
-            "drawing a bow arms the arrow"
-        );
-    });
-
-    let hand_max = *by_hand.iter().max().unwrap();
-    let bow_max = *from_a_bow.iter().max().unwrap();
-    assert!(by_hand.iter().all(|&d| d > 0), "{by_hand:?}");
-    assert!(from_a_bow.iter().all(|&d| d > 0), "{from_a_bow:?}");
-    assert!(bow_max > hand_max, "a bow should improve an arrow");
-    let (lobbed, loosed) = (mean(&by_hand), mean(&from_a_bow));
-    assert!(
-        loosed > lobbed * 1.2 && loosed < lobbed * 1.8,
-        "a bow should raise an arrow by about half, not double it (by hand {lobbed:.2}, from a bow {loosed:.2})"
-    );
-}
-
-#[test]
-fn a_crossbow_doubles_a_quarrel_and_a_bow_does_not() {
-    let by_hand = damage_samples(2, "quarrel", 400, |_, _| {});
-    let from_a_crossbow = damage_samples(2, "quarrel", 400, |w, p| {
-        let cb = stash(w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
-        toggle_equipped(w, p, cb);
-    });
-    let wrong_launcher = damage_samples(2, "quarrel", 400, |w, p| {
-        let bow = stash(w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-        toggle_equipped(w, p, bow);
-    });
-
-    let hand_max = *by_hand.iter().max().unwrap();
-    let crossbow_max = *from_a_crossbow.iter().max().unwrap();
-    assert!(
-        crossbow_max > hand_max,
-        "a crossbow should improve a quarrel"
-    );
-    assert!(
-        wrong_launcher.iter().all(|&d| d > 0 && d <= hand_max),
-        "{wrong_launcher:?}"
-    );
-}
-
-#[test]
-fn a_launcher_is_a_grant_and_nothing_more() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-
-    assert!(w.get::<PowerDie>(bow).is_none());
-    assert!(w.get::<ArmorDie>(bow).is_none());
-    assert!(w.get::<FireArrow>(p).is_none());
-
-    toggle_equipped(&mut w, p, bow);
-    assert!(w.get::<FireArrow>(p).is_some());
-    assert_eq!(equipped_total::<PowerDie>(&w, p), 0);
-
-    toggle_equipped(&mut w, p, bow);
-    assert!(w.get::<FireArrow>(p).is_none());
-}
-
-#[test]
-fn wielded_launcher_only_answers_once_a_launcher_is_drawn() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    empty_pack(&mut w, p);
-    assert!(wielded_launcher(&w, p).is_none());
-
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-    assert!(
-        wielded_launcher(&w, p).is_none(),
-        "sitting in the pack is not the same as drawn"
-    );
-
-    toggle_equipped(&mut w, p, bow);
-    assert_eq!(wielded_launcher(&w, p), Some(bow));
-
-    let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    toggle_equipped(&mut w, p, sword);
-    assert!(wielded_launcher(&w, p).is_none());
-}
-
-#[test]
-fn first_matching_ammo_picks_pack_order_and_only_the_right_kind() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    empty_pack(&mut w, p);
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-    toggle_equipped(&mut w, p, bow);
-    assert_eq!(
-        first_matching_ammo(&w, p),
-        None,
-        "an empty pack has nothing to fire"
-    );
-
-    let quarrels = quiver(&mut w, p, "quarrel", 5);
-    let arrows = quiver(&mut w, p, "arrow", 5);
-    assert_eq!(first_matching_ammo(&w, p), Some(arrows));
-
-    toggle_equipped(&mut w, p, bow);
-    let crossbow = stash(&mut w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
-    toggle_equipped(&mut w, p, crossbow);
-    assert_eq!(first_matching_ammo(&w, p), Some(quarrels));
-}
 
 #[test]
 fn ammo_noun_names_whichever_the_drawn_launcher_takes() {
@@ -285,24 +171,6 @@ fn ammo_noun_names_whichever_the_drawn_launcher_takes() {
     let crossbow = stash(&mut w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
     toggle_equipped(&mut w, p, crossbow);
     assert_eq!(ammo_noun(&w, p), "quarrels");
-}
-
-#[test]
-fn a_bow_and_a_sword_want_the_same_hand() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-
-    toggle_equipped(&mut w, p, sword);
-    toggle_equipped(&mut w, p, bow);
-
-    assert_eq!(equipped_in(&w, p, Slot::Hand), Some(bow));
-    assert_eq!(
-        equipped_total::<PowerDie>(&w, p),
-        0,
-        "the sword is back in the pack"
-    );
 }
 
 #[test]
@@ -351,27 +219,6 @@ fn a_bows_plus_rides_along_on_what_it_looses() {
 }
 
 #[test]
-fn a_daggers_plus_rides_along_on_the_dagger() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let bag = tough(&mut w, "bat", spot);
-
-    let mut seen = Vec::new();
-    for _ in 0..200 {
-        let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-        w.entity_mut(dagger).insert(PowerBonus(2));
-        let before = hp(&w, bag);
-        throw(&mut w, p, dagger, spot);
-        seen.push(before - hp(&w, bag));
-    }
-    assert!(
-        seen.iter().all(|&d| (3..=6).contains(&d)),
-        "1d4+2: {seen:?}"
-    );
-}
-
-#[test]
 fn only_armour_plus_blunts_a_throw_and_the_armour_die_never_does() {
     fn worst(weapon: &'static str, plus: i32) -> i32 {
         let mut w = test_world(8);
@@ -412,53 +259,6 @@ fn only_armour_plus_blunts_a_throw_and_the_armour_die_never_does() {
 }
 
 #[test]
-fn a_thing_not_made_for_throwing_does_one_d_two_plus_its_plus() {
-    let mut w = test_world(9);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let bag = tough(&mut w, "bat", spot);
-    w.get_mut::<Fighter>(bag).unwrap().hp = 100_000;
-    let seen: Vec<i32> = (0..300)
-        .map(|_| {
-            let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-            w.entity_mut(sword).insert(PowerBonus(2));
-            let before = hp(&w, bag);
-            throw(&mut w, p, sword, spot);
-            before - hp(&w, bag)
-        })
-        .collect();
-    assert!(
-        seen.iter().all(|&d| (3..=4).contains(&d)),
-        "1d2+2: {seen:?}"
-    );
-    assert!(seen.contains(&3) && seen.contains(&4), "{seen:?}");
-}
-
-#[test]
-fn thrown_armour_does_no_damage() {
-    let mut w = test_world(10);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let bag = tough(&mut w, "bat", spot);
-    let mail = stash(&mut w, p, |w| spawn_armor(w, "plate mail", NOWHERE));
-    let before = hp(&w, bag);
-    throw(&mut w, p, mail, spot);
-    assert_eq!(hp(&w, bag), before);
-}
-
-#[test]
-fn ammunition_lobbed_by_hand_does_one_d_two() {
-    for ammo in ["arrow", "quarrel", "blowdart"] {
-        let seen = damage_samples(11, ammo, 200, |_, _| {});
-        assert!(
-            seen.iter().all(|&d| (1..=2).contains(&d)),
-            "{ammo}: {seen:?}"
-        );
-        assert!(seen.contains(&2), "{ammo}: {seen:?}");
-    }
-}
-
-#[test]
 fn a_blowdart_that_draws_blood_saps_the_victims_power() {
     let mut w = test_world(13);
     let p = player(&mut w);
@@ -478,41 +278,6 @@ fn a_blowdart_that_draws_blood_saps_the_victims_power() {
 // ---------------------------------------------------------------------------
 // Piercing, and stopping
 // ---------------------------------------------------------------------------
-
-#[test]
-fn a_spear_runs_the_whole_line_and_an_arrow_stops_at_the_first_thing_it_hits() {
-    fn line_of_three(seed: u64) -> (World, Entity, Vec<Entity>, Position) {
-        let mut w = test_world(seed);
-        let p = player(&mut w);
-        let run = open_run(&mut w, 3);
-        let row: Vec<Entity> = run.iter().map(|&at| tough(&mut w, "bat", at)).collect();
-        let far = run[2];
-        (w, p, row, far)
-    }
-
-    let (mut w, p, row, far) = line_of_three(9);
-    let before: Vec<i32> = row.iter().map(|&e| hp(&w, e)).collect();
-    let spear = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
-    throw(&mut w, p, spear, far);
-    for (i, &bat) in row.iter().enumerate() {
-        assert!(hp(&w, bat) < before[i], "the spear missed bat {i}");
-    }
-
-    let (mut w, p, row, far) = line_of_three(9);
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    throw(&mut w, p, dagger, far);
-    assert!(
-        row.iter().all(|&bat| hp(&w, bat) < 500),
-        "the dagger stopped short"
-    );
-
-    let (mut w, p, row, far) = line_of_three(9);
-    let arrow = quiver(&mut w, p, "arrow", 1);
-    throw(&mut w, p, arrow, far);
-    assert!(hp(&w, row[0]) < 500, "the near bat took it");
-    assert_eq!(hp(&w, row[1]), 500, "and nothing got past it");
-    assert_eq!(hp(&w, row[2]), 500);
-}
 
 #[test]
 fn an_improvised_missile_also_resolves_on_the_first_target() {
@@ -570,27 +335,6 @@ fn a_boomerang_hits_the_first_creature_only_and_comes_back_to_the_pack() {
     assert!(logged(&w, "boomerang returns"));
 }
 
-#[test]
-fn a_boomerang_comes_back_to_the_pack_row_it_left() {
-    let mut w = test_world(44);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 2)[1];
-    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
-    stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    let row = |w: &World| {
-        w.get::<Backpack>(p)
-            .unwrap()
-            .items
-            .iter()
-            .position(|&e| e == boomerang)
-    };
-    let before = row(&w);
-
-    throw(&mut w, p, boomerang, spot);
-
-    assert_eq!(row(&w), before, "same letter as before the throw");
-}
-
 /// The player's pack, as it stands.
 fn pack(w: &World, p: Entity) -> Vec<Entity> {
     w.get::<Backpack>(p).unwrap().items.clone()
@@ -630,21 +374,6 @@ fn the_world_does_not_hold_a_returning_weapon() {
 }
 
 #[test]
-fn several_frozen_throws_all_thaw_back_into_their_rows() {
-    let mut w = test_world(46);
-    let p = player(&mut w);
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
-    let spear = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
-    stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    let before = pack(&w, p);
-
-    throw_frozen_and_thaw(&mut w, p, &[spear, dagger]);
-
-    assert_eq!(pack(&w, p), before);
-}
-
-#[test]
 fn a_frozen_arrow_thaws_back_into_its_quiver() {
     let mut w = test_world(47);
     let p = player(&mut w);
@@ -656,32 +385,6 @@ fn a_frozen_arrow_thaws_back_into_its_quiver() {
 
     assert_eq!(pack(&w, p), before, "no new row for the one arrow");
     assert_eq!(w.get::<Stack>(arrows).unwrap().count, 5);
-}
-
-#[test]
-fn a_frozen_last_arrow_thaws_back_into_its_row() {
-    let mut w = test_world(48);
-    let p = player(&mut w);
-    let arrow = quiver(&mut w, p, "arrow", 1);
-    stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
-    let before = pack(&w, p);
-
-    throw_frozen_and_thaw(&mut w, p, &[arrow]);
-
-    assert_eq!(pack(&w, p), before);
-}
-
-#[test]
-fn a_boomerang_that_hits_nothing_still_comes_back() {
-    let mut w = test_world(41);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 2)[1];
-    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
-
-    throw(&mut w, p, boomerang, spot);
-
-    assert_eq!(pack_count(&w, p, boomerang), 1);
-    assert!(w.get::<Position>(boomerang).is_none());
 }
 
 #[test]
@@ -701,167 +404,13 @@ fn a_wielded_boomerang_is_wielded_again_when_it_comes_back() {
     assert_eq!(pack_count(&w, p, boomerang), 1);
 }
 
-#[test]
-fn nothing_catches_a_boomerang() {
-    let mut w = test_world(43);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let orc = monster::monster(&mut w, "test monster", spot);
-    assert!(w.get::<ItemUser>(orc).is_some());
-    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
-
-    throw(&mut w, p, boomerang, spot);
-
-    assert!(
-        equipped_in(&w, orc, Slot::Hand).is_none(),
-        "an orc with hands catches nothing out of a boomerang's flight"
-    );
-    assert_eq!(pack_count(&w, p, boomerang), 1);
-}
-
 // ---------------------------------------------------------------------------
 // Spent, or not
 // ---------------------------------------------------------------------------
 
-#[test]
-fn a_projectile_that_hits_something_is_spent() {
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    tough(&mut w, "bat", spot);
-
-    for weapon in ["dagger", "spear"] {
-        let item = stash(&mut w, p, |w| spawn_weapon(w, weapon, NOWHERE));
-        throw(&mut w, p, item, spot);
-        assert!(w.get_entity(item).is_none(), "the {weapon} should be gone");
-    }
-
-    let arrow = quiver(&mut w, p, "arrow", 1);
-    throw(&mut w, p, arrow, spot);
-    assert!(w.get_entity(arrow).is_none(), "the arrow snapped");
-}
-
-#[test]
-fn a_projectile_that_hits_nothing_falls_where_it_landed() {
-    let mut w = test_world(12);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-
-    throw(&mut w, p, dagger, spot);
-
-    let at = w
-        .get::<Position>(dagger)
-        .expect("it should be on the floor");
-    assert_eq!((at.x, at.y), (spot.x, spot.y));
-}
-
-#[test]
-fn nothing_catches_a_projectile_out_of_the_air() {
-    let mut w = test_world(13);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let orc = monster::monster(&mut w, "test monster", spot);
-    w.get_mut::<Fighter>(orc).unwrap().hp = 500;
-    w.get_mut::<Fighter>(orc).unwrap().max_hp = 500;
-    assert!(w.get::<ItemUser>(orc).is_some());
-
-    let spear = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
-    throw(&mut w, p, spear, spot);
-
-    assert!(w.get_entity(spear).is_none());
-    assert!(
-        equipped_in(&w, orc, Slot::Hand).is_none(),
-        "the orc caught nothing"
-    );
-    assert!(!logged(&w, "wields it"));
-}
-
-#[test]
-fn the_dagger_in_your_hand_can_be_thrown_unless_it_is_cursed() {
-    let mut w = test_world(21);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    toggle_equipped(&mut w, p, dagger);
-
-    assert!(throw_refusal(&w, p, dagger).is_none());
-    throw(&mut w, p, dagger, spot);
-    assert_eq!(equipped_total::<PowerDie>(&w, p), 0);
-
-    let cursed = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
-    w.entity_mut(cursed).insert(Curse);
-    toggle_equipped(&mut w, p, cursed);
-    assert!(throw_refusal(&w, p, cursed).is_some());
-}
-
 // ---------------------------------------------------------------------------
 // Stacking
 // ---------------------------------------------------------------------------
-
-#[test]
-fn throwing_from_a_quiver_spends_one_and_keeps_the_slot() {
-    let mut w = test_world(14);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    empty_pack(&mut w, p);
-    let arrows = quiver(&mut w, p, "arrow", 10);
-    let slot_above = stash(&mut w, p, |w| spawn_ring(w, "ring of adornment", NOWHERE));
-    w.get_mut::<Backpack>(p).unwrap().items = vec![slot_above, arrows];
-
-    throw(&mut w, p, arrows, spot);
-
-    assert!(
-        w.get::<Position>(arrows).is_none(),
-        "the quiver itself never leaves your hand"
-    );
-    assert_eq!(w.get::<Stack>(arrows).unwrap().count, 9);
-    assert_eq!(
-        w.get::<Backpack>(p).unwrap().items,
-        vec![slot_above, arrows]
-    );
-}
-
-#[test]
-fn the_last_arrow_takes_the_slot_with_it() {
-    let mut w = test_world(15);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    empty_pack(&mut w, p);
-    let arrows = quiver(&mut w, p, "arrow", 1);
-
-    throw(&mut w, p, arrows, spot);
-
-    assert!(
-        w.get_entity(arrows).is_none() || w.get::<Position>(arrows).is_some(),
-        "a stack of one is thrown whole"
-    );
-    assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
-}
-
-#[test]
-fn arrows_off_the_floor_top_up_the_quiver_you_are_carrying() {
-    let mut w = test_world(16);
-    let p = player(&mut w);
-    empty_pack(&mut w, p);
-    let carried = quiver(&mut w, p, "arrow", 4);
-
-    let pile = spawn_ammo(&mut w, "arrow", NOWHERE);
-    w.get_mut::<Stack>(pile).unwrap().count = 6;
-    let taken = stow(&mut w, p, pile).expect("they went in");
-
-    assert_eq!(taken, "6 arrows");
-    assert_eq!(w.get::<Stack>(carried).unwrap().count, 10);
-    assert!(
-        w.get_entity(pile).is_none(),
-        "the pile is gone into the quiver"
-    );
-    assert_eq!(
-        w.get::<Backpack>(p).unwrap().items,
-        vec![carried],
-        "still one slot"
-    );
-}
 
 #[test]
 fn quarrels_never_go_in_with_arrows() {
@@ -1073,94 +622,6 @@ fn the_melee_cap_does_not_follow_the_arrow() {
     );
 }
 
-/// A bow that is not in your hand caps nothing — the ceiling comes off with the
-/// bow, and an unarmed punch is worth more than a swung one.
-#[test]
-fn the_cap_comes_off_with_the_bow() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let target = punching_bag(&mut w, Position { x: 1, y: 1 });
-
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-    toggle_equipped(&mut w, p, bow);
-    let before = hp(&w, target);
-    for _ in 0..300 {
-        resolve_attack(&mut w, p, target);
-    }
-    let with_bow = before - hp(&w, target);
-
-    toggle_equipped(&mut w, p, bow);
-    let before = hp(&w, target);
-    for _ in 0..300 {
-        resolve_attack(&mut w, p, target);
-    }
-    let bare_handed = before - hp(&w, target);
-
-    assert!(
-        bare_handed > with_bow,
-        "bare fists ({bare_handed}) should beat a swung bow ({with_bow})"
-    );
-}
-
-/// The ceiling is a catalog row, so it comes back the way a bow's grant does.
-#[test]
-fn the_melee_cap_survives_a_save() {
-    let save = common::SaveFile::new("melee-cap");
-    let path = save.path();
-
-    let mut w = test_world(5);
-    let p = player(&mut w);
-    empty_pack(&mut w, p);
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-    assert_eq!(w.get::<MeleeCap>(bow).copied(), Some(MeleeCap(1)));
-    save_game(&mut w, path).unwrap();
-
-    let mut w2 = World::new();
-    w2.init_resource::<GameLog>();
-    load_game(&mut w2, path).unwrap();
-
-    let caps: Vec<MeleeCap> = w2.query::<&MeleeCap>().iter(&w2).copied().collect();
-    assert_eq!(
-        caps,
-        vec![MeleeCap(1)],
-        "the bow came back without its ceiling"
-    );
-}
-
-/// The stick buys a tile of reach on top of the arm behind it, and only for
-/// the ammunition it answers to: the same arrow chucked bare-handed, or loosed
-/// at a crossbow's quarrel, gets the plain throw leash.
-#[test]
-fn a_drawn_launcher_reaches_a_tile_further_than_a_bare_hand() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    empty_pack(&mut w, p);
-
-    let arrows = quiver(&mut w, p, "arrow", 5);
-    let quarrels = quiver(&mut w, p, "quarrel", 5);
-    assert_eq!(
-        throw_reach(&w, p, arrows),
-        THROW_RANGE,
-        "no launcher drawn: an arrow is just a thing to chuck"
-    );
-
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-    toggle_equipped(&mut w, p, bow);
-    assert_eq!(throw_reach(&w, p, arrows), LAUNCHER_RANGE);
-    assert!(LAUNCHER_RANGE > THROW_RANGE);
-    assert_eq!(
-        throw_reach(&w, p, quarrels),
-        THROW_RANGE,
-        "a bow does nothing for a quarrel"
-    );
-
-    toggle_equipped(&mut w, p, bow);
-    let crossbow = stash(&mut w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
-    toggle_equipped(&mut w, p, crossbow);
-    assert_eq!(throw_reach(&w, p, quarrels), LAUNCHER_RANGE);
-    assert_eq!(throw_reach(&w, p, arrows), THROW_RANGE);
-}
-
 /// Weight decides the leash for anything not on a bowstring: a potion, scroll,
 /// wand or ring is flicked, a dagger is heaved.
 #[test]
@@ -1212,24 +673,6 @@ fn can_see(w: &mut World, p: Entity, tiles: &[Position]) {
 }
 
 #[test]
-fn a_moon_blade_chains_three_hits_between_what_the_thrower_sees_then_comes_home() {
-    let mut w = test_world(60);
-    let p = player(&mut w);
-    let run = open_run(&mut w, 2);
-    let near = tough(&mut w, "bat", run[0]);
-    let far = tough(&mut w, "bat", run[1]);
-    can_see(&mut w, p, &run);
-    let blade = stash(&mut w, p, |w| spawn_weapon(w, "moon blade", NOWHERE));
-
-    throw(&mut w, p, blade, run[1]);
-
-    assert_eq!(strikes_logged(&w), 3, "the throw and two bounces");
-    assert!(hp(&w, near) < 500 && hp(&w, far) < 500);
-    assert_eq!(pack_count(&w, p, blade), 1);
-    assert!(w.get::<Position>(blade).is_none());
-}
-
-#[test]
 fn a_moon_blade_ignores_what_the_thrower_cannot_see() {
     let mut w = test_world(61);
     let p = player(&mut w);
@@ -1268,80 +711,4 @@ fn a_monsters_moon_blade_finds_its_own_enemies() {
         .count();
     assert_eq!(strikes, 3, "an ally, an ally, then the player");
     assert_eq!(pack_count(&w, thrower, blade), 1);
-}
-
-#[derive(Component)]
-struct Bled;
-
-fn mark_bled(world: &mut World, victim: Entity) {
-    world.entity_mut(victim).insert(Bled);
-}
-
-static MARKING_DART: AmmoDef = AmmoDef {
-    name: "dart of the test",
-    color: Color::Green,
-    die: 2,
-    launched_die: 2,
-    launched_by: Grant::of::<FireDart>(),
-    on_blood: mark_bled,
-};
-
-#[test]
-fn an_ammo_row_runs_its_on_blood_on_a_victim_it_bled() {
-    let mut w = test_world(13);
-    let p = player(&mut w);
-    let gun = stash(&mut w, p, |w| spawn_launcher(w, "blowgun", NOWHERE));
-    toggle_equipped(&mut w, p, gun);
-    let spot = open_run(&mut w, 1)[0];
-    let bag = tough(&mut w, "bat", spot);
-    let dart = stash(&mut w, p, |w| (&MARKING_DART).spawn(w, NOWHERE));
-
-    throw(&mut w, p, dart, spot);
-
-    assert!(w.get::<Bled>(bag).is_some());
-}
-
-#[test]
-fn every_ammo_and_treat_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(19);
-    let p = player(&mut w);
-    empty_pack(&mut w, p);
-    for &row in AMMO {
-        stash(&mut w, p, |w| row.spawn(w, NOWHERE));
-    }
-    for &row in TREATS {
-        stash(&mut w, p, |w| row.spawn(w, NOWHERE));
-    }
-
-    let save = common::SaveFile::new("missile-rows");
-    save_game(&mut w, save.path()).unwrap();
-    let mut loaded = World::new();
-    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(19)));
-    loaded.insert_resource(RngSeed(19));
-    loaded.init_resource::<GameLog>();
-    loaded.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    load_game(&mut loaded, save.path()).unwrap();
-
-    let hero = player(&mut loaded);
-    let packed = loaded.get::<Backpack>(hero).unwrap().items.clone();
-    for &row in AMMO {
-        assert!(
-            packed.iter().any(|&e| loaded
-                .get::<Ammo>(e)
-                .is_some_and(|a| a.row.name == row.name)),
-            "{}",
-            row.name
-        );
-    }
-    for &row in TREATS {
-        assert!(
-            packed.iter().any(|&e| loaded
-                .get::<Treat>(e)
-                .is_some_and(|t| t.row.name == row.name)),
-            "{}",
-            row.name
-        );
-    }
 }

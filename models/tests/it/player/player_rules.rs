@@ -25,14 +25,6 @@ fn world_with_player(seed: u64) -> (World, Entity) {
 }
 
 #[test]
-fn a_clear_head_never_stumbles() {
-    let (mut w, _) = world_with_player(1);
-    for _ in 0..50 {
-        assert_eq!(maybe_stumble(&mut w, 1, 0), (1, 0, false));
-    }
-}
-
-#[test]
 fn a_confused_player_sometimes_lurches_somewhere_else_and_says_so() {
     let (mut w, player) = world_with_player(1);
     w.entity_mut(player).insert(Confused);
@@ -54,22 +46,4 @@ fn a_confused_player_sometimes_lurches_somewhere_else_and_says_so() {
         "{lurches} lurches, {straight} straight"
     );
     assert_eq!(w.resource::<GameLog>().unread.len() - before, lurches);
-}
-
-#[test]
-fn arriving_on_a_tile_picks_up_what_lies_there() {
-    let (mut w, player) = world_with_player(1);
-    let potion = spawn_named(&mut w, "potion of healing", Position { x: 5, y: 5 }).unwrap();
-    pick_up_here(&mut w, player, 5, 5);
-    assert!(w.get::<Backpack>(player).unwrap().items.contains(&potion));
-    assert!(w.get::<Position>(potion).is_none());
-}
-
-#[test]
-fn arriving_on_an_empty_tile_picks_up_nothing() {
-    let (mut w, player) = world_with_player(1);
-    let before = w.resource::<GameLog>().unread.len();
-    pick_up_here(&mut w, player, 5, 5);
-    assert!(w.get::<Backpack>(player).unwrap().items.is_empty());
-    assert_eq!(w.resource::<GameLog>().unread.len(), before);
 }

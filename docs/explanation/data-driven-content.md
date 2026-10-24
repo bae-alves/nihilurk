@@ -128,7 +128,7 @@ What follows from it
 
 None of those has a list of content in it. They read the tables. A row added today is covered by all four today.
 
-**Tests get stronger, not longer.** `every_content_name_spawns_and_keeps_its_name` iterates the tables. Adding a monster adds a test case. This is the practical difference between content-as-code and content-as-data: you can write assertions that quantify over all content.
+**Tests get stronger, not longer.** `every_content_name_is_unique` iterates the tables. Adding a monster adds a test case. This is the practical difference between content-as-code and content-as-data: you can write assertions that quantify over all content.
 
 **Saves get smaller and more robust.** A saved item stores its *name*, not its components; `restore_from_catalog` rebuilds the rest from the row. A save that stored a bow's grant list would only be storing the table twice, and would go stale the moment the table changed.
 

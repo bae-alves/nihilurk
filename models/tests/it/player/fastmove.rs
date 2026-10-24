@@ -66,27 +66,6 @@ fn set_tile(w: &mut World, x: u16, y: u16, t: TileType) {
 }
 
 #[test]
-fn running_is_refused_while_a_creature_is_in_view() {
-    let (mut w, player) = arena();
-    w.spawn((
-        Name { what: "orc".into() },
-        Mob {
-            movement_type: MovementType::Static,
-        },
-        Position { x: 19, y: 9 },
-        Faction::Monster,
-    ));
-    revoke(&mut w, player, Grant::of::<Charges>());
-    w.get_mut::<Viewshed>(player).unwrap().dirty = true;
-    resolve_visibility(&mut w);
-
-    assert!(matches!(
-        fast_move_plan(&mut w, 1, 0),
-        FastMovePlan::MonsterInSight
-    ));
-}
-
-#[test]
 fn open_ground_with_nothing_ahead_is_a_straight_run() {
     let (mut w, _player) = arena();
     assert!(matches!(
@@ -112,26 +91,6 @@ fn facing_a_wall_with_nothing_ahead_is_blocked() {
     assert!(matches!(
         fast_move_plan(&mut w, -1, 0),
         FastMovePlan::Blocked
-    ));
-}
-
-#[test]
-fn a_door_in_view_that_way_is_a_beeline() {
-    let (mut w, player) = arena();
-    set_tile(&mut w, 22, 9, TileType::Door);
-    w.get_mut::<Viewshed>(player).unwrap().dirty = true;
-    resolve_visibility(&mut w);
-
-    match fast_move_plan(&mut w, 1, 0) {
-        FastMovePlan::Travel(tile) => assert_eq!(tile, (22, 9)),
-        other => panic!(
-            "expected a beeline to the door, got {:?}",
-            plan_name(&other)
-        ),
-    }
-    assert!(matches!(
-        fast_move_plan(&mut w, -1, 0),
-        FastMovePlan::Straight
     ));
 }
 

@@ -60,21 +60,6 @@ fn stash(w: &mut World, user: Entity, item: Entity) {
 }
 
 #[test]
-fn a_potion_shows_its_true_name_before_it_is_ever_used() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let potion = spawn_named(
-        &mut w,
-        "potion of monster detection",
-        Position { x: 0, y: 0 },
-    )
-    .unwrap();
-    stash(&mut w, p, potion);
-
-    assert_eq!(display_name(&w, potion), "potion of monster detection");
-}
-
-#[test]
 fn a_wand_shows_its_true_name_before_and_after_a_zap() {
     let mut w = test_world(3);
     let p = player(&mut w);

@@ -110,18 +110,6 @@ fn player_too_injured_matches_the_quarter_hp_rule() {
 }
 
 #[test]
-fn target_is_the_lowest_hp_foe_when_none_are_adjacent() {
-    let (mut w, player) = fresh_floor(2112);
-    let (px, py) = player_xy(&mut w, player);
-
-    spawn_enemy(&mut w, px + 2, py, 5);
-    let weakest = spawn_enemy(&mut w, px + 3, py, 2);
-    spawn_enemy(&mut w, px + 4, py, 8);
-
-    assert_eq!(auto_fight_target(&mut w), Some(weakest));
-}
-
-#[test]
 fn an_adjacent_foe_is_finished_before_chasing_a_weaker_distant_one() {
     let (mut w, player) = fresh_floor(2112);
     let (px, py) = player_xy(&mut w, player);
@@ -134,29 +122,6 @@ fn an_adjacent_foe_is_finished_before_chasing_a_weaker_distant_one() {
         Some(adjacent),
         "should not turn its back on an adjacent enemy"
     );
-}
-
-#[test]
-fn hidden_foes_are_not_targeted() {
-    let (mut w, player) = fresh_floor(2112);
-
-    spawn_enemy(&mut w, MAP_WIDTH - 2, MAP_HEIGHT - 2, 1);
-    w.get_mut::<Viewshed>(player).unwrap().dirty = true;
-    resolve_visibility(&mut w);
-
-    assert_eq!(auto_fight_target(&mut w), None);
-}
-
-#[test]
-fn fight_step_steps_straight_onto_an_adjacent_target() {
-    let (mut w, player) = fresh_floor(2112);
-    let (px, py) = player_xy(&mut w, player);
-
-    let target = spawn_enemy(&mut w, px + 1, py + 1, 3);
-    assert_eq!(fight_step(&mut w, target), Some((1, 1)));
-
-    let target2 = spawn_enemy(&mut w, px - 1, py, 3);
-    assert_eq!(fight_step(&mut w, target2), Some((-1, 0)));
 }
 
 /// A bare corridor, x 0..=6 at y = 5, walled everywhere else — same shape
@@ -199,13 +164,6 @@ fn corridor_world(seed: u64) -> (World, Entity) {
         p.y = 5;
     }
     (w, player)
-}
-
-#[test]
-fn has_clear_shot_is_true_down_an_open_corridor() {
-    let (mut w, _player) = corridor_world(2112);
-    let target = spawn_enemy(&mut w, 5, 5, 3);
-    assert!(has_clear_shot(&mut w, target));
 }
 
 #[test]

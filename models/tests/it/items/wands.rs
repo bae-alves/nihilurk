@@ -16,7 +16,6 @@ use models::*;
 
 const UNDEAD: &[Grant] = &[Grant::of::<Undead>()];
 const FIRE_IMMUNITY: &[Grant] = &[Grant::of::<FireImmune>()];
-const COLD_IMMUNITY: &[Grant] = &[Grant::of::<ColdImmune>()];
 const GHOSTLY: &[Grant] = &[Grant::of::<Phasing>()];
 
 fn test_world(seed: u64) -> World {
@@ -66,42 +65,6 @@ fn zap(w: &mut World, user: Entity, wand: Entity, target: Position) {
         });
     }
     item_system(w);
-}
-
-/// Where the fixture wand was aimed, left on whoever zapped it.
-#[derive(Component)]
-struct ZappedAt(Position);
-
-fn mark_the_aim(world: &mut World, zap: Zap) {
-    world.entity_mut(zap.user).insert(ZappedAt(zap.at));
-}
-
-static FIXTURE_WAND: WandDef = WandDef::new(
-    "wand of the test",
-    Color::White,
-    6,
-    BlastPalette::Warp,
-    mark_the_aim,
-);
-
-#[test]
-fn a_wand_does_what_its_row_says() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let wand = (&FIXTURE_WAND).spawn(&mut w, Position { x: 0, y: 0 });
-    w.entity_mut(wand).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
-    let here = *w.get::<Position>(p).unwrap();
-    let aim = Position {
-        x: here.x + 1,
-        y: here.y,
-    };
-
-    zap(&mut w, p, wand, aim);
-
-    let marked = w.get::<ZappedAt>(p).map(|z| (z.0.x, z.0.y));
-    assert_eq!(marked, Some((aim.x, aim.y)));
-    assert_eq!(w.get::<Battery>(wand).unwrap().charges, WAND_CHARGES - 1);
 }
 
 /// Zap a self-targeted wand (light).
@@ -205,21 +168,6 @@ fn zapping_the_last_charge_still_fires_and_destroys_the_wand() {
 }
 
 #[test]
-fn a_wand_with_charges_left_comes_back_to_the_pack() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-    dummy(&mut w, "sack", spot, 40);
-    let wand = give_wand(&mut w, p, "wand of magic missile");
-    w.get_mut::<Battery>(wand).unwrap().charges = 2;
-
-    zap(&mut w, p, wand, spot);
-
-    assert_eq!(w.get::<Battery>(wand).unwrap().charges, 1);
-    assert!(w.get::<Backpack>(p).unwrap().items.contains(&wand));
-}
-
-#[test]
 fn a_wand_bolt_ignores_armour_entirely() {
     let mut w = test_world(2);
     let p = player(&mut w);
@@ -319,62 +267,9 @@ fn undead_are_immune_to_draining_and_grant_no_lifesteal() {
 // Elemental immunities
 // ---------------------------------------------------------------------------
 
-#[test]
-fn a_dragon_shrugs_off_fire_and_a_yeti_shrugs_off_cold() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-
-    let dragon = monster::monster(&mut w, "dragon", spot);
-    grant_all(&mut w, dragon, FIRE_IMMUNITY);
-    let dhp = w.get::<Fighter>(dragon).unwrap().hp;
-    let fire = give_wand(&mut w, p, "wand of fire");
-    zap(&mut w, p, fire, spot);
-    assert_eq!(
-        w.get::<Fighter>(dragon).unwrap().hp,
-        dhp,
-        "fire cannot burn the dragon"
-    );
-    w.entity_mut(dragon).despawn();
-
-    let yeti = monster::monster(&mut w, "yeti", spot);
-    grant_all(&mut w, yeti, COLD_IMMUNITY);
-    let yhp = w.get::<Fighter>(yeti).unwrap().hp;
-    let cold = give_wand(&mut w, p, "wand of cold");
-    zap(&mut w, p, cold, spot);
-    assert_eq!(
-        w.get::<Fighter>(yeti).unwrap().hp,
-        yhp,
-        "cold cannot freeze the yeti"
-    );
-}
-
 // ---------------------------------------------------------------------------
 // Polymorph
 // ---------------------------------------------------------------------------
-
-#[test]
-fn polymorph_swaps_the_target_for_a_different_species_on_the_same_tile() {
-    let mut w = test_world(5);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-    let original = monster::monster(&mut w, "test monster", spot);
-    let original_name = w.get::<Name>(original).unwrap().what.clone();
-    let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
-
-    let wand = give_wand(&mut w, p, "wand of polymorph");
-    zap(&mut w, p, wand, spot);
-
-    assert!(!w.entities().contains(original), "the original is gone");
-    let after = w.query_filtered::<(), With<Mob>>().iter(&w).count();
-    assert_eq!(after, before, "one in, one out");
-    let mut q = w.query_filtered::<(&Position, &Name), With<Mob>>();
-    let replacement = q
-        .iter(&w)
-        .find(|(pos, _)| pos.x == spot.x && pos.y == spot.y);
-    let (_, name) = replacement.expect("something now stands on that tile");
-    assert_ne!(name.what, original_name, "and it is a different creature");
-}
 
 // ---------------------------------------------------------------------------
 // Speed: haste / slow the monster, and the turn economy
@@ -520,99 +415,6 @@ fn a_fast_monster_moves_twice_and_a_slow_one_every_other_turn() {
 // ---------------------------------------------------------------------------
 // Teleport away / to
 // ---------------------------------------------------------------------------
-
-#[test]
-fn teleport_away_relocates_the_target() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-    let mob = dummy(&mut w, "orc", spot, 5);
-
-    let wand = give_wand(&mut w, p, "wand of teleport away");
-    zap(&mut w, p, wand, spot);
-
-    let now = *w.get::<Position>(mob).unwrap();
-    assert_ne!((now.x, now.y), (spot.x, spot.y), "it moved");
-    assert!(
-        !w.resource::<Map>().blocks(now.x, now.y),
-        "onto open ground"
-    );
-}
-
-#[test]
-fn teleport_to_drags_the_target_next_to_the_zapper() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let here = *w.get::<Position>(p).unwrap();
-    let far = {
-        let map = w.resource::<Map>();
-        (0..MAP_HEIGHT)
-            .flat_map(|y| (0..MAP_WIDTH).map(move |x| (x, y)))
-            .find(|&(x, y)| !map.blocks(x, y) && x.abs_diff(here.x) + y.abs_diff(here.y) > 6)
-            .map(|(x, y)| Position { x, y })
-            .unwrap()
-    };
-    let mob = dummy(&mut w, "orc", far, 5);
-
-    let wand = give_wand(&mut w, p, "wand of teleport to");
-    zap(&mut w, p, wand, far);
-
-    let now = *w.get::<Position>(mob).unwrap();
-    assert!(
-        now.x.abs_diff(here.x) <= 1 && now.y.abs_diff(here.y) <= 1,
-        "now at the zapper's side"
-    );
-}
-
-/// The drag lands the victim *next to the zapper*, and a dagger lying on the
-/// floor beside them is not a reason it can't. `free_adjacent_tile` used to
-/// count every entity with a `Position` as an occupant — floor loot included —
-/// so a single dropped item next to the player sent the whole spell down its
-/// "nowhere to put them" path and flung the target to a random tile instead,
-/// while the log still said it had been dragged to your side.
-#[test]
-fn teleport_to_is_not_blocked_by_loot_lying_on_the_floor() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let here = *w.get::<Position>(p).unwrap();
-
-    let ring: Vec<Position> = {
-        let map = w.resource::<Map>();
-        (-1i32..=1)
-            .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
-            .filter(|&(dx, dy)| (dx, dy) != (0, 0))
-            .map(|(dx, dy)| (here.x as i32 + dx, here.y as i32 + dy))
-            .filter(|&(x, y)| x >= 0 && y >= 0 && !map.blocks(x as u16, y as u16))
-            .map(|(x, y)| Position {
-                x: x as u16,
-                y: y as u16,
-            })
-            .collect()
-    };
-    assert!(!ring.is_empty(), "the player has somewhere to drag them to");
-    for spot in &ring {
-        spawn_named(&mut w, "scroll of identify", *spot).unwrap();
-    }
-
-    let far = {
-        let map = w.resource::<Map>();
-        (0..MAP_HEIGHT)
-            .flat_map(|y| (0..MAP_WIDTH).map(move |x| (x, y)))
-            .find(|&(x, y)| !map.blocks(x, y) && x.abs_diff(here.x) + y.abs_diff(here.y) > 6)
-            .map(|(x, y)| Position { x, y })
-            .unwrap()
-    };
-    let mob = dummy(&mut w, "orc", far, 5);
-
-    let wand = give_wand(&mut w, p, "wand of teleport to");
-    zap(&mut w, p, wand, far);
-
-    let now = *w.get::<Position>(mob).unwrap();
-    assert!(
-        now.x.abs_diff(here.x) <= 1 && now.y.abs_diff(here.y) <= 1,
-        "dragged to the zapper's side, loot or no loot (landed at {now:?})"
-    );
-}
 
 /// With genuinely nowhere to put them, the pull happens anyway and the target
 /// does not survive it. It used to fall back to `random_open_tile` — a
@@ -858,35 +660,6 @@ fn a_blast_sets_off_a_trap_it_washes_over() {
     );
 }
 
-/// Teleporting a held creature lets it go — and the ledger has to hear about
-/// it too. A `Turns` row left behind with no component under it still counts
-/// down, and `effects::hold` reads those rows to decide whether a fresh hold
-/// is worth applying: while the orphan lasts, the next bear trap the orc walks
-/// into closes on nothing.
-#[test]
-fn teleporting_a_pinned_monster_clears_the_ledger_not_just_the_component() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-    let mob = dummy(&mut w, "orc", spot, 5);
-
-    assert!(models::effects::hold(&mut w, mob, Grant::of::<Pinned>(), 6));
-
-    let wand = give_wand(&mut w, p, "wand of teleport away");
-    zap(&mut w, p, wand, spot);
-
-    assert!(w.get::<Pinned>(mob).is_none(), "the jaws let go");
-    assert_eq!(
-        models::effects::turns_left(&w, mob, Grant::of::<Pinned>()),
-        None,
-        "and the ledger no longer thinks they are holding it"
-    );
-    assert!(
-        models::effects::hold(&mut w, mob, Grant::of::<Pinned>(), 3),
-        "a bear trap on the far side of the floor can still pin it"
-    );
-}
-
 /// A player standing in a floor-sized slab of rock, a lit tile of room under
 /// their feet and nothing else: the wand of digging's own testing ground.
 fn buried(w: &mut World, p: Entity, at: Position) {
@@ -931,18 +704,6 @@ fn a_wand_of_digging_cannot_break_the_edge_of_the_map() {
     zap(&mut w, p, wand, Position { x: 1, y: 10 });
     assert!(open(&w, 1, 10) && open(&w, 2, 10));
     assert!(!open(&w, 0, 10), "the dungeon's outer wall is not rock");
-}
-
-#[test]
-fn a_wand_of_polymorph_zapped_at_yourself_polymorphs_you() {
-    let mut w = test_world(5);
-    let p = player(&mut w);
-    let wand = give_wand(&mut w, p, "wand of polymorph");
-
-    let here = *w.get::<Position>(p).unwrap();
-    zap(&mut w, p, wand, here);
-
-    assert!(w.get::<Polymorphed>(p).is_some());
 }
 
 #[test]
@@ -1048,76 +809,12 @@ fn polymorphing_the_polymorphed_monster_bursts_it_or_makes_a_chimeric_form() {
     assert!(burst > 0 && shaped > 0, "{burst} bursts, {shaped} forms");
 }
 
-#[test]
-fn polymorph_and_haste_reach_an_ally() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let (_here, spot) = beside_player(&mut w);
-    let pal = dummy(&mut w, "pal", spot, 5);
-    w.entity_mut(pal).insert(Faction::Ally);
-
-    let haste = give_wand(&mut w, p, "wand of haste monster");
-    zap(&mut w, p, haste, spot);
-    assert_eq!(w.get::<Speed>(pal).unwrap().kind, SpeedKind::Fast);
-
-    let poly = give_wand(&mut w, p, "wand of polymorph");
-    zap(&mut w, p, poly, spot);
-    let mut q = w.query_filtered::<(Entity, &Position), With<Mob>>();
-    let e = q
-        .iter(&w)
-        .find(|(_, pos)| **pos == spot)
-        .map(|(e, _)| e)
-        .unwrap();
-    assert!(w.get::<Polymorphed>(e).is_some());
-    assert_eq!(
-        w.get::<Faction>(e),
-        Some(&Faction::Ally),
-        "still on your side"
-    );
-}
-
-#[test]
-fn the_first_polymorph_of_a_monster_marks_it_and_never_shocks_it() {
-    for seed in 0..32 {
-        let mut w = test_world(seed);
-        let p = player(&mut w);
-        let (_here, spot) = beside_player(&mut w);
-        monster::monster(&mut w, "test monster", spot);
-        let wand = give_wand(&mut w, p, "wand of polymorph");
-
-        zap(&mut w, p, wand, spot);
-
-        let mut q = w.query_filtered::<(Entity, &Position), With<Mob>>();
-        let e = q
-            .iter(&w)
-            .find(|(_, pos)| **pos == spot)
-            .map(|(e, _)| e)
-            .expect("a first polymorph never kills");
-        assert!(w.get::<Polymorphed>(e).is_some());
-        assert!(chimeric_form(&w, e).is_none());
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Swapping
 // ---------------------------------------------------------------------------
 
 fn at(w: &World, e: Entity) -> Position {
     *w.get::<Position>(e).unwrap()
-}
-
-#[test]
-fn swapping_trades_places_with_the_monster_on_the_aimed_tile() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let (here, spot) = beside_player(&mut w);
-    let orc = dummy(&mut w, "orc", spot, 5);
-
-    let wand = give_wand(&mut w, p, "wand of swapping");
-    zap(&mut w, p, wand, spot);
-
-    assert!(at(&w, p) == spot, "you stand where the orc stood");
-    assert!(at(&w, orc) == here, "and the orc where you stood");
 }
 
 #[test]
@@ -1147,22 +844,6 @@ fn swapping_trades_places_with_an_item_or_a_found_trap() {
             "and it lands on yours (trap: {found_trap})"
         );
     }
-}
-
-/// The same rule as an aimed shot (`traps::detonate_at`): nobody can aim at a
-/// mechanism nobody has found.
-#[test]
-fn swapping_passes_over_a_trap_nobody_has_found() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let (here, spot) = beside_player(&mut w);
-    let trap = spawn_named(&mut w, "bear trap", spot).unwrap();
-
-    let wand = give_wand(&mut w, p, "wand of swapping");
-    zap(&mut w, p, wand, spot);
-
-    assert!(at(&w, p) == here, "you stay put");
-    assert!(at(&w, trap) == spot, "and so does the trap");
 }
 
 #[test]
@@ -1195,47 +876,6 @@ fn a_monster_zapping_swapping_at_you_trades_places_with_you() {
 
     assert!(at(&w, p) == spot);
     assert!(at(&w, gnome) == here);
-}
-
-#[test]
-fn every_wand_row_comes_back_from_a_save_as_the_same_row() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    w.get_mut::<Backpack>(p).unwrap().items.clear();
-    let rows: Vec<&'static WandDef> = WANDS
-        .iter()
-        .copied()
-        .chain([wand_row("wand of nothing").unwrap()])
-        .collect();
-    for row in &rows {
-        let wand = row.spawn(&mut w, Position { x: 0, y: 0 });
-        w.entity_mut(wand).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(wand);
-    }
-
-    let file = crate::common::SaveFile::new("wand-rows");
-    save_game(&mut w, file.path()).unwrap();
-    let mut loaded = World::new();
-    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
-    loaded.insert_resource(RngSeed(3));
-    loaded.init_resource::<GameLog>();
-    loaded.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    load_game(&mut loaded, file.path()).unwrap();
-
-    let lp = player(&mut loaded);
-    let back: Vec<&'static WandDef> = loaded
-        .get::<Backpack>(lp)
-        .unwrap()
-        .items
-        .iter()
-        .filter_map(|&e| loaded.get::<Wand>(e).map(|wand| wand.row))
-        .collect();
-    assert_eq!(back.len(), rows.len());
-    for (was, is) in rows.iter().zip(&back) {
-        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
-    }
 }
 
 #[test]

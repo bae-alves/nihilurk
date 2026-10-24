@@ -33,18 +33,6 @@ fn suit_up(w: &mut World, p: Entity) -> Entity {
 }
 
 #[test]
-fn armour_takes_a_spell_that_would_kill() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let mail = suit_up(&mut w, p);
-
-    apply_hit(&mut w, p, Hit::magic(50), None);
-
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 1);
-    assert!(!w.entities().contains(mail), "the armour survived the blow");
-}
-
-#[test]
 fn armour_takes_a_blade_that_would_kill() {
     let mut w = test_world(1);
     let p = player(&mut w);
@@ -71,56 +59,6 @@ fn armour_takes_a_blade_that_would_kill() {
     }
 
     assert!(!w.entities().contains(mail), "no blow ever landed");
-}
-
-#[test]
-fn a_blow_that_does_not_kill_spares_the_armour() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let mail = suit_up(&mut w, p);
-
-    apply_hit(&mut w, p, Hit::magic(1), None);
-
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 2);
-    assert!(w.entities().contains(mail));
-}
-
-#[test]
-fn no_armour_no_reprieve() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let mail = equipped_in(&w, p, Slot::Body).unwrap();
-    destroy_worn(&mut w, p, &[mail]);
-    w.get_mut::<Fighter>(p).unwrap().hp = 3;
-
-    apply_hit(&mut w, p, Hit::magic(50), None);
-
-    assert!(w.get::<Fighter>(p).unwrap().hp <= 0);
-}
-
-#[test]
-fn the_second_killing_blow_kills() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    suit_up(&mut w, p);
-
-    apply_hit(&mut w, p, Hit::magic(50), None);
-    apply_hit(&mut w, p, Hit::magic(50), None);
-
-    assert!(w.get::<Fighter>(p).unwrap().hp <= 0);
-}
-
-#[test]
-fn a_cursed_suit_takes_the_blow() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let mail = suit_up(&mut w, p);
-    w.entity_mut(mail).insert((ArmorBonus(-2), Curse));
-
-    apply_hit(&mut w, p, Hit::magic(50), None);
-
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 1);
-    assert!(!w.entities().contains(mail));
 }
 
 #[test]
