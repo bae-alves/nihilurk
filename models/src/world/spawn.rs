@@ -20,9 +20,8 @@
 //! A weight means nothing on its own; it means something next to its
 //! table-mates. The default weight is the baseline everything sits at unless it
 //! asks otherwise, so a row at half of it is half as common as its neighbours
-//! and one at double it is twice. You can add a row without touching any other number — which is the
-//! whole reason the loot table is not a list of percentages that must total 100
-//! any more.
+//! and one at double it is twice. You can add a row without touching any
+//! other number.
 
 use std::collections::HashSet;
 
@@ -31,7 +30,7 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::{
-    AMMO, ARMORS, COINS, DECKS, ItemDef, LAUNCHERS, POTIONS, RINGS, RUNES, SCROLLS, TREATS, WANDS,
+    AMMO, ARMORS, COINS, DECKS, ItemDef, LAUNCHERS, POTIONS, RINGS, SCROLLS, TREATS, WANDS,
     WEAPONS, spawn_element_of_yoord,
 };
 use crate::catalog::{apply_bonus, make_exceptional};
@@ -191,7 +190,6 @@ pub const DROPS: &[DropCategory] = &[
     category!("armor",        80,      1,     ARMORS),
     category!("wand",         50,      1,     WANDS),
     category!("ring",         50,      1,     RINGS),
-    category!("rune",         50,      3,     RUNES),
     category!("weapon",       36,      1,     WEAPONS),
     category!("ammo",         28,      1,     AMMO),
     category!("launcher",     16,      1,     LAUNCHERS),

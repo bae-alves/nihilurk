@@ -10,7 +10,7 @@ How to add an item
                    identified; every other kind is always shown by its
                    true name.
 
-One category per `DROPS` row. Most are a single row. Potions, scrolls, wands and runes are a row plus the handler it names, and a deck's cards are a table of their own. Find your category below and follow that recipe only.
+One category per `DROPS` row. Most are a single row. Potions, scrolls and wands are a row plus the handler it names, and a deck's cards are a table of their own. Find your category below and follow that recipe only.
 
 
 At a glance
@@ -29,9 +29,8 @@ At a glance
 | Scroll    | `SCROLLS`   | no         | a handler in `items/scrolls.rs`, named by the row |
 | Wand      | `WANDS`     | no         | a zap handler in `items/wands.rs`, named by the row |
 | Deck      | `DECKS`     | yes        | a new card: a `CARDS` row and its `play` handler in `items/decks.rs` |
-| Rune      | `RUNES`     | no         | a handler in `items/runes.rs`, named by the row |
 
-Every table is in `models/src/items/catalog.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `runes.rs`, `rings.rs`, `decks.rs`, `pickups.rs`, `throwing.rs` (`models/src/items/mod.rs` itself is `item_system`, which plans a use and hands it to the row's handler).
+Every table is in `models/src/items/catalog.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `rings.rs`, `decks.rs`, `pickups.rs`, `throwing.rs` (`models/src/items/mod.rs` itself is `item_system`, which plans a use and hands it to the row's handler).
 
 
 Row-only categories
@@ -140,8 +139,8 @@ Reach for `.grants(...)` before anything else: if the property already exists as
 `.on_wear(...)` is the last resort, for a ring whose effect is an *event* rather than a property: it takes an `OnWear(fn(&mut World, wearer, item))` and fires once, after the ring is worn and identified. The ring of adornment is the only one, and its function lives with the other ring verbs in `models/src/items/rings.rs`.
 
 
-Potions, scrolls, runes and wands
----------------------------------
+Potions, scrolls and wands
+--------------------------
 
 These are consumables with a mechanic.
 
@@ -155,15 +154,7 @@ Scrolls take two edits and no enum. Write the handler, `fn(&mut World, Entity)`,
 
     &ScrollDef::new("scroll of genocide", scrolls::genocide),
 
-The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do. A scroll draws as `?`, always white. The scroll of blank paper is in `SCROLLS` with `.never_drops()`: only a wand of cancellation makes it, and its handler does nothing on purpose. Give the new scroll a flourish (`../explanation/the-feel-layer.md`, "What a scroll looks like").
-
-Runes take two edits and no enum. Write the handler, `fn(&mut World, Entity)`, in `models/src/items/runes.rs`, and name it in the row's required `apply` field:
-
-    &RuneDef::new("rune of ice", runes::ice),
-
-The row is the rune: a `Rune` component points at its row, and the save stores the row's name. `RuneDef::new` takes the handler, so a row without one does not compile.
-
-A rune draws as `'`, always white. It is a scroll that goes inert when read instead of crumbling, and a staircase wakes it, so the mechanic is "what happens on each invocation" and never "what is left afterwards". The blank rune is in `RUNES` with `.never_drops()`: only a wand of cancellation makes it. Only the player invokes a rune.
+The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do; a scroll that should be scarce drops half as often with `.rare()`, as recharging, protection and justice do. A scroll draws as `?`, always white. The scroll of blank paper is in `SCROLLS` with `.never_drops()`: only a wand of cancellation makes it, and its handler does nothing on purpose.
 
 Wands take two edits and no enum. Write the zap handler, `fn(&mut World, Zap)`, in `models/src/items/wands.rs`, and name it in the row; `WandDef::new` takes it, so a row without one does not compile. The builder adds what the reticle, a throw and a `DualZap` read off the row:
 
@@ -178,7 +169,7 @@ Wands take two edits and no enum. Write the zap handler, `fn(&mut World, Zap)`, 
 > in its table is safe for existing saves; renaming one breaks every save
 > that holds it.
 
-> **Potions, scrolls, wands and runes are always shown by their true
+> **Potions, scrolls and wands are always shown by their true
 > name.** There is no cosmetic appearance and no per-effect identification
 > to keep in step with the catalog -- add a row and it just works. Only
 > equipment (weapons, armour, launchers, rings) hides anything: its
@@ -212,7 +203,7 @@ Appendix: quick check
 1. Find your category in "At a glance".
 2. Weapon, armour, ring, coin, ammo, launcher, treat: add one row to its table in `models/src/items/catalog.rs`.
 3. A ring's row is `&RingDef::new(name)` and its chains.
-4. Potion, scroll: write the handler in `items/potions.rs` or `items/scrolls.rs` and add the row naming it. Wand: write the zap handler in `items/wands.rs` and add the row naming it. Rune: write the handler in `items/runes.rs` and add the row naming it.
+4. Potion, scroll: write the handler in `items/potions.rs` or `items/scrolls.rs` and add the row naming it. Wand: write the zap handler in `items/wands.rs` and add the row naming it.
 5. A wand with no reticle (it acts on the room or the zapper): `.unaimed()` on its row.
 6. Never rename a row; a save stores its name.
 7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.

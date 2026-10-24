@@ -315,7 +315,7 @@ pub struct PriorityHelper;
 #[derive(Component, Default, Clone, Copy)]
 pub struct FaerieOnDeath;
 
-/// Marked to burst on its death (a rune of justice): one fireball, centred on
+/// Marked to burst on its death (a scroll of justice): one fireball, centred on
 /// where it fell, rolled off its own power die. It hurts everyone the blast
 /// reaches, the reader included. See `crate::combat`'s `burst_on_death`.
 #[derive(Component, Default, Clone, Copy)]

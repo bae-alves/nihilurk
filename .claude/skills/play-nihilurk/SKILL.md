@@ -36,9 +36,9 @@ A run played to win takes no `NIHILURK_SPAWN` and no `NIHILURK_LEVEL`. A spawn l
 
 ## Try a content row
 
-    NIHILURK_BIN="$PWD/target/debug/nihilurk" NIHILURK_SPAWN="rune of ice,aquator" $a/serve.sh start "$d" -s 1
-    $a/act.sh -d "$d" ' '          # the first --MORE-- needs a Space; find the rune and the aquator
-    $a/act.sh -d "$d" y ' ' r f    # step onto the rune (auto-pickup), read it
+    NIHILURK_BIN="$PWD/target/debug/nihilurk" NIHILURK_SPAWN="scroll of hold monster,aquator" $a/serve.sh start "$d" -s 1
+    $a/act.sh -d "$d" ' '          # the first --MORE-- needs a Space; find the scroll and the aquator
+    $a/act.sh -d "$d" y ' ' r f    # step onto the scroll (auto-pickup), read it
 
 `NIHILURK_SPAWN` drops each name on the nearest free tile, on **every** floor, so descending brings them back. It ignores depth gates. The game skips an unknown name silently, so check names with `target/debug/nihilurk -content | grep -i NAME` (a summon-only monster can be missing there and still spawn).
 

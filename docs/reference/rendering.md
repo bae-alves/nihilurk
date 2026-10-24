@@ -12,7 +12,7 @@ Reference: rendering
                    source. If this page and the source disagree, the
                    source is right and this page is a bug.
 
-**Nothing on this page is covered by an automated test, and that is the policy rather than a gap.** A test of the renderer, the HUD or the frame geometry would check presentation — which glyph lands in which cell, which colour a log line comes out — so it would break whenever a layer moved and never catch something a glance at the terminal would miss. See `../explanation/the-feel-layer.md`, "Why none of this is unit-tested".
+**Nothing on this page is covered by an automated test, and that is the policy rather than a gap.** A test of the renderer, the HUD or the frame geometry would check presentation — which glyph lands in which cell, which colour a log line comes out — so it would break whenever a layer moved and never catch something a glance at the terminal would miss. See `../explanation/adr-0004-no-tests-of-presentation.md`.
 
 So the thing easiest to get subtly wrong here — the draw order in `render`, where a later layer silently covers an earlier one — is caught by you, not by CI. Change it, then run the game and look, in more than one terminal if you can.
 
@@ -237,6 +237,5 @@ See also
 --------
 
   input-and-turn-loop.md        the other half of the frame: keyboard and turns
-  ../explanation/the-feel-layer.md   why each effect looks the way it does
   ../../models/src/meta/components/  the resources named throughout this page
   ../reference/cli-and-env.md   `-c`, `-anim-rate`, `-nb`, `-nshake`

@@ -29,8 +29,6 @@ pub enum Conduct {
     Scrolls,
     /// Never zapped (or threw) a wand.
     Wands,
-    /// Never invoked a rune.
-    Runes,
     /// Never cast a spell.
     Spells,
     /// Never took a coin.
@@ -55,11 +53,10 @@ pub enum Conduct {
 
 impl Conduct {
     /// Every conduct, in bit order.
-    pub const ALL: [Conduct; 14] = [
+    pub const ALL: [Conduct; 13] = [
         Conduct::Potions,
         Conduct::Scrolls,
         Conduct::Wands,
-        Conduct::Runes,
         Conduct::Spells,
         Conduct::Coins,
         Conduct::Ranged,

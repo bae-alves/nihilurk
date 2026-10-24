@@ -3,8 +3,6 @@ nihilurk
 
 nihilurk is a free, open-source Rogue-like (roguelike) for the terminal, written in Rust. A Rogue retroclone about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets, a lot of punch.
 
-If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).
-
 What you get:
 
   * A classic roguelike on a turn-based grid: thirteen floors, traps, gear of unknown quality, and permanent death. There is one save, and it is deleted when an expedition ends.
@@ -123,3 +121,5 @@ License
 -------
 
 nihilurk is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It comes with no warranty. The full text is in `LICENSE`.
+
+If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).

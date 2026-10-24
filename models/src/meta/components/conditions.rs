@@ -62,16 +62,6 @@ pub struct Trap {
 #[derive(Component)]
 pub struct EntityMoved;
 
-// `Confused`, `Blind`, `Paralyzed`, `MagicWard` and `Detected` used to live
-// here too. They are effects now — things a creature *has*, that something
-// else asks about — so they live in `crate::effects` with the rest, which is
-// also what gives them a lifetime and puts them in the save file by name.
-//
-// `Snare` and `SnareKind` used to live here. The three holds they described
-// are ordinary effects now — `Asleep`, `Pinned` and `Rooted` in
-// `crate::effects` — each with its own clock, so a creature can be asleep and
-// pinned at once and come out of each when its own turns run out.
-
 // ===========================================================================
 // Score
 // ===========================================================================

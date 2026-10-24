@@ -47,8 +47,8 @@ pub use streams::*;
 pub(crate) use levels::{LevelChange, transition_level, win_with_style};
 
 // --- Tuning constants -------------------------------------------------------
-// All defined and documented in `constants/`; re-exported here so the old
-// paths (`map::MAP_WIDTH`, `map::FINAL_DEPTH`, ...) keep resolving.
+// All defined and documented in `constants/`; re-exported here so
+// `map::MAP_WIDTH`, `map::FINAL_DEPTH`, ... resolve.
 //
 //   MAP_WIDTH / MAP_HEIGHT   playfield size in tiles (pins seed layout)
 //   FINAL_DEPTH              deepest floor; holds the Element of Yoord
@@ -252,7 +252,7 @@ fn special_room_color(kind: SpecialRoom) -> Color {
 
 /// The dungeon terrain for the current floor: one [`TileType`] per coordinate,
 /// row-major (see [`tile_index`]). This is the single source of truth for the
-/// map — terrain is no longer stored as one ECS entity per tile.
+/// map; terrain tiles are not ECS entities.
 #[derive(Resource, Clone)]
 pub struct Map {
     /// The terrain, one entry per tile, indexed by [`tile_index`].

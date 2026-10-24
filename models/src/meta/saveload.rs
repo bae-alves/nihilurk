@@ -26,7 +26,7 @@
 //! 4. **Anything a catalog row already says** — what a weapon does in flight,
 //!    what a bow lends its wielder, what a ring grants. A row is the
 //!    definition, so a save that stored these would only be storing the table
-//!    twice; [`restore_from_catalog`] and [`RingDef::of`] read them back by
+//!    twice; [`restore_from_catalog`] and [`ring_row`] read them back by
 //!    name.
 //!
 //! ## Two things that must be
@@ -57,8 +57,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::catalog::{
-    card_row, coin_row, content_id_of, potion_row, restore_from_catalog, ring_row, rune_row,
-    scroll_row, spell_row, wand_row,
+    card_row, coin_row, content_id_of, potion_row, restore_from_catalog, ring_row, scroll_row,
+    spell_row, wand_row,
 };
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
@@ -294,10 +294,6 @@ struct EntitySave<'a> {
     /// [`Deck`]. The loader finds each row again by name ([`card_row`]).
     #[serde(default)]
     deck: Option<Vec<(String, bool)>>,
-    /// A rune's row name and whether it still holds a charge. The loader finds
-    /// the row again by name ([`rune_row`]).
-    #[serde(default)]
-    rune: Option<(String, bool)>,
     /// The id of the catalog row this entity was made from (see
     /// [`content_id_of`]). The loader reads the row back by it, and rebuilds
     /// [`Name`] from it, so nothing depends on what a row is called in the
@@ -320,7 +316,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 19;
+pub const SAVE_VERSION: u16 = 20;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -511,19 +507,6 @@ pub fn clear_data(path: impl AsRef<Path>) -> std::io::Result<Option<ClearData>> 
     }))
 }
 
-/// Serializes the world to a compact postcard save file. The map is not saved:
-/// it is rebuilt from the seed and the depth on load (see [`regenerate_map`]),
-/// which is exact because a floor's layout depends on nothing else. Nor is the
-/// message log — a reload starts with a blank one rather than paying for its
-/// history in every save file.
-///
-/// The world is only read. Saving changes nothing about the run it describes —
-/// not a monster's held weapon, not the player's worn armour — so a save
-/// written mid-fight describes the fight still in progress.
-///
-/// The save struct borrows everything it can (names, item labels) straight out
-/// of the ECS, so no second copy of the world is built in RAM, and the bytes
-/// are streamed to disk through a `BufWriter` rather than buffered.
 /// The tiles a wand of digging has opened on this floor, as indices into
 /// [`Map::tiles`]: whatever the seed builds as rock that no longer is.
 fn dug_tiles(world: &World) -> Vec<u32> {
@@ -646,9 +629,6 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             wand: er.get::<Wand>().map(|w| w.row.name.to_string()),
             ranged: er.get::<Ranged>().map(|r| r.range),
             scroll: er.get::<Scroll>().map(|s| s.row.name.to_string()),
-            rune: er
-                .get::<Rune>()
-                .map(|r| (r.row.name.to_string(), r.charged)),
             ring: er.get::<Ring>().map(|r| r.row.name.to_string()),
             equipped: er.get::<Equipped>().map(|e| e.slot),
             power_die: er.get::<PowerDie>().map(|m| m.0),
@@ -929,13 +909,9 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         ));
     }
     let rows_known = save.entities.iter().all(|es| {
-        es.rune
-            .as_ref()
-            .is_none_or(|(name, _)| rune_row(name).is_some())
-            && es
-                .wand
-                .as_deref()
-                .is_none_or(|name| wand_row(name).is_some())
+        es.wand
+            .as_deref()
+            .is_none_or(|name| wand_row(name).is_some())
             && es
                 .potion
                 .as_deref()
@@ -970,7 +946,7 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
     if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune, wand, potion, scroll, trap, coin, card, ring or spell this build has no row for",
+            "save file names a wand, potion, scroll, trap, coin, card, ring or spell this build has no row for",
         ));
     }
 
@@ -1092,11 +1068,6 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         }
         if let Some(row) = es.scroll.as_deref().and_then(scroll_row) {
             em.insert(Scroll { row });
-        }
-        if let Some((name, charged)) = es.rune
-            && let Some(row) = rune_row(&name)
-        {
-            em.insert(Rune { row, charged });
         }
         if let Some(def) = es.ring.as_deref().and_then(ring_row) {
             em.insert(Ring { row: def });
@@ -1401,7 +1372,6 @@ mod tests {
             wand: None,
             ranged: None,
             scroll: None,
-            rune: None,
             ring: None,
             equipped: None,
             power_die: None,
@@ -1671,7 +1641,6 @@ mod tests {
             aggravated: Some((700, 701)),
             alignment: Some(-100),
             deck: Some(vec![("XXIII GOLDEN WIND".to_string(), true)]),
-            rune: Some(("rune of protection".to_string(), true)),
             content: Some(Cow::Borrowed("arrow")),
         }
     }

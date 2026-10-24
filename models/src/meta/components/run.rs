@@ -8,10 +8,9 @@ use super::*;
 // ===========================================================================
 
 /// Why a log line is painted the way it is — decided once, by whoever writes
-/// the message, and carried on [`LogEntry`] from then on. The alternative
-/// (guessing a line's category back out of its rendered English text — see
-/// `hud::log_paint`'s doc comment for why that used to be the design) breaks
-/// the instant a translation stops sharing English's words.
+/// the message, and carried on [`LogEntry`] from then on. Guessing a line's
+/// category back out of its rendered text would break the moment a message's
+/// wording changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LogCategory {
     /// No special paint: the default colour.

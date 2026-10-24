@@ -1,9 +1,7 @@
 //! Wearing things, in one place.
 //!
-//! There used to be three of everything here — `Wield` for weapons, `Wear` for
-//! armour, `PutOn` for rings, each with its own near-identical forty-line
-//! toggle. There is now one [`Equipped`] component with a [`Slot`], and one
-//! [`toggle_equipped`]. What makes a sword different from a ring is the
+//! One [`Equipped`] component with a [`Slot`], and one [`toggle_equipped`],
+//! for weapons, armour and rings alike. What makes a sword different from a ring is the
 //! *components it carries* — [`crate::effects::PowerDie`], [`ArmorBonus`],
 //! [`Grants`] — not a branch in this file.
 //!

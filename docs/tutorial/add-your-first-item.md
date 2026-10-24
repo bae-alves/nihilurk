@@ -251,7 +251,7 @@ Most of a wand's handler is borrowed. Sleep is `conditions::snare(world, victim,
 
 ### The one thing to check afterwards
 
-Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The duds -- the potion of thirst quenching, the scroll of blank paper, the blank rune and the wand of nothing -- sit in their tables with `.never_drops()`, and `cargo test --test it content::` fails if one of them ever gets a drop weight.
+Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The duds -- the potion of thirst quenching, the scroll of blank paper and the wand of nothing -- sit in their tables with `.never_drops()`, and `cargo test --test it content::` fails if one of them ever gets a drop weight.
 
     cargo test --test it content::
 

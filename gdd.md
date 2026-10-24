@@ -85,12 +85,11 @@ You start the run already equipped: armor worn, a weapon in hand, and in the pac
 
 Drops follow Rogue's own category odds, with coins and treats standing in for food. The shares below are rounded; `DROPS` in `models/src/world/spawn.rs` has the exact weights:
 
-- Scrolls, about 27%.
-- Runes, about 5%, from depth 3. Not used up when read, and they wake each time you take the stairs. Similar to Brogue's charms.
-- Potions, about 24%, and some of them are punishments.
+- Scrolls, about 28%. Recharging, protection and justice are half as common as the rest.
+- Potions, about 25%, and some of them are punishments.
 - Coins, about 12%. They buy nothing. A coin that would do nothing for you is not picked up at all; it keeps until it would.
-- Armor, about 7%. Each suit has its own armor die.
-- Weapons, about 7%. Within that, 45% a melee weapon, 35% a bundle of 4 to 13 missiles, 20% a launcher. Launchers are deliberately the rarest, one bow is a build and two are clutter. A launcher is worth at most 1 damage swung, however good it is, because it takes the hand a sword would have had.
+- Armor, about 8%. Each suit has its own armor die.
+- Weapons, about 8%. Within that, 45% a melee weapon, 35% a bundle of 4 to 13 missiles, 20% a launcher. Launchers are deliberately the rarest, one bow is a build and two are clutter. A launcher is worth at most 1 damage swung, however good it is, because it takes the hand a sword would have had.
 - Wands, about 5%. Wands have many different effects. Attack wands deal 2d4. Every wand has 6 charges, and the range is per wand.
 - Rings, about 5%. Worn, always on.
 - Treats, about 5%. Thrown, never used: Use just tells you so. Throw the right treat at a monster and it eats it; half the time it becomes your boon companion, your Helper. A Helper chases and fights whatever monster you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. Walk into it and you trade places; it can't do that to you. It has its own background color. You only get one.

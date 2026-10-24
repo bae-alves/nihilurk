@@ -227,7 +227,7 @@ pub(super) fn settle_the_dead(world: &mut World, blow: &Landed) {
 }
 
 /// A creature marked [`ExplodesOnDeath`](crate::effects::ExplodesOnDeath) (a
-/// rune of justice) goes off as it falls: one fire blast of
+/// scroll of justice) goes off as it falls: one fire blast of
 /// [`BLAST_RADIUS`](crate::constants::wands::BLAST_RADIUS) where it stood, for
 /// one roll of its own power die. It hurts whatever it reaches, the reader
 /// included, and a neighbour it kills may burst in turn.

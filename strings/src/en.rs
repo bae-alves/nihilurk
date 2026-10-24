@@ -2,10 +2,8 @@
 //! copy of this file (see `lib.rs`) and is judged against it.
 //!
 //! One function or const per player-facing sentence, grouped by the source
-//! file that used to hold the literal inline. Names describe the message,
-//! not the caller, since the same sentence sometimes has more than one call
-//! site (e.g. several "you can't do that right now" guards used to duplicate
-//! the same literal; they now duplicate a call to the same function instead).
+//! file that calls it. Names describe the message, not the caller, since the
+//! same sentence sometimes has more than one call site.
 
 /// A content-table row's display name.
 ///
@@ -593,11 +591,10 @@ pub fn morgue_conducts_title(bonus_percent: i64) -> String {
 
 // TODO: placeholder English; needs a human's pass.
 pub fn conduct_name(bit: usize) -> &'static str {
-    const NAMES: [&str; 14] = [
+    const NAMES: [&str; 13] = [
         "no potions",
         "no scrolls",
         "no wands",
-        "no runes",
         "no casting",
         "no coins",
         "no ranged attacks",
@@ -2231,42 +2228,24 @@ pub fn item_turns_to_dust() -> &'static str {
     "The item turns to dust!"
 }
 
-// Runes. The effects of Chaos and Ice speak through the spells they cast.
-
 // TODO: placeholder English; needs a human's pass.
-pub fn you_invoke(seen_name: &str) -> String {
-    format!("You invoke the {seen_name}.")
+pub const fn scroll_recharged() -> &'static str {
+    "Your wands drink in the scroll's light."
 }
 // TODO: placeholder English; needs a human's pass.
-pub const fn rune_inert_suffix() -> &'static str {
-    "inert"
+pub const fn scroll_recharge_nothing() -> &'static str {
+    "The scroll hums. You carry no wand to charge."
 }
 // TODO: placeholder English; needs a human's pass.
-pub const fn rune_is_inert() -> &'static str {
-    "The rune is dark. It wakes when you take the stairs."
+pub const fn scroll_justice_marks() -> &'static str {
+    "The scroll burns a verdict into everything that sees you. When they fall, they burst."
 }
 // TODO: placeholder English; needs a human's pass.
-pub const fn rune_blank_nothing() -> &'static str {
-    "The blank rune does nothing, and means it."
+pub const fn scroll_justice_nobody() -> &'static str {
+    "The scroll finds nobody to judge."
 }
 // TODO: placeholder English; needs a human's pass.
-pub const fn rune_recharged() -> &'static str {
-    "Your wands drink in the rune's light."
-}
-// TODO: placeholder English; needs a human's pass.
-pub const fn rune_recharge_nothing() -> &'static str {
-    "The rune hums. You carry no wand to charge."
-}
-// TODO: placeholder English; needs a human's pass.
-pub const fn rune_justice_marks() -> &'static str {
-    "The rune burns a verdict into everything that sees you. When they fall, they burst."
-}
-// TODO: placeholder English; needs a human's pass.
-pub const fn rune_justice_nobody() -> &'static str {
-    "The rune finds nobody to judge."
-}
-// TODO: placeholder English; needs a human's pass.
-pub fn rune_protection_cast(turns: u32) -> String {
+pub fn scroll_protection_cast(turns: u32) -> String {
     format!("A hush falls over you. Nothing can hurt you for {turns} turns.")
 }
 

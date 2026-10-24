@@ -17,9 +17,6 @@
 //! * **Defence maths** — [`total_armor_plus`].
 //! * **Cosmetics on an entity** — [`spark_burst_at`], [`mark_conditions`],
 //!   [`spill_blood`], [`death_burst`], [`leave_smoke`].
-//!
-//! Player conditions used to live here too; they are their own vocabulary now,
-//! in [`crate::conditions`].
 
 use bevy_ecs::{
     entity::Entity,
@@ -242,11 +239,9 @@ pub(crate) fn mark_conditions(world: &mut World, caught: &[Entity], glyph: char,
 /// random. `None` if `origin` is boxed in. Used to place a conjured monster, or
 /// to land a creature dragged to the zapper's side.
 ///
-/// Only a [`Mob`] or the [`Player`] occupies a tile. This used to read every
-/// entity with a [`Position`], which counted a dropped dagger as a body in
-/// the way — so one piece of loot on the floor beside you was enough to tell
-/// a teleport-to there was nowhere to put its target, and a summoned monster
-/// that there was no room to arrive in.
+/// Only a [`Mob`] or the [`Player`] occupies a tile. A dropped dagger is not a
+/// body in the way: loot beside you never leaves a teleport-to nowhere to put
+/// its target, or a summoned monster no room to arrive in.
 pub fn free_adjacent_tile(world: &mut World, origin: Position) -> Option<(u16, u16)> {
     let occupied: HashSet<(u16, u16)> = world
         .query_filtered::<&Position, Or<(With<Mob>, With<Player>)>>()
@@ -332,8 +327,7 @@ pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
 ///
 /// The two questions every source of harm has to answer before the HP comes
 /// off — *does a ward turn this aside* and *is this creature immune to it* —
-/// and which used to be answered at the call sites, by whichever ones
-/// remembered. Of thirteen, two checked the element and six checked the ward.
+/// answered once, here, for every caller.
 #[derive(Clone, Copy)]
 pub struct Hit {
     /// The damage before mitigation. What [`apply_hit`] returns can be less,

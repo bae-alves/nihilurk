@@ -130,18 +130,6 @@ pub struct Card {
     pub reversed: bool,
 }
 
-/// Type-key for a rune: a scroll that goes inert when read instead of
-/// crumbling. Mechanic: the `runes` submodule of `crate::items`.
-#[derive(Component)]
-pub struct Rune {
-    /// Which rune this is, and what invoking it does. Identity for saves by
-    /// its name — see [`crate::catalog::RUNES`].
-    pub row: &'static crate::catalog::RuneDef,
-    /// Whether it still holds a use. Reading spends it; a staircase restores
-    /// it (`crate::items::recharge_runes`).
-    pub charged: bool,
-}
-
 /// Type-key for a wand. Mechanic: the `wands` submodule of `crate::items`
 /// (zapped), and `throwing` (hurled).
 #[derive(Component)]
@@ -351,8 +339,3 @@ pub struct ReachPiercing;
 // ===========================================================================
 // Player conditions
 // ===========================================================================
-
-// `ConfusingTouch` and `Bided` used to be declared here. They are buffs the
-// bearer holds rather than conditions that impair them, so they are effects
-// now and live with the rest in `crate::effects` — which is also what puts
-// them in the save file and within reach of a wand of cancellation.

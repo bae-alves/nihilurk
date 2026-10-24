@@ -30,8 +30,8 @@ const RAW_READS: &[(&str, usize, &str)] = &[
     ),
     (
         "items/wands.rs",
-        3,
-        "renaming a spoiled scroll, rune and potion: items, not creatures",
+        2,
+        "renaming a spoiled scroll and potion: items, not creatures",
     ),
     (
         "items/throwing.rs",

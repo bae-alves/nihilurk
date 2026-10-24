@@ -184,11 +184,8 @@ pub fn turns_left(world: &World, entity: Entity, grant: Grant) -> Option<u32> {
 /// Every notable thing a creature carries, named plainly — what `Look` warns
 /// about when the reticle lands on it.
 ///
-/// Derived from [`EFFECTS`] rather than listed separately. The engine used to
-/// keep its own 15-row copy of this, in another crate, with one closure per
-/// marker and nothing holding the two lists in agreement: adding a thirteenth
-/// on-hit ability and forgetting that list meant `Look` quietly stopped
-/// warning about it, and no test could have said so.
+/// Derived from [`EFFECTS`] rather than listed separately, so a new marker
+/// cannot be left out of `Look`'s warnings.
 ///
 /// A wielded launcher is the one entry that is not a marker — it is a question
 /// about gear, not a property of the creature — so it is asked separately and

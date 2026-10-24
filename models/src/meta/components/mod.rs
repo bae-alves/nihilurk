@@ -26,7 +26,7 @@
 //!
 //! * **Type-key components** — [`Potion`], [`Scroll`], [`Wand`], [`Ring`] — name
 //!   *which* one an item is. The key is the item's identity for identification
-//!   and for the save file. [`Potion`], [`Scroll`], [`Wand`] and [`Rune`] hold
+//!   and for the save file. [`Potion`], [`Scroll`] and [`Wand`] hold
 //!   their catalog row ([`crate::catalog`]), and the row names the handler that
 //!   does the work. [`Ring`] holds its row too, and the row turns into the
 //!   components that do something.

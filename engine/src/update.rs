@@ -26,10 +26,9 @@ use models::{GameState, components::GameLog};
 /// Shift the way a letter does, so it only reads as a run when the modifier
 /// comes through on the key event itself). `None` for anything else.
 ///
-/// The shifted WASD cluster used to run too. It doesn't any more: `w`, `a`, `s`
-/// and `d` are commands now (see [`handle_movement_input`]), and a movement
-/// scheme whose *shifted* half still steered would be a trap laid for the exact
-/// player who hasn't noticed the change yet.
+/// Shifted WASD does not run: `w`, `a`, `s` and `d` are commands (see
+/// [`handle_movement_input`]), and a scheme whose *shifted* half still steered
+/// would be a trap.
 fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
     match code {
         KeyCode::Char('K') => Some((0, -1)),
@@ -1101,10 +1100,8 @@ const SPELL_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 
 /// A keypress while walking the map: a run, a command, or a single step.
 ///
-/// Movement is vi keys, arrows and the numpad. WASD used to be a fourth scheme
-/// and is not one any more: those four letters are commands (`a` use, `d` drop,
-/// `w` wield, plus `W` wear), which is the whole reason they had to stop being
-/// directions. Nothing else changed about how you move.
+/// Movement is vi keys, arrows and the numpad. WASD is not: those four letters
+/// are commands (`a` use, `d` drop, `w` wield, plus `W` wear).
 ///
 /// Quitting is `Esc`, which raises the "Really quit?" prompt, or Ctrl+C, which
 /// doesn't. `Esc` only gets here with no menu open, so mashing it out of a menu
@@ -2497,7 +2494,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Keys that used to shadow each other
+    // Keys that must not shadow each other
     // -----------------------------------------------------------------------
 
     /// A player with `slots` spells and the magic to pay for all of them.
@@ -3140,29 +3137,6 @@ mod tests {
     }
 
     #[test]
-    fn using_an_inert_rune_says_so_and_costs_nothing() {
-        let mut w = modal_world(3);
-        let player = player_entity(&mut w);
-        let rune =
-            models::spawn_named(&mut w, "rune of displacement", Position { x: 0, y: 0 }).unwrap();
-        w.entity_mut(rune).remove::<Position>();
-        w.get_mut::<models::Rune>(rune).unwrap().charged = false;
-        w.get_mut::<Backpack>(player).unwrap().items.insert(0, rune);
-
-        let turn = commit_item_action(&mut w, player, 0, ItemAction::Use);
-
-        assert!(!turn, "no turn spent on a dark rune");
-        assert_eq!(w.get::<Backpack>(player).unwrap().items[0], rune);
-        assert!(w.resource::<UseQueue>().uses.is_empty());
-        assert!(
-            w.resource::<GameLog>()
-                .history
-                .iter()
-                .any(|l| l.contains("rune is dark"))
-        );
-    }
-
-    #[test]
     fn modal_open_sees_every_menu() {
         let mut w = modal_world(1);
         assert!(!modal_open(&w));
@@ -3336,10 +3310,10 @@ mod tests {
     /// A zap resolves against the dungeon the player aimed at, not the one the
     /// monsters have already walked through.
     ///
-    /// `item_system` used to run *after* `ai`, so a wand that reads one exact
-    /// tile — teleport, polymorph, haste, slow, cancellation — found that tile
-    /// empty whenever the target took a step first, and reported that there
-    /// was nothing there. The reticle had been on the monster the whole time.
+    /// So `item_system` runs before `ai`. After it, a wand that reads one exact
+    /// tile — teleport, polymorph, haste, slow, cancellation — would find that
+    /// tile empty whenever the target took a step first, though the reticle
+    /// was on the monster the whole time.
     #[test]
     fn a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left() {
         let mut w = modal_world(3);

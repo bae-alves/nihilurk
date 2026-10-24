@@ -45,51 +45,6 @@ fn beside(w: &mut World) -> Position {
         .expect("the player is walled in")
 }
 
-fn stash(w: &mut World, item: Entity) -> Entity {
-    let p = player(w);
-    w.entity_mut(item).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(item);
-    item
-}
-
-fn use_item(w: &mut World, item: Entity) {
-    let user = player(w);
-    let slot = w
-        .get::<Backpack>(user)
-        .unwrap()
-        .items
-        .iter()
-        .position(|&e| e == item);
-    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
-        user,
-        item,
-        target: None,
-        slot_idx: slot,
-    });
-    item_system(w);
-}
-
-const NOWHERE: Position = Position { x: 0, y: 0 };
-
-fn only_broken(w: &mut World, c: Conduct) {
-    let kept_now = conduct::kept_mask(w);
-    let others = Conduct::ALL
-        .iter()
-        .filter(|&&o| o != c && o != Conduct::Lurk)
-        .all(|&o| kept_now & o.bit() != 0);
-    assert!(kept_now & c.bit() == 0, "{c:?} should be broken");
-    assert!(others, "only {c:?} should be broken");
-}
-
-#[test]
-fn invoking_a_charged_rune_breaks_runes_only() {
-    let mut w = run(Body::Row(body_row("nihil").unwrap()));
-    let rune = spawn_named(&mut w, "rune of recharging", NOWHERE).unwrap();
-    stash(&mut w, rune);
-    use_item(&mut w, rune);
-    only_broken(&mut w, Conduct::Runes);
-}
-
 #[test]
 fn the_angels_test_of_faith_breaks_damage() {
     let mut w = run(Body::Row(body_row("nihil").unwrap()));
@@ -119,8 +74,8 @@ fn a_win_pays_ten_percent_of_the_score_for_each_conduct_kept() {
 
     let mask = pay_conducts(&mut w);
 
-    assert_eq!(mask.count_ones(), 12);
-    assert_eq!(score_of(&mut w), 1_000 + 1_000 * 120 / 100);
+    assert_eq!(mask.count_ones(), 11);
+    assert_eq!(score_of(&mut w), 1_000 + 1_000 * 110 / 100);
 }
 
 #[test]

@@ -334,11 +334,9 @@ pub enum Drain {
 /// all, which is the rattlesnake's bite: a long enough fight drives a victim
 /// negative.
 ///
-/// The guard used to be written out three times — in the dart trap, in the
-/// spell that lances the same dart at range, and in the snake's bite — each
-/// with its own copy of "is this sustained, and is the player being told".
-/// The rule is here; the prose stays with whoever is inflicting it, because a
-/// trap and a snake do not sound alike.
+/// The dart trap, the spell that lances the same dart at range, and the
+/// snake's bite all share this rule; the prose stays with whoever is
+/// inflicting it, because a trap and a snake do not sound alike.
 pub fn drain_power(world: &mut World, victim: Entity, amount: i32, floor: Option<i32>) -> Drain {
     if world.get::<SustainsStrength>(victim).is_some() {
         return Drain::Resisted;

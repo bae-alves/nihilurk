@@ -13,8 +13,8 @@ use crate::components::*;
 use crate::conditions::{confuse, snare};
 use crate::constants::scrolls::*;
 use crate::effects::{
-    AlwaysHelper, ArmorBonus, ArmorDie, Asleep, ConfusingTouch, Grant, Lifetime, PowerBonus,
-    PowerDie, Rooted, ThrowBonus,
+    AlwaysHelper, ArmorBonus, ArmorDie, Asleep, ConfusingTouch, ExplodesOnDeath, Grant, Lifetime,
+    PowerBonus, PowerDie, Protected, Rooted, ThrowBonus, lend,
 };
 use crate::equipment::{
     Slot, destroy_worn, equipped_in, equipped_items, force_unequip, lift_curse,
@@ -708,4 +708,65 @@ pub(crate) fn detect_mundane_items(world: &mut World, user: Entity) {
         false => strings::food_detection_some(),
     };
     world.resource_mut::<GameLog>().add(msg.to_string());
+}
+
+// ---------------------------------------------------------------------------
+// Recharging, protection, justice
+// ---------------------------------------------------------------------------
+
+/// Scroll of recharging: [`RECHARGE_STEP`] more in every wand `user` carries,
+/// never past [`RECHARGE_CAP`] and never lowering one that is already there.
+pub(crate) fn recharging(world: &mut World, user: Entity) {
+    let carried = world
+        .get::<Backpack>(user)
+        .map(|bp| bp.items.clone())
+        .unwrap_or_default();
+    let mut found = false;
+    for item in carried {
+        if world.get::<Wand>(item).is_none() {
+            continue;
+        }
+        if let Some(mut battery) = world.get_mut::<Battery>(item) {
+            found = true;
+            let topped = (battery.charges + RECHARGE_STEP).min(RECHARGE_CAP);
+            battery.charges = battery.charges.max(topped);
+        }
+    }
+    let line = match found {
+        true => strings::scroll_recharged(),
+        false => strings::scroll_recharge_nothing(),
+    };
+    world.resource_mut::<GameLog>().add(line.to_string());
+}
+
+/// Scroll of protection: no damage at all for [`PROTECTION_TURNS`] turns
+/// ([`Protected`]).
+pub(crate) fn protection(world: &mut World, user: Entity) {
+    lend(
+        world,
+        user,
+        Grant::of::<Protected>(),
+        Lifetime::Turns(PROTECTION_TURNS),
+    );
+    let line = strings::scroll_protection_cast(PROTECTION_TURNS);
+    world.resource_mut::<GameLog>().add(line);
+}
+
+/// Scroll of justice: every hostile in view will burst when it dies
+/// ([`ExplodesOnDeath`]). Held for the floor, which is as long as they live.
+pub(crate) fn justice(world: &mut World, user: Entity) {
+    let watchers = hostiles_in_view(world, user);
+    let line = match watchers.is_empty() {
+        true => strings::scroll_justice_nobody(),
+        false => strings::scroll_justice_marks(),
+    };
+    for watcher in watchers {
+        lend(
+            world,
+            watcher,
+            Grant::of::<ExplodesOnDeath>(),
+            Lifetime::Floor,
+        );
+    }
+    world.resource_mut::<GameLog>().add(line.to_string());
 }

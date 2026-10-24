@@ -19,7 +19,7 @@
 
 use bevy_ecs::prelude::*;
 
-use crate::components::{Backpack, Player, Potion, Rune, Scroll, Wand};
+use crate::components::{Backpack, Player, Potion, Scroll, Wand};
 use crate::equipment::{Equipped, Slot};
 
 /// What the pack screen can do with the item under the cursor. Nothing else in
@@ -39,12 +39,9 @@ pub enum ItemAction {
 impl ItemAction {
     /// The four rows of the `i` modal, in the order they are offered.
     ///
-    /// A fixed order, not a setting. It used to be swappable (`-dropthrow`, for
-    /// players who dropped far more often than they threw) and that flag paid
-    /// for itself only while the modal was the *only* way to reach any of these
-    /// three verbs. It isn't: `a`, `t` and `d` each do one of them in a single
-    /// keystroke, so the order of a menu you need never open again is not worth
-    /// a command-line flag.
+    /// A fixed order, not a setting: `a`, `t` and `d` each do one of these
+    /// verbs in a single keystroke, so the order of a menu you need never open
+    /// is not worth a command-line flag.
     pub const MENU: [ItemAction; 4] = [
         ItemAction::Use,
         ItemAction::Throw,
@@ -86,7 +83,7 @@ pub enum PackMode {
     Equip,
     /// `q` — only potions.
     Quaff,
-    /// `r` — scrolls and runes.
+    /// `r` — scrolls and decks.
     Read,
     /// `z` — only wands.
     Zap,
@@ -173,7 +170,6 @@ impl PackMode {
             PackMode::Read => {
                 world.get::<Scroll>(item).is_some()
                     || world.get::<crate::components::Deck>(item).is_some()
-                    || world.get::<Rune>(item).is_some()
             }
             PackMode::Zap => world.get::<Wand>(item).is_some(),
             PackMode::Wield => goes_in(world, item, Slot::Hand),

@@ -5,7 +5,7 @@ ADR 0004: presentation is checked by playing, not by `cargo test`
     Audience       Anyone about to add a test of how something looks,
                    or restore one.
     Supersedes     --
-    Related        the-feel-layer.md
+    Related        --
 
 Nothing in the feel layer, the renderer or the HUD has a test of how it looks. Game rules keep their tests. The rule is: **assert game rules, not their presentation.**
 
@@ -61,5 +61,4 @@ Reopen this decision if any of these becomes true:
 See also
 --------
 
-  the-feel-layer.md                    the layer this covers
   ../reference/rendering.md            the frame, and the order it is drawn in

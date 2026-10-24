@@ -114,8 +114,7 @@ pub struct Effect {
     ///
     /// This lives on the row because it is what the *marker* means to somebody
     /// looking at it, which is true whether or not the marker has an ability
-    /// row anywhere. The engine used to keep its own 15-row copy of this list,
-    /// in another crate, with nothing holding the two in agreement.
+    /// row anywhere.
     pub beware: Option<&'static str>,
     /// What the player is told at the start of a run as a creature born with
     /// this (`-am`): "You feel venomous." `None` for everything no bestiary
@@ -253,7 +252,7 @@ effects! {
     "oof" => Oof;
     "vuln" => Vuln;
     "time_stopped" => TimeStopped, ends strings::ends_time_stopped();
-    // The runes' two.
+    // The scroll of protection's, and the scroll of justice's.
     "protected" => Protected, ends strings::ends_protected();
     "explodes_on_death" => ExplodesOnDeath;
     "sustains_form" => SustainsForm;

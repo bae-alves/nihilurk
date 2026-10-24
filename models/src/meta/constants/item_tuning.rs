@@ -1,4 +1,4 @@
-//! Tuning for items: `potions`, `scrolls`, `decks`, `runes`, `wands`, `loot`, `items`,
+//! Tuning for items: `potions`, `scrolls`, `decks`, `wands`, `loot`, `items`,
 //! `rings`, `spells`.
 
 // ===========================================================================
@@ -79,6 +79,16 @@ pub mod scrolls {
     /// than sleep, because a held monster is only pinned and can still fight:
     /// it buys distance, not a free kill.
     pub const HOLD_TURNS: u32 = 10;
+
+    /// How many turns a scroll of protection stops all damage.
+    pub const PROTECTION_TURNS: u32 = 6;
+
+    /// What a scroll of recharging adds to each wand's battery.
+    pub const RECHARGE_STEP: i8 = 1;
+
+    /// The most charges a scroll of recharging leaves in a wand: a fresh
+    /// wand's own.
+    pub const RECHARGE_CAP: i8 = super::wands::WAND_CHARGES;
 }
 
 // ===========================================================================
@@ -130,24 +140,6 @@ pub mod decks {
 }
 
 // ===========================================================================
-// Runes
-// ===========================================================================
-
-/// The numbers a rune's effect reads. Which runes exist is data in
-/// `catalog.rs`; the mechanics are `crate::items`'s `runes` submodule.
-pub mod runes {
-    /// How many turns a rune of protection stops all damage.
-    pub const PROTECTION_TURNS: u32 = 6;
-
-    /// What a rune of recharging adds to each wand's battery.
-    pub const RECHARGE_STEP: i8 = 1;
-
-    /// The most charges a rune of recharging leaves in a wand: a fresh wand's
-    /// own.
-    pub const RECHARGE_CAP: i8 = super::wands::WAND_CHARGES;
-}
-
-// ===========================================================================
 // Wands and their blasts
 // ===========================================================================
 
@@ -186,10 +178,9 @@ pub mod wands {
     /// Radius, in tiles, of a zapped fire/cold wand's blast disc, and of a
     /// *thrown* utility wand's (damage-free) effect disc.
     ///
-    /// **Relationship to keep in mind:** for years the thrown "grenade" was
-    /// defined as exactly twice this. It no longer is — [`GRENADE_RADIUS`] is
-    /// set independently — but the two are still meant to read as
-    /// "small blast" vs. "room-clearing blast". Keep grenade > blast.
+    /// **Relationship to keep in mind:** [`GRENADE_RADIUS`] is set
+    /// independently, but the two are meant to read as "small blast" vs.
+    /// "room-clearing blast". Keep grenade > blast.
     pub const BLAST_RADIUS: f32 = 1.0;
 
     /// Radius, in tiles, of the blast a *thrown* attack wand (or the wand of

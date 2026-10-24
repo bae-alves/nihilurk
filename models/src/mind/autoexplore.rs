@@ -270,8 +270,8 @@ pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
 ///   (its [`crate::catalog::CoinDef`] row's `helps`). It stays visible and stays skipped until
 ///   the day it would help, and then the walk goes and gets it.
 /// * Everything that needs a pack slot, once the pack is full
-///   (`stowable_room`). A coin needs no slot, which is why the pack no longer
-///   calls the whole detour off.
+///   (`stowable_room`). A coin needs no slot, so a full pack never calls the
+///   whole detour off.
 ///
 /// So is what the player turned down, [`LeftBehind`]: there the arrival would
 /// take the thing, but the player has said they do not want it.
@@ -321,7 +321,7 @@ fn stowable_room(world: &mut World) -> bool {
 
 /// Whether a walk should detour for loot at all: the `A` toggle
 /// ([`AutoPickup`]) and nothing else. What is *worth* detouring for is
-/// [`known_item_tiles`]'s question, item by item — a full pack no longer calls
+/// [`known_item_tiles`]'s question, item by item — a full pack does not call
 /// the whole thing off, because a coin still gets picked up with a full pack.
 fn detours_for_loot(world: &mut World) -> bool {
     world

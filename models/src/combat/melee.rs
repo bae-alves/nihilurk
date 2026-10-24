@@ -182,10 +182,9 @@ pub(super) struct Matchup {
 /// and what it did to the creature on the end of it.
 ///
 /// The three aftermath stages — [`punctuate`], [`report_blow`],
-/// [`settle_the_dead`] — each need all of it, and each used to take the same
-/// five arguments in the same order. One of them wanted a sixth. This is that
-/// argument list, named, so adding to it is a field rather than a fresh
-/// parameter threaded through three signatures.
+/// [`settle_the_dead`] — each need all of it. This is their shared argument
+/// list, named, so adding to it is a field rather than a fresh parameter
+/// threaded through three signatures.
 pub(super) struct Landed {
     pub(super) attacker: Entity,
     pub(super) target: Entity,

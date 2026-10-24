@@ -14,7 +14,7 @@ How to play the game from a script
 
 Tests say a rule holds. They cannot say how it looks, and nobody tests that on purpose (`../explanation/adr-0004-no-tests-of-presentation.md`). The way to check a look is to play. `.claude/skills/play-nihilurk/play.sh` plays for you: it starts the game in a pty, types the keys you list, waits, and prints the screen. It builds the game first. The game runs from a scratch directory with `-ns -nshake -nb`, so it writes no save. The scratch directory is also its data directory, so it never reads your keymap or writes to your leaderboard and morgue.
 
-    .claude/skills/play-nihilurk/play.sh -S "rune of ice,aquator" ' ' @1 '?'
+    .claude/skills/play-nihilurk/play.sh -S "scroll of hold monster,aquator" ' ' @1 '?'
 
 
 The keys
@@ -30,16 +30,16 @@ Each argument is one key, typed as it stands. `printf %b` runs on it, so `'\r'`,
 The screen prints once more when the keys run out. A key waits `-d` seconds (0.4 by default) before the next one goes in. The other options are `-s SEED`, `-S LIST` (that is `NIHILURK_SPAWN`), `-L LEVEL` (that is `NIHILURK_LEVEL`), `-a "FLAGS"` for the game (`-a "-b lurk"`), `-w SECS` for the first frame, `-z RxC` for the terminal size (25x80 by default, the smallest the game draws cleanly), `-k FILE` to keep the raw bytes, and `-c CMD` to run something else in the pty, which is how the script tests itself.
 
 
-A walk-through: read a rune next to an aquator
-------------------------------------------
+A walk-through: read a scroll next to an aquator
+-------------------------------------------------
 
 A seed fixes the floor, so look first, plan the walk from what you see, then replay it.
 
-    play.sh -S "rune of ice,aquator" ' ' @1 '?'
+    play.sh -S "scroll of hold monster,aquator" ' ' @1 '?'
 
-The first frame has a `--MORE--` that needs a Space. The map shows the rune `'` up and to the left of you and the aquator `A` right of it. Step onto the rune (items are picked up as you walk over them), read it with `r` and the pack letter, and look:
+The first frame has a `--MORE--` that needs a Space. The map shows the scroll `?` up and to the left of you and the aquator `A` right of it. Step onto the scroll (items are picked up as you walk over them), read it with `r` and the pack letter, and look:
 
-    play.sh -S "rune of ice,aquator" ' ' @1 y @2 ' ' r f @4 '#after the nova' '?' '%'
+    play.sh -S "scroll of hold monster,aquator" ' ' @1 y @2 ' ' r f @4 '#after the scroll' '?' '%'
 
 `f` is the first spawned item because nihil starts with `a` to `e`. A lurk starts empty, so there it is `a`; press `i` to be sure.
 

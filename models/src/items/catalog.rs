@@ -39,7 +39,7 @@ use crate::conditions::{blind, hasten, paralyse};
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
 use crate::items::wands::dazzle;
-use crate::items::{decks, pickups, potions, runes, scrolls, spells, throwing, wands};
+use crate::items::{decks, pickups, potions, scrolls, spells, throwing, wands};
 use crate::monsters::{BESTIARY, SUMMONS};
 use crate::particles::BlastPalette;
 
@@ -296,6 +296,12 @@ impl ScrollDef {
         self
     }
 
+    /// Dropped half as often as most.
+    const fn rare(mut self) -> Self {
+        self.weight /= 2;
+        self
+    }
+
     /// Never dropped: only something else turns a scroll into this one.
     const fn never_drops(mut self) -> Self {
         self.weight = 0;
@@ -332,7 +338,8 @@ impl ItemDef for &'static ScrollDef {
 }
 
 /// Every scroll in the game, one row each. Identify and remove curse are the
-/// two every run needs, so they are `.common()`.
+/// two every run needs, so they are `.common()`; recharging, protection and
+/// justice are `.rare()`.
 #[rustfmt::skip]
 pub static SCROLLS: &[&ScrollDef] = &[
     &ScrollDef::new("scroll of monster confusion",  scrolls::charm_hands),
@@ -353,6 +360,9 @@ pub static SCROLLS: &[&ScrollDef] = &[
     &ScrollDef::new("scroll of charming",           scrolls::charming),
     &ScrollDef::new("scroll of pitfall",            scrolls::pitfall),
     &ScrollDef::new("scroll of atonement",          scrolls::atonement),
+    &ScrollDef::new("scroll of recharging",         scrolls::recharging).rare(),
+    &ScrollDef::new("scroll of protection",         scrolls::protection).rare(),
+    &ScrollDef::new("scroll of justice",            scrolls::justice).rare(),
     &ScrollDef::new("scroll of teleport to stairs", scrolls::teleport_to_stairs).never_drops(),
     &ScrollDef::new("scroll of blank paper",        scrolls::blank_paper).never_drops(),
 ];
@@ -499,90 +509,6 @@ pub fn roll_deck(rng: &mut ChaCha12Rng) -> Deck {
 pub const DECKS: &[DeckDef] = &[DeckDef {
     name: "deck of cards",
 }];
-
-// ---------------------------------------------------------------------------
-// Runes
-// ---------------------------------------------------------------------------
-
-/// A rune: a scroll that goes inert when read instead of crumbling, and wakes
-/// again on the stairs. The row is the rune: a [`Rune`] points at its row, and
-/// invoking it calls the row's `apply`. The handlers live in the `runes`
-/// submodule of `crate::items`.
-pub struct RuneDef {
-    /// The row's identity: the save file stores it and
-    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
-    /// [`ItemDef::display_name`] instead.
-    pub name: &'static str,
-    /// What invoking a charged rune does to its `user`.
-    pub apply: fn(&mut World, Entity),
-    /// How often the dungeon drops it against the other runes.
-    pub weight: u32,
-}
-
-impl RuneDef {
-    /// A rune that does `apply`, dropped as often as most.
-    pub const fn new(name: &'static str, apply: fn(&mut World, Entity)) -> Self {
-        Self {
-            name,
-            apply,
-            weight: crate::constants::monsters::DEFAULT_SPAWN_WEIGHT,
-        }
-    }
-
-    /// Never dropped: only something else turns a rune into this one.
-    const fn never_drops(mut self) -> Self {
-        self.weight = 0;
-        self
-    }
-}
-
-impl ItemDef for &'static RuneDef {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn weight(&self) -> u32 {
-        self.weight
-    }
-
-    fn spawn(&self, world: &mut World, pos: Position) -> Entity {
-        world
-            .spawn((
-                Name {
-                    what: strings::content_name(self.name).to_string(),
-                },
-                Renderable {
-                    glyph: '\'',
-                    color: Color::White,
-                },
-                pos,
-                Item,
-                Rune {
-                    row: self,
-                    charged: true,
-                },
-            ))
-            .id()
-    }
-}
-
-/// Every rune in the game, one row each.
-#[rustfmt::skip]
-pub static RUNES: &[&RuneDef] = &[
-    &RuneDef::new("rune of recharging",   runes::recharging),
-    &RuneDef::new("rune of displacement", runes::displacement),
-    &RuneDef::new("rune of justice",      runes::justice),
-    &RuneDef::new("rune of chaos",        runes::chaos),
-    &RuneDef::new("rune of ice",          runes::ice),
-    &RuneDef::new("rune of protection",   runes::protection),
-    // What a wand of cancellation leaves of any rune.
-    &RuneDef::new("blank rune",           runes::blank).never_drops(),
-];
-
-/// The rune row called `name`.
-pub fn rune_row(name: &str) -> Option<&'static RuneDef> {
-    RUNES.iter().copied().find(|row| row.name == name)
-}
 
 // ---------------------------------------------------------------------------
 // Wands
@@ -1737,10 +1663,8 @@ pub static SPELLS: &[&SpellDef] = &[
     &SpellDef::new("Polymorph Other", 3, spells::polymorph_other).aimed(8),
     // --- 4 Ma ---------------------------------------------------------
     &SpellDef::new("Meteor Strike", 4, spells::meteor_strike).attack().aimed(8).bursts(GRENADE_RADIUS).spreads(METEOR_STRIKE_CHAIN_SPREAD).wasted_on(wands::fireproof),
-    // The rune of ice's spell.
     &SpellDef::new("Frost Nova", 4, spells::frost_nova).attack(),
     &SpellDef::new("Magic Mapping", 4, spells::magic_mapping),
-    // The rune of chaos's spell.
     &SpellDef::new("Haste Self", 4, spells::haste_self),
     &SpellDef::new("Gate Down", 4, spells::gate_down),
 ];
