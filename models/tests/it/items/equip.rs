@@ -231,7 +231,7 @@ fn a_staff_doubles_the_cost_and_triples_the_damage_of_a_damaging_spell() {
     }
 
     let (plain_cost, plain_damage) = cast_fireball(23, "estoc");
-    let (turbo_cost, turbo_damage) = cast_fireball(23, "staff");
+    let (turbo_cost, turbo_damage) = cast_fireball(23, "wizard staff");
 
     assert_eq!(
         plain_cost,
@@ -260,7 +260,7 @@ fn a_staff_doubles_the_cost_and_triples_the_damage_of_a_damaging_spell() {
 fn the_staff_says_so_going_on_and_coming_off() {
     let mut w = test_world(5);
     let p = player(&mut w);
-    let staff = spawn_weapon(&mut w, "staff", Position { x: 0, y: 0 });
+    let staff = spawn_weapon(&mut w, "wizard staff", Position { x: 0, y: 0 });
     w.entity_mut(staff).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(staff);
 

@@ -251,7 +251,7 @@ It rolls both sides, folds in every equipped modifier, fires every `Moment::OnHi
 
     crate::helpers::apply_hit(world, victim, Hit::magic(amount), Some(&line));
 
-`Hit::magic`, `Hit::elemental(amount, element)` or `Hit::physical` says what kind of harm it is. `apply_hit` is the one place mitigation is decided: a Magic Ward turns a magical hit aside, an immunity drops an elemental one, a petrified victim takes a chip. It logs your `line` only if the hit lands, then calls `helpers::apply_damage`, which subtracts the HP, spills blood, breaks any promise the victim was holding and fires the low-HP warning. It returns how much came off. It deliberately does **not** kill: anything left on `hp <= 0` is finished by `reaper_system` at the tail of the turn. If you know where the damage came from and want the corpse flung away from it, finish the casualty yourself instead:
+`Hit::magic`, `Hit::elemental(amount, element)` or `Hit::physical` says what kind of harm it is. `apply_hit` is the one place mitigation is decided: an immunity drops an elemental one, a petrified victim takes a chip. It logs your `line` only if the hit lands, then calls `helpers::apply_damage`, which subtracts the HP, spills blood, breaks any promise the victim was holding and fires the low-HP warning. It returns how much came off. It deliberately does **not** kill: anything left on `hp <= 0` is finished by `reaper_system` at the tail of the turn. If you know where the damage came from and want the corpse flung away from it, finish the casualty yourself instead:
 
     if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
         crate::combat::finish_indirect_kill(world, victim, Some(center));

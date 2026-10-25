@@ -41,12 +41,6 @@ pub struct Blind;
 /// properly. See [`crate::conditions::paralyse`].
 #[derive(Component, Default, Clone, Copy)]
 pub struct Paralyzed;
-/// The spell Magic Ward: immunity to elemental/magic damage for the rest of
-/// the floor. Set the moment the spell is cast, lifted like any other
-/// floor-scoped condition at the next staircase
-/// ([`crate::conditions::clear_player_conditions`]).
-#[derive(Component, Default, Clone, Copy)]
-pub struct MagicWard;
 /// A scroll of protection: no damage of any kind, however it comes. Held for
 /// [`crate::constants::scrolls::PROTECTION_TURNS`] turns. See
 /// [`crate::helpers::apply_hit`] and [`crate::combat::resolve_attack`], the two

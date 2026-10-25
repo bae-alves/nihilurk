@@ -132,7 +132,7 @@ None of those has a list of content in it. They read the tables. A row added tod
 
 **Saves get smaller and more robust.** A saved item stores its *name*, not its components; `restore_from_catalog` rebuilds the rest from the row. A save that stored a bow's grant list would only be storing the table twice, and would go stale the moment the table changed.
 
-**An unfinished row is visible, and finishing it is a chain.** A ring with a name and no chains does nothing, and you can see that at a glance. As a match arm it would be one of several scattered about, indistinguishable from a bug. Finishing it is adding the chain: `.power_bonus(PLAIN_BONUS)` for increase damage, `.grants(&[Grant::of::<Stealthy>()])` for stealth, and so on for regeneration, slow digestion, teleportation and maintain armor. A chain that needs a new marker needs an entry in `EFFECTS` and a system that reads it; none of them needs `catalog.rs` to learn what a ring of stealth is.
+**An unfinished row is visible, and finishing it is a chain.** A ring with a name and no chains does nothing, and you can see that at a glance. As a match arm it would be one of several scattered about, indistinguishable from a bug. Finishing it is adding the chain: `.power_bonus(PLAIN_BONUS)` for increase damage, `.grants(&[Grant::of::<Stealthy>()])` for stealth, and so on for regeneration, teleportation and maintain armor. A chain that needs a new marker needs an entry in `EFFECTS` and a system that reads it; none of them needs `catalog.rs` to learn what a ring of stealth is.
 
 
 Where it does not reach

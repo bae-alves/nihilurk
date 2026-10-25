@@ -162,15 +162,6 @@ fn worn(w: &mut World, wearer: Entity, slot: Slot) -> Entity {
     .id()
 }
 
-/// Something loose in a pack, for a thief to lift.
-fn pack_item(w: &mut World, owner: Entity, name: &str) -> Entity {
-    let item = w.spawn((Name { what: name.into() }, Item, at(1, 1))).id();
-    if let Some(mut pack) = w.get_mut::<Backpack>(owner) {
-        pack.items.push(item);
-    }
-    item
-}
-
 /// A blow that connected cleanly: neither turned by armour nor the last one.
 /// The default case every on-hit row accepts.
 const CLEAN: Blow = Blow {
@@ -400,62 +391,6 @@ fn an_erratic_striker_its_trap_kills_dies_the_same_turn() {
     );
 }
 
-/// Worn gear lives in the pack too, the way `initialize_world` stows the
-/// starting kit before putting it on. A thief that flees takes only what is
-/// loose: stripping the wearer is the other thief's trick.
-#[test]
-fn a_thief_that_flees_never_lifts_worn_gear() {
-    for seed in 0..32u64 {
-        let mut w = arena(seed);
-        let victim = hero(&mut w, at(10, 10), 20, 8);
-        let armour = worn(&mut w, victim, Slot::Body);
-        w.get_mut::<Backpack>(victim).unwrap().items.push(armour);
-        pack_item(&mut w, victim, "loose thing");
-
-        let thief = creature(&mut w, at(10, 10), 5, 4);
-        w.entity_mut(thief).insert(StealsAndFlees);
-        fire_on_hit(&mut w, thief, victim, CLEAN);
-
-        assert_eq!(
-            w.get::<Backpack>(victim).unwrap().items,
-            vec![armour],
-            "seed {seed}: the thief went for the armour on the victim's back"
-        );
-    }
-}
-
-/// And a thief whose hand closes on the Element of Yoord blows apart in gore
-/// on the spot, leaving the Element where it was.
-#[test]
-fn a_thief_that_reaches_for_the_element_blows_apart() {
-    let mut w = arena(11);
-    let victim = hero(&mut w, at(10, 10), 20, 8);
-    let element = spawn_element_of_yoord(&mut w, at(0, 0));
-    w.entity_mut(element).remove::<Position>();
-    w.get_mut::<Backpack>(victim).unwrap().items.push(element);
-
-    let thief = creature(&mut w, at(11, 10), 5, 4);
-    w.entity_mut(thief).insert(StealsAndFlees);
-    fire_on_hit(&mut w, thief, victim, CLEAN);
-
-    assert!(
-        w.get_entity(thief).is_none(),
-        "the thief is still in one piece"
-    );
-    assert_eq!(
-        w.get::<Backpack>(victim).unwrap().items,
-        vec![element],
-        "the Element stays where it was"
-    );
-    assert!(
-        w.resource::<GameLog>()
-            .history
-            .iter()
-            .any(|l| l == &strings::element_bursts_thief("creature")),
-        "nothing said the thief burst"
-    );
-}
-
 #[test]
 fn a_thief_that_vanishes_strips_worn_gear_and_takes_it_with_them() {
     let mut w = arena(13);
@@ -557,27 +492,6 @@ fn the_row_gates_decide_which_blows_count() {
     assert!(
         w.get::<ConfusingTouch>(striker).is_some(),
         "the charge was spent on a killing blow"
-    );
-}
-
-/// `fire_on_hit`'s blanket guard: a ward turns aside everything riding on a
-/// blow, whatever the row. Phase 3 moves this check, so it needs holding down
-/// first.
-#[test]
-fn a_magic_ward_turns_aside_what_rides_on_a_blow() {
-    let mut w = arena(1);
-    let biter = dummy(&mut w, 10, 4);
-    w.entity_mut(biter).insert(Venomous);
-    let victim = dummy(&mut w, 10, 8);
-    w.entity_mut(victim).insert(MagicWard);
-
-    let before = power_of(&w, victim);
-    fire_on_hit(&mut w, biter, victim, CLEAN);
-
-    assert_eq!(
-        power_of(&w, victim),
-        before,
-        "venom reached a warded victim"
     );
 }
 

@@ -196,7 +196,6 @@ pub static TRAPS: &[&TrapDef] = &[
     &TrapDef { name: "bear trap",         glyph: '^', color: Color::DarkGreen,   weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 3, always_spent: true,  apply: bear,     flourish: jaws },
     &TrapDef { name: "sleeping gas trap", glyph: '^', color: Color::Blue,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 5, always_spent: false, apply: sleep,    flourish: gas },
     &TrapDef { name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: teleport, flourish: no_flourish },
-    // The Setup spell plants these.
     &TrapDef { name: "arrow trap",        glyph: '^', color: Color::DarkCyan,    weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: arrow,    flourish: missile },
     &TrapDef { name: "dart trap",         glyph: '^', color: Color::Cyan,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: dart,     flourish: missile },
 ];

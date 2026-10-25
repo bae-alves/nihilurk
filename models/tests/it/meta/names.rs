@@ -25,8 +25,8 @@ const RAW_READS: &[(&str, usize, &str)] = &[
     ),
     (
         "combat/helpers.rs",
-        4,
-        "`item_label` itself, and three `is_some` guards in front of it",
+        3,
+        "`item_label` itself, and two `is_some` guards in front of it",
     ),
     (
         "items/wands.rs",

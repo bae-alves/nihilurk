@@ -347,19 +347,16 @@ fn shattered_cursed_armour_splinters_into_monsters_but_spares_the_hero_and_allie
 }
 
 /// Harm to a creature the hero cannot see is never news, whoever caused it:
-/// `apply_hit` drops its ward and protection lines for a [`Hidden`] creature,
+/// `apply_hit` drops its protection line for a [`Hidden`] creature,
 /// and the line the caller asked it to announce as well.
 #[test]
 fn apply_hit_logs_nothing_about_a_creature_the_hero_cannot_see() {
     let mut w = combat_world(1);
-    let warded = spawn_armored_target(&mut w, 40, 0, 0);
-    w.entity_mut(warded).insert((MagicWard, Hidden));
     let protected = spawn_armored_target(&mut w, 40, 0, 0);
     w.entity_mut(protected).insert((Protected, Hidden));
     let bare = spawn_armored_target(&mut w, 40, 0, 0);
     w.entity_mut(bare).insert(Hidden);
 
-    apply_hit(&mut w, warded, Hit::magic(5), Some("the dummy is hit"));
     apply_hit(&mut w, protected, Hit::magic(5), Some("the dummy is hit"));
     let dealt = apply_hit(&mut w, bare, Hit::magic(5), Some("the dummy is hit"));
 

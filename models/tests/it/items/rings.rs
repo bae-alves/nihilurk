@@ -78,23 +78,6 @@ fn logged(w: &World, needle: &str) -> bool {
 // The rings that are only a row
 // ---------------------------------------------------------------------------
 
-#[test]
-fn slow_digestion_never_touches_the_speed_a_potion_set() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    assert!(hasten(&mut w, p));
-
-    let ring = put_on(&mut w, p, "ring of slow digestion");
-    assert_eq!(tempo(&w, p), SpeedKind::Normal, "hasted, then weighed down");
-
-    use_item(&mut w, p, ring);
-    assert_eq!(
-        tempo(&w, p),
-        SpeedKind::Fast,
-        "the haste was never spent, only masked"
-    );
-}
-
 /// Drops a chaser onto a visible tile at least `away` tiles from the player and
 /// gives the floor one turn. Reports whether it came for them.
 ///

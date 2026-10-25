@@ -475,7 +475,7 @@ fn a_fourth_condition_is_refused() {
 
     assert!(lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor));
     assert!(lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor));
-    assert!(lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor));
+    assert!(lend(&mut w, p, Grant::of::<Stealthy>(), Lifetime::Floor));
     assert_eq!(conditions_held(&w, p), CONDITION_CAP);
 
     assert!(
@@ -485,7 +485,7 @@ fn a_fourth_condition_is_refused() {
     assert_eq!(conditions_held(&w, p), CONDITION_CAP, "the ceiling holds");
     assert!(w.get::<Blind>(p).is_some(), "what is held stays held");
     assert!(w.get::<Confused>(p).is_some());
-    assert!(w.get::<MagicWard>(p).is_some());
+    assert!(w.get::<Stealthy>(p).is_some());
     assert!(
         w.get::<Paralyzed>(p).is_none(),
         "a refused condition attaches nothing"

@@ -63,7 +63,7 @@ An `Attack` deals damage (or a status a target can shrug off, like Thunderbolt's
      * **A single target hit like a trap or a wand bolt** -- `sting` (the dart trap's own formula, aimed rather than laid) and `thunderbolt` (a plain armour-ignoring roll, like a wand bolt) both just call `crate::helpers::monster_at(world, target)` and roll once.
      * **Everything in view, no target needed** -- `circle_of_death` and `frost_nova` call `crate::helpers::hostiles_in_view(world, user)` instead of aiming at a point; leave `.aimed(..)` off their rows.
 
-   Whichever shape you pick, land the damage through `helpers::apply_hit` with a `Hit::magic` or `Hit::elemental` rather than writing to a `Fighter`'s `hp` yourself -- that one call is what makes Magic Ward, elemental immunity and a petrified victim's damage cap apply to your spell. See "Play fair with Magic Ward" below.
+   Whichever shape you pick, land the damage through `helpers::apply_hit` with a `Hit::magic` or `Hit::elemental` rather than writing to a `Fighter`'s `hp` yourself -- that one call is what makes elemental immunity and a petrified victim's damage cap apply to your spell. See "Play fair with immunities" below.
 
 4. **Tell the row its shape.** The reticle and a monster's aim read it off the row, not the handler:
 
@@ -77,7 +77,7 @@ An `Attack` deals damage (or a status a target can shrug off, like Thunderbolt's
 
 ### Create a skill
 
-A `Skill` never opens on damage. It changes the caster (Cure, Heal, Bide, Magic Ward, Haste Self), the floor around them (Setup), or borrows a scroll's own effect outright (Identify, Magic Mapping) -- and `TurboMagic` never touches its cost.
+A `Skill` never opens on damage. It changes the caster (Cure, Heal, Bide, Haste Self), or borrows a scroll's own effect outright (Identify, Magic Mapping) -- and `TurboMagic` never touches its cost.
 
 3. **Decide if it needs a target at all.** Almost none do -- a skill works on the caster or on everyone in view, the same as a room-wide attack, so its row has no `.aimed(..)`. Polymorph Other is the rare aimed skill: `.aimed(8)` without `.attack()`, so a staff does not double its cost; treat `target` as step 3 of "Create an attack" would.
 
@@ -91,12 +91,12 @@ A `Skill` never opens on damage. It changes the caster (Cure, Heal, Bide, Magic 
 
        Reach for this whenever an existing scroll already does exactly what you want -- a spell is a delivery method, not a reason to write the mechanic twice.
 
-     * **Write it fresh**, reaching into `crate::conditions` for anything that changes the caster's state (`cure_one_condition`, `hasten`, `paralyse`, ...) the way `cure_self` and `haste_self` do, or lending a marker component through `effects::lend` the way `magic_ward` lends `MagicWard` for `Lifetime::Floor` and `bide` lends `Bided` for `Lifetime::NextAction`. A skill that plants something on the floor (Setup) reaches into `crate::traps` instead -- see `setup` for spawning a revealed trap and springing it immediately if something is already standing there.
+     * **Write it fresh**, reaching into `crate::conditions` for anything that changes the caster's state (`cure_one_condition`, `hasten`, `paralyse`, ...) the way `cure_self` and `haste_self` do, or lending a marker component through `effects::lend` the way `bide` lends `Bided` for `Lifetime::NextAction`.
 
    `power_mult` is always `1` for a skill, since `spell_system` never doubles a skill's cost.
 
 
-### Play fair with Magic Ward
+### Play fair with immunities
 
 Any damage your spell deals to another creature goes through [`helpers::apply_hit`](../../models/src/combat/helpers.rs), the same way every existing damaging spell does:
 
@@ -104,9 +104,9 @@ Any damage your spell deals to another creature goes through [`helpers::apply_hi
         return; // or `continue`, in a loop over several victims
     }
 
-`Hit::magic` (no element) and `Hit::elemental` (fire, cold, ...) both set the hit's `magical` flag, and `apply_hit` reads it: a warded victim takes nothing, the log says so, and `wands::ward_ricochet` plays the bounce. `Hit::physical` is the opt-out -- steel, wood and gravity, which a ward is no help against.
+`Hit::elemental` (fire, cold, ...) names the element, and `apply_hit` drops the hit if the victim is immune to it. `Hit::magic` and `Hit::physical` carry no element.
 
-No spell checks `MagicWard` by hand, and none should. `apply_hit` owns that question along with elemental immunity and the stone-chip cap, so routing through `wands::elemental_blast` gets all three for free -- the blast calls `apply_hit` per victim itself. The only other ward check in the game is `abilities::fire_on_hit`, and it answers a different question: whether the *trick riding on* a landed blow takes hold. Roll damage straight onto a `Fighter` and your spell becomes the one hole in an otherwise complete shield, which is worse than it sounds: the player *bought* that immunity with Magic.
+No spell checks immunity by hand, and none should. `apply_hit` owns that question along with the protection check and the stone-chip cap, so routing through `wands::elemental_blast` gets all three for free -- the blast calls `apply_hit` per victim itself. Roll damage straight onto a `Fighter` and your spell becomes the one hole in an otherwise complete shield.
 
 
 Hold it in your hands
@@ -123,7 +123,7 @@ and add `spell_row` to the `use crate::catalog::{...}` line at the top of `level
 Revert the `initialize_world` edit before you run the tests: a player who starts knowing a spell fails the tests that count the starting spellset (the hero coin, amnesia and lurk tests). If this was a dry run, `git checkout models/src/world/map/levels.rs` along with `catalog.rs` and `items/spells.rs`.
 
 
-> **`Spellset` does survive a save** -- `models/src/meta/saveload.rs` stores each spell by row name and refuses a save that names a spell no row has. So do the two marker components spells have left behind so far, `MagicWard` and `Bided` -- but not through a field of their own: each is a row in the `EFFECTS` registry (`models/src/combat/effects/`, `"magic_ward" => MagicWard;`) lent through `effects::lend`, and `EntitySave::effects` saves it by id with the `Lifetime` it is being held for. If your new spell leaves a marker of its own lying around outside `Spellset`, register it there and lend it; a component inserted directly is the one a reload quietly forgets.
+> **`Spellset` does survive a save** -- `models/src/meta/saveload.rs` stores each spell by row name and refuses a save that names a spell no row has. So does the marker component a spell has left behind so far, `Bided` -- but not through a field of its own: it is a row in the `EFFECTS` registry (`models/src/combat/effects/`, `"bided" => Bided;`) lent through `effects::lend`, and `EntitySave::effects` saves it by id with the `Lifetime` it is being held for. If your new spell leaves a marker of its own lying around outside `Spellset`, register it there and lend it; a component inserted directly is the one a reload quietly forgets.
 
 > **A monster casts from its spellset, out of its own Ma.** Its rule set picks one of the spells in its `Spellset` that its `Magic` can pay for, at random each turn, and fires it if it can (`CAST` in `models/src/mind/agents.rs`). To give a species your spell, give a static list of rows to `.casts(n, &YOUR_LIST)` on its bestiary row (a const row cannot borrow a fresh slice in place; see `BREATHES_FIRE = [SPELLS[FIREBALL]]` in `models/src/creatures/monsters.rs`, `FIREBALL` an `index_of!` const) -- that is all the dragon's Fireball is. Only an `Attack` spell with a range is ever fired this way; a skill never is. A player wearing the row (`-am`) gets the spells in the spell bar and pays from the player's Ma.
 

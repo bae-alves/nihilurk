@@ -195,8 +195,7 @@ pub fn render(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::i
     // staircase pays.
     //
     // The tempo is read through `models::tempo` rather than off the component,
-    // so gear that weighs the player down — a ring of slow digestion — reads
-    // SLOW exactly like a wand of slow monster does. It *is* the same slowing.
+    // so every source of slowing reads the same.
     let tempo = player_entity.map(|pe| models::tempo(world, pe));
     let stealthy = player_entity.is_some_and(|pe| world.get::<Stealthy>(pe).is_some());
     let polymorphed = player_entity.is_some_and(|pe| world.get::<Polymorphed>(pe).is_some());
@@ -238,12 +237,11 @@ pub fn render(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::i
             Option<&ConfusingTouch>,
             Option<&Plated>,
             Option<&Forged>,
-            Option<&MagicWard>,
             Option<&Bided>,
             Option<&Protected>,
         ), With<Player>>();
         let mut v = Vec::new();
-        if let Some((confused, blind, paralyzed, charmed, plated, forged, warded, bided, hushed)) =
+        if let Some((confused, blind, paralyzed, charmed, plated, forged, bided, hushed)) =
             q.iter(world).next()
         {
             match tempo {
@@ -283,9 +281,6 @@ pub fn render(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::i
             }
             if let Some(Forged(n)) = forged {
                 v.push((FO[stack_ix(*n)], Color::DarkYellow));
-            }
-            if warded.is_some() {
-                v.push(("WARD", Color::Cyan));
             }
             if bided.is_some() {
                 v.push(("BIDE", Color::DarkYellow));
@@ -1537,7 +1532,7 @@ fn draw_spells(world: &mut World, screen: &mut Screen) {
 }
 
 /// The spirit "choose one of three" overlay — a blue demon's spells, a
-/// sylphid's weapons, a salamander's suits, undyne's rings. Same box as
+/// sylphid's weapons, a salamander's suits, undine's rings. Same box as
 /// [`draw_spells`], reading straight off [`OfferMenu::options`] instead of
 /// live player state, since these three were rolled once when the menu
 /// opened and don't change while it's up.

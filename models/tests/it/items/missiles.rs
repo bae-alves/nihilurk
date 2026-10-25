@@ -1,9 +1,9 @@
 //! Missiles: the things in the pack that are *for* throwing.
 //!
-//! Four of them, and one idea. An arrow, a quarrel, a dagger and a spear all
+//! Four of them, and one idea. An arrow, a quarrel, a dagger and a dagger all
 //! carry `Projectile` — they are spent on what they hit,
 //! and nothing ever catches one out of the air. What separates them is two more
-//! components: a dagger and a spear are `Piercing` and run the whole line, while
+//! components: a dagger and a dagger are `Piercing` and run the whole line, while
 //! an arrow and a quarrel are `Ammo` and roll their row's `launched_die` instead
 //! of their hand-thrown die for anyone holding the bow or crossbow that answers
 //! to it: 1d3 for an arrow, 1d5 for a quarrel, 1d2 (and venom) for a blowdart.
@@ -488,10 +488,10 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     let arrows = quiver(&mut w, p, "arrow", 13);
     let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     w.entity_mut(bow).insert(ThrowBonus(2));
-    let spear = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
     let arrow_damage = *w.get::<ThrownDamage>(arrows).unwrap();
     let arrow_row = w.get::<Ammo>(arrows).unwrap().row;
-    let spear_damage = *w.get::<ThrownDamage>(spear).unwrap();
+    let dagger_damage = *w.get::<ThrownDamage>(dagger).unwrap();
 
     let save = common::SaveFile::new("missiles");
     save_game(&mut w, save.path()).unwrap();
@@ -527,13 +527,13 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     assert!(loaded.get::<Launcher>(bow).is_some());
     assert_eq!(loaded.get::<ThrowBonus>(bow), Some(&ThrowBonus(2)));
 
-    let spear = *packed
+    let dagger = *packed
         .iter()
         .find(|&&e| loaded.get::<Piercing>(e).is_some() && loaded.get::<Projectile>(e).is_some())
-        .expect("the spear survived the save");
-    assert_eq!(loaded.get::<ThrownDamage>(spear), Some(&spear_damage));
-    assert!(loaded.get::<Piercing>(spear).is_some());
-    assert!(loaded.get::<Projectile>(spear).is_some());
+        .expect("the dagger survived the save");
+    assert_eq!(loaded.get::<ThrownDamage>(dagger), Some(&dagger_damage));
+    assert!(loaded.get::<Piercing>(dagger).is_some());
+    assert!(loaded.get::<Projectile>(dagger).is_some());
 
     toggle_equipped(&mut loaded, hero, bow);
     assert!(loaded.get::<FireArrow>(hero).is_some());

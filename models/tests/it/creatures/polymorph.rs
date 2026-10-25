@@ -103,7 +103,7 @@ fn polymorphitis_never_shocks_its_bearer() {
 }
 
 #[test]
-fn a_chimeric_monster_is_named_for_its_form_in_the_ward_and_immunity_lines() {
+fn a_chimeric_monster_is_named_for_its_form_in_the_protection_line() {
     let mut w = test_world(3);
     let (_here, spot) = {
         let p = player(&mut w);
@@ -137,7 +137,7 @@ fn a_chimeric_monster_is_named_for_its_form_in_the_ward_and_immunity_lines() {
         ))
         .id();
     lend(&mut w, mob, Grant::of::<Chimera>(), Lifetime::Floor);
-    lend(&mut w, mob, Grant::of::<MagicWard>(), Lifetime::Floor);
+    w.entity_mut(mob).insert(Protected);
 
     apply_hit(
         &mut w,
@@ -145,7 +145,6 @@ fn a_chimeric_monster_is_named_for_its_form_in_the_ward_and_immunity_lines() {
         Hit {
             amount: 3,
             element: None,
-            magical: true,
         },
         None,
     );
@@ -153,7 +152,7 @@ fn a_chimeric_monster_is_named_for_its_form_in_the_ward_and_immunity_lines() {
     let log = w.resource::<GameLog>().history.join("\n");
     assert!(
         log.contains("chimera"),
-        "the ward line names the form: {log}"
+        "the protection line names the form: {log}"
     );
     assert!(!log.contains("orc"), "and never the species: {log}");
 }

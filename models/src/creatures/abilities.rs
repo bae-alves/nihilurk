@@ -29,9 +29,9 @@ use crate::components::{
 use crate::conditions::snare;
 use crate::effects::{
     AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Clamped, ClampedBy, Cleaves,
-    ConfusingTouch, Freezing, Gorgon, Grant, HeavySwing, MagicWard, Momentum, Petrified,
-    Polymorphitis, Regenerates, RustsArmor, SelfDamageOnHit, Spiked, Splits, StealsAndFlees,
-    StealsAndVanishes, Teleportitis, Vampiric, Venomous,
+    ConfusingTouch, Freezing, Gorgon, Grant, HeavySwing, Momentum, Petrified,
+    Polymorphitis, Regenerates, RustsArmor, SelfDamageOnHit, Spiked, Splits, StealsAndVanishes,
+    Teleportitis, Vampiric, Venomous,
 };
 use crate::equipment::{Slot, equipped_in};
 use crate::helpers::{adjacent_mobs, apply_damage, item_label};
@@ -160,21 +160,11 @@ pub const ABILITIES: &[Ability] = &[
     row(Grant::of::<Vampiric>(), hit(false, false), vampiric_drain),
     row(Grant::of::<Binds>(), hit(true, false), bind_victim),
     row(
-        Grant::of::<StealsAndFlees>(),
-        hit(false, false),
-        |w, a, t| {
-            t.is_some_and(|t| {
-                crate::items::leprechaun_theft(w, a, t);
-                true
-            })
-        },
-    ),
-    row(
         Grant::of::<StealsAndVanishes>(),
         hit(false, false),
         |w, a, t| {
             t.is_some_and(|t| {
-                crate::items::nymph_theft(w, a, t);
+                crate::items::theft(w, a, t);
                 true
             })
         },
@@ -532,42 +522,11 @@ fn medusa_gaze(world: &mut World, looker: Entity, _seen: Entity) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Theft: the leprechaun and the nymph
+// Theft
 // ---------------------------------------------------------------------------
 
-/// What a fleeing thief's hand closes on: a uniformly random item loose in
-/// `victim`'s pack — nothing they have on, since worn gear sits in the pack
-/// too — which leaves the pack with it. The Element of Yoord is in the draw
-/// but never leaves: it comes back as the pick, still in the pack, for
-/// [`crate::items::leprechaun_theft`] to answer. `None` for a pack with
-/// nothing loose in it.
-pub(crate) fn steal_unequipped_item(world: &mut World, victim: Entity) -> Option<Entity> {
-    let loose: Vec<Entity> = world
-        .get::<Backpack>(victim)?
-        .items
-        .iter()
-        .copied()
-        .filter(|&e| {
-            world
-                .get::<crate::equipment::Equipped>(e)
-                .is_none_or(|eq| eq.by != Some(victim))
-        })
-        .collect();
-    if loose.is_empty() {
-        return None;
-    }
-    let idx = world.resource_mut::<GameRng>().0.gen_range(0..loose.len());
-    let item = loose[idx];
-    if world.get::<crate::components::Amulet>(item).is_none()
-        && let Some(mut bp) = world.get_mut::<Backpack>(victim)
-    {
-        bp.items.retain(|&e| e != item);
-    }
-    Some(item)
-}
-
 /// A uniformly random piece of gear `victim` currently has equipped that
-/// isn't cursed onto them — a curse holds even against a nymph's fingers.
+/// isn't cursed onto them — a curse holds even against a thief's fingers.
 /// `None` if there is nothing to take.
 pub(crate) fn steal_equipped_item(world: &mut World, victim: Entity) -> Option<Entity> {
     let stealable: Vec<Entity> = crate::equipment::equipped_items(world, victim)
@@ -594,9 +553,6 @@ pub(crate) fn steal_equipped_item(world: &mut World, victim: Entity) -> Option<E
 /// [`crate::combat::resolve_attack`] for every blow that drew blood, with the
 /// shape of the blow so each row can bow out of the ones it does not want.
 pub fn fire_on_hit(world: &mut World, attacker: Entity, target: Entity, blow: Blow) {
-    if world.get::<MagicWard>(target).is_some() {
-        return;
-    }
     fire(
         world,
         Moment::OnHit {

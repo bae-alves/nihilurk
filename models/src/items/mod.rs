@@ -48,10 +48,8 @@ pub use wands::{polymorph_player_into, wand_wasted_on};
 pub(crate) use spells::cast_spell;
 pub(crate) use wands::leave_smoke_ring;
 
-/// The leprechaun's and the nymph's on-hit tricks, named by
-/// [`crate::abilities::ABILITIES`] without that table knowing anything
-/// about potions, scrolls or teleportation.
-pub(crate) use theft::{leprechaun_theft, nymph_theft};
+/// The thief's on-hit trick, named by [`crate::abilities::ABILITIES`].
+pub(crate) use theft::theft;
 
 /// What a blast covers, for anything that must know before it lets one off.
 pub(crate) use wands::blast_cells;
@@ -71,8 +69,6 @@ pub use throwing::{
 /// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a
 /// melee attack for as long as it has one drawn.
 pub(crate) use throwing::monster_ranged_attack;
-
-pub(crate) use wands::ward_ricochet;
 
 /// The `T` key's whole implementation — the deliberate teleport a ring of
 /// teleportation makes possible. Public because the input loop calls it; silent

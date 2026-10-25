@@ -331,31 +331,27 @@ pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
 #[derive(Clone, Copy)]
 pub struct Hit {
     /// The damage before mitigation. What [`apply_hit`] returns can be less,
-    /// down to zero when a ward or an immunity turns the blow aside.
+    /// down to zero when an immunity turns the blow aside.
     pub amount: i32,
     /// The element, if any. `None` is a physical blow — a dart, an arrow, a
     /// thrown dagger — which no immunity covers.
     pub element: Option<Element>,
-    /// Whether the spell Magic Ward turns this aside. Magic does; steel does
-    /// not, which is why the ward is not simply "everything".
-    pub magical: bool,
 }
 
 impl Hit {
-    /// Steel, wood and gravity. No element, and a ward is no help.
+    /// Steel, wood and gravity. No element.
     ///
     /// ```
     /// use models::Hit;
     ///
     /// let dart = Hit::physical(3);
     /// assert_eq!(dart.amount, 3);
-    /// assert!(dart.element.is_none() && !dart.magical);
+    /// assert!(dart.element.is_none());
     /// ```
     pub fn physical(amount: i32) -> Self {
         Self {
             amount,
             element: None,
-            magical: false,
         }
     }
 
@@ -364,7 +360,6 @@ impl Hit {
         Self {
             amount,
             element: None,
-            magical: true,
         }
     }
 
@@ -374,26 +369,24 @@ impl Hit {
         Self {
             amount,
             element: Some(element),
-            magical: true,
         }
     }
 }
 
-/// Puts `hit` on `entity`: turns it aside if a ward is up, drops it if the
-/// creature is immune, and otherwise takes the HP off and runs everything
+/// Puts `hit` on `entity`: drops it if the creature is immune, and otherwise takes the HP off and runs everything
 /// that follows from being hurt.
 ///
 /// `announce` is the line the source of the harm wants to print — "the dart
 /// pricks the orc for 4 damage". It is logged **after** mitigation and
 /// **before** the HP comes off, which is the only ordering that reads
-/// correctly: a warded hit must not announce damage it never did, and a
+/// correctly: a blocked hit must not announce damage it never did, and a
 /// landed one must say so before "You are badly wounded!" answers it.
 ///
-/// Returns how much HP actually came off — 0 for a ward, an immunity, or
+/// Returns how much HP actually came off — 0 for an immunity, or
 /// anything with no [`Fighter`] to hurt.
 ///
 /// A [`Hidden`](crate::Hidden) creature, one the hero cannot see, takes the
-/// harm in silence: no ward line, no chip line, no `announce`.
+/// harm in silence: no protection line, no chip line, no `announce`.
 ///
 /// **This is the only place mitigation is decided.** A new immunity is a
 /// branch here and nowhere else; before, it would have been thirteen separate
@@ -409,16 +402,6 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
                 .resource_mut::<GameLog>()
                 .add(strings::protection_turns_aside(&name));
         }
-        return 0;
-    }
-    if hit.magical && world.get::<crate::effects::MagicWard>(entity).is_some() {
-        if seen && world.get::<Name>(entity).is_some() {
-            let name = item_label(world, entity);
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::ward_turns_aside(&name));
-        }
-        crate::items::ward_ricochet(world, entity);
         return 0;
     }
     if let Some(el) = hit.element.filter(|el| el.immunity().probe(world, entity)) {

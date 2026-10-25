@@ -888,7 +888,6 @@ fn protection_stops_all_damage_for_six_turns_and_then_stops_stopping_it() {
             Hit {
                 amount: 9,
                 element: Some(Element::Fire),
-                magical: true,
             },
             None
         ),

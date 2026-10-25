@@ -24,7 +24,7 @@ use rand::Rng;
 use crate::catalog::{SpellCast, SpellDef};
 use crate::components::*;
 use crate::conditions::{cure_one_condition, hasten, paralyse};
-use crate::effects::{Bided, Grant, Lifetime, MagicWard, TurboMagic, loadout};
+use crate::effects::{Bided, Grant, Lifetime, TurboMagic, loadout};
 use crate::helpers::{
     Hit, actor_at, apply_hit, get_entities_at_position, get_line, hostiles_in_view, item_label,
     monster_at, roll_dice, spark_burst_at, tile_of,
@@ -32,7 +32,7 @@ use crate::helpers::{
 use crate::map::{GameRng, Map};
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
-use crate::traps::{TRAPS, TrapBundle, spring_trap, trap_at, trap_damage_tier};
+use crate::traps::trap_damage_tier;
 
 use super::wands::{dazzle, elemental_blast};
 
@@ -50,10 +50,6 @@ use crate::constants::traps::{
     DART_DAMAGE_DICE, DART_DAMAGE_SIDES, DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER,
 };
 use crate::constants::wands::{BLAST_RADIUS, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS};
-
-use crate::catalog::index_of;
-
-const ARROW_TRAP: usize = index_of!(TRAPS, "arrow trap");
 
 /// Whether `user` is wielding a staff — every damaging spell they cast costs
 /// [`TURBO_MAGIC_COST_MULT`] times the [`Magic`] and deals
@@ -410,58 +406,6 @@ pub(crate) fn force_lance(world: &mut World, cast: SpellCast) {
     chain_at(world, user, cells);
 }
 
-/// Setup: plants a revealed arrow trap on each of the caster's four
-/// diagonals — springs, cocked, in plain sight. One standing under a
-/// creature already trips the instant it's laid.
-pub(crate) fn setup(world: &mut World, cast: SpellCast) {
-    let user = cast.user;
-    let Some(pos) = world.get::<Position>(user).copied() else {
-        return;
-    };
-    const DIAGONALS: [(i32, i32); 4] = [(-1, -1), (1, -1), (-1, 1), (1, 1)];
-    let map = world.resource::<Map>().clone();
-    let mut placed = 0;
-
-    for (dx, dy) in DIAGONALS {
-        let Some((x, y)) = crate::particles::on_map(pos.x as i32 + dx, pos.y as i32 + dy) else {
-            continue;
-        };
-        let spot = Position { x, y };
-        if map.blocks(x, y) || trap_at(world, spot).is_some() {
-            continue;
-        }
-        let trap = world
-            .spawn(TrapBundle::from_def(
-                TRAPS[ARROW_TRAP],
-                TrapReveal::Sight,
-                spot,
-            ))
-            .id();
-        world.entity_mut(trap).remove::<Hidden>();
-        if let Some(mut t) = world.get_mut::<Trap>(trap) {
-            t.revealed = true;
-        }
-        placed += 1;
-        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            fx.blip(x, y, '^', Color::DarkCyan);
-        }
-
-        let occupant = get_entities_at_position(world, spot)
-            .into_iter()
-            .find(|&e| e != user && world.get::<Fighter>(e).is_some());
-        if let Some(victim) = occupant {
-            spring_trap(world, trap, victim);
-        }
-    }
-
-    let msg = if placed > 0 {
-        strings::setup_planted()
-    } else {
-        strings::setup_no_room()
-    };
-    world.resource_mut::<GameLog>().add(msg.to_string());
-}
-
 // ---------------------------------------------------------------------------
 // 3 Ma
 // ---------------------------------------------------------------------------
@@ -547,28 +491,6 @@ pub(crate) fn circle_of_death(world: &mut World, cast: SpellCast) {
     world
         .resource_mut::<GameLog>()
         .add(strings::circle_of_death_drain(drained));
-}
-
-/// Magic Ward: for the rest of this floor, nothing that isn't the caster's
-/// own magic can touch them — every wand-shaped source of harm bounces off
-/// outright (`crate::items::wands::damage_with_element`), and nothing a
-/// monster's blow carries with it takes hold either
-/// ([`crate::abilities::fire_on_hit`]). Lifted at the next staircase like any
-/// other floor-scoped condition.
-pub(crate) fn magic_ward(world: &mut World, cast: SpellCast) {
-    let user = cast.user;
-    if !crate::effects::lend(world, user, Grant::of::<MagicWard>(), Lifetime::Floor) {
-        return;
-    }
-    if let Some((x, y)) = tile_of(world, user) {
-        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            fx.spark_burst(x, y, Color::Cyan);
-            fx.firework(x, y, Color::White, 120.0);
-        }
-    }
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::magic_ward_cast());
 }
 
 /// Heal: refills the caster's HP to their current ceiling — a potion of
@@ -744,11 +666,6 @@ pub(crate) fn identify(world: &mut World, cast: SpellCast) {
 /// Magic Mapping: the scroll of magic mapping, on demand.
 pub(crate) fn magic_mapping(world: &mut World, cast: SpellCast) {
     super::scrolls::map_the_floor(world, cast.user);
-}
-
-/// Gate Down: a trapdoor under the caster, the scroll of pitfall on demand.
-pub(crate) fn gate_down(world: &mut World, cast: SpellCast) {
-    super::scrolls::pitfall(world, cast.user);
 }
 
 /// Polymorph Self: the wand of polymorph, turned on the caster.

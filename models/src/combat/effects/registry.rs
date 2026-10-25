@@ -185,7 +185,6 @@ effects! {
     "fire_dart" => FireDart;
     "sustains_armor" => SustainsArmor;
     "rusts_armor" => RustsArmor, beware strings::beware_corrosive_touch(), feel strings::feel_rusts_armor();
-    "sluggish" => Sluggish;
     "stealthy" => Stealthy;
     "regenerates" => Regenerates, beware strings::beware_regeneration(), feel strings::feel_regenerates();
     "teleportitis" => Teleportitis;
@@ -199,7 +198,6 @@ effects! {
     "splits" => Splits, beware strings::beware_splitting_flesh(), feel strings::feel_splits();
     "green_blood" => GreenBlood, feel strings::feel_green_blood();
     "freezing" => Freezing, beware strings::beware_paralysing_touch(), feel strings::feel_freezing();
-    "steals_and_flees" => StealsAndFlees, beware strings::beware_thieving_touch(), feel strings::feel_steals_and_flees();
     "steals_and_vanishes" => StealsAndVanishes, beware strings::beware_thieving_touch(), feel strings::feel_steals_and_vanishes();
     "always_tamed" => AlwaysTamed, feel strings::feel_always_tamed();
     "always_helper" => AlwaysHelper, feel strings::feel_always_helper();
@@ -238,7 +236,6 @@ effects! {
     "confused" => Confused;
     "blind" => Blind;
     "paralyzed" => Paralyzed;
-    "magic_ward" => MagicWard;
     "detected" => Detected;
     "polymorphed" => Polymorphed;
     "polymorphitis" => Polymorphitis;

@@ -102,7 +102,7 @@ pub struct SpiritsHostile(pub bool);
 
 /// Which way a spirit's row pulls [`Alignment`] when the player interacts
 /// with it peacefully: a cacodaemon (the demons) one way, a eudaemon (the
-/// angel, sphynx, sylphid, salamander, undyne, gnome) the other, each by
+/// angel, sphynx, sylphid, salamander, undine, gnome) the other, each by
 /// [`ALIGNMENT_STEP`](crate::constants::spirits::ALIGNMENT_STEP). Set from
 /// `crate::monsters::MonsterDef::spirit_kind`, not saved — cheap to rebuild
 /// from the bestiary row on load, the same way `Grants` is.
@@ -132,7 +132,7 @@ pub struct SpiritEvent(pub fn(&mut World, Entity, Entity));
 pub struct TestOfFaithLedger;
 
 /// One thing a spirit's "choose one of three" menu is offering — the blue
-/// demon's spells, the sylphid's weapons, the salamander's armor, undyne's
+/// demon's spells, the sylphid's weapons, the salamander's armor, undine's
 /// rings, the red demon's gear, the gnome's magic. See [`crate::spirits`].
 #[derive(Clone, Copy)]
 pub enum OfferOption {

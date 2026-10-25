@@ -124,58 +124,11 @@ fn count_at(w: &mut World, x: u16, y: u16) -> (usize, usize, usize) {
     (mobs, items, coins)
 }
 
-fn is_dragon(w: &mut World, x: u16, y: u16) -> bool {
-    name_at_mob(w, x, y).as_deref() == Some("dragon")
-}
-
 fn name_at_mob(w: &mut World, x: u16, y: u16) -> Option<String> {
     w.query_filtered::<(&Name, &Position), With<Mob>>()
         .iter(w)
         .find(|(_, p)| p.x == x && p.y == y)
         .map(|(n, _)| n.what.clone())
-}
-
-#[test]
-fn a_dragon_hoard_has_the_right_dragon_count_and_exceptional_gear_under_each() {
-    let (seed, depth) = first_with(SpecialRoom::DragonHoard);
-    let mut w = world_at(seed, depth);
-    let tiles = tiles_of(w.resource::<Map>(), SpecialRoom::DragonHoard);
-    assert!(!tiles.is_empty());
-
-    let expected_dragons = (difficulty_tier(depth) as usize + 1).min(tiles.len());
-    let mut dragons = 0;
-    for (x, y) in tiles {
-        let (mobs, items, _) = count_at(&mut w, x, y);
-        assert_eq!(items, 1, "tile ({x},{y}) in the hoard should hold one item");
-        if is_dragon(&mut w, x, y) {
-            dragons += 1;
-            assert_eq!(mobs, 1);
-            let bonus = w
-                .query_filtered::<(
-                    &Position,
-                    Option<&PowerBonus>,
-                    Option<&ArmorBonus>,
-                    Option<&ThrowBonus>,
-                    Option<&MaxHpBonus>,
-                ), With<Item>>()
-                .iter(&w)
-                .find(|(p, ..)| p.x == x && p.y == y)
-                .map(|(_, p, a, t, h)| {
-                    p.map_or(0, |b| b.0)
-                        + a.map_or(0, |b| b.0)
-                        + t.map_or(0, |b| b.0)
-                        + h.map_or(0, |b| b.0)
-                })
-                .unwrap();
-            assert!(bonus >= 1, "dragon at ({x},{y}) stands on a plain item");
-        } else {
-            assert_eq!(mobs, 0);
-        }
-    }
-    assert_eq!(
-        dragons, expected_dragons,
-        "seed {seed} depth {depth}: wrong dragon count for its tier"
-    );
 }
 
 #[test]

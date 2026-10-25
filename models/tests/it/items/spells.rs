@@ -1,7 +1,6 @@
 //! The active-spell system: Bide's flat attack bonus (granted once, spent by
-//! the next attack or lost the moment anything else happens instead), Magic
-//! Ward's blanket immunity to wand-shaped harm, Sting's dart-trap formula,
-//! Setup's self-triggering traps, a hero coin teaching a spell up to the
+//! the next attack or lost the moment anything else happens instead), Sting's
+//! dart-trap formula, a hero coin teaching a spell up to the
 //! four-slot cap, and a scroll of amnesia taking one back.
 
 use bevy_ecs::prelude::*;
@@ -170,47 +169,6 @@ fn sting_bites_like_the_dart_trap_it_borrows_from() {
 }
 
 #[test]
-fn setup_plants_four_revealed_traps_and_trips_one_under_a_bystander() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let here = *w.get::<Position>(p).unwrap();
-    w.get_mut::<Magic>(p).unwrap().points = 10;
-    w.get_mut::<Magic>(p).unwrap().max_points = 10;
-
-    let diag = Position {
-        x: here.x + 1,
-        y: here.y + 1,
-    };
-    let bystander = dummy(&mut w, diag, 40);
-
-    let before: std::collections::HashSet<Entity> =
-        w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
-
-    cast(&mut w, p, spell_row("Setup").unwrap(), here);
-
-    let traps: Vec<Entity> = w
-        .query_filtered::<Entity, With<Trap>>()
-        .iter(&w)
-        .filter(|e| !before.contains(e))
-        .collect();
-    assert!(
-        !traps.is_empty(),
-        "Setup plants at least one trap where there's room for it"
-    );
-    for &trap in &traps {
-        assert!(
-            w.get::<Hidden>(trap).is_none(),
-            "every trap Setup plants is revealed, not hidden"
-        );
-        assert!(w.get::<Trap>(trap).unwrap().revealed);
-    }
-    assert!(
-        w.get::<Fighter>(bystander).unwrap().hp < 40,
-        "a trap planted under a bystander trips immediately"
-    );
-}
-
-#[test]
 fn hero_coin_teaches_a_spell_up_to_the_four_slot_cap() {
     let mut w = test_world(8);
     let p = player(&mut w);
@@ -340,24 +298,4 @@ fn polymorph_other_polymorphs_what_it_is_aimed_at() {
         w.get::<Polymorphed>(p).is_none(),
         "and the caster is untouched"
     );
-}
-
-// ---------------------------------------------------------------------------
-// Gate Down
-// ---------------------------------------------------------------------------
-
-#[test]
-fn gate_down_drops_the_caster_a_floor_and_charges_for_it() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let here = *w.get::<Position>(p).unwrap();
-    let def = spell_row("Gate Down").unwrap();
-    assert_eq!(def.kind, SpellKind::Skill);
-    assert!(!spell_row("Gate Down").unwrap().needs_target());
-    w.get_mut::<Magic>(p).unwrap().points = def.cost;
-
-    cast(&mut w, p, spell_row("Gate Down").unwrap(), here);
-
-    assert_eq!(w.resource::<Depth>().what, 2, "fell one floor");
-    assert_eq!(w.get::<Magic>(p).unwrap().points, 0);
 }

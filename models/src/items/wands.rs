@@ -49,7 +49,7 @@ fn roll_wand_damage(world: &mut World) -> i32 {
 /// Returns how much HP was actually taken off.
 ///
 /// A one-line wrapper over [`apply_hit`], which is where every damage path
-/// decides the ward and the immunity.
+/// decides the immunity.
 fn damage_with_element(
     world: &mut World,
     entity: Entity,
@@ -59,58 +59,8 @@ fn damage_with_element(
     let hit = Hit {
         amount: damage,
         element,
-        magical: true,
     };
     apply_hit(world, entity, hit, None)
-}
-
-/// The spell Magic Ward turning away a hit: a flash off the chest and
-/// whatever was coming for it — a bolt, a breath, a fistful of fire —
-/// ricochets off at a random angle in a random bright colour and is gone.
-/// Purely cosmetic; the damage above is already zeroed by the time this
-/// plays, so a headless world (no [`Particles`] resource) just skips it.
-pub(crate) fn ward_ricochet(world: &mut World, victim: Entity) {
-    let Some(pos) = world.get::<Position>(victim).copied() else {
-        return;
-    };
-    const DIRS: [(i32, i32); 8] = [
-        (1, 0),
-        (-1, 0),
-        (0, 1),
-        (0, -1),
-        (1, 1),
-        (1, -1),
-        (-1, 1),
-        (-1, -1),
-    ];
-    const COLORS: [Color; 6] = [
-        Color::Yellow,
-        Color::Cyan,
-        Color::Magenta,
-        Color::White,
-        Color::Green,
-        Color::Red,
-    ];
-    let (dx, dy, color) = {
-        let mut rng = world.resource_mut::<GameRng>();
-        let (dx, dy) = DIRS[rng.0.gen_range(0..DIRS.len())];
-        let color = COLORS[rng.0.gen_range(0..COLORS.len())];
-        (dx, dy, color)
-    };
-    let mut cells = Vec::new();
-    for step in 1..=3 {
-        let Some(cell) =
-            crate::particles::on_map(pos.x as i32 + dx * step, pos.y as i32 + dy * step)
-        else {
-            break;
-        };
-        cells.push(cell);
-    }
-    let Some(mut fx) = world.get_resource_mut::<Particles>() else {
-        return;
-    };
-    fx.hit_spark(pos.x, pos.y);
-    fx.hurl(&cells, '*', color);
 }
 
 /// Fires one of the straight-line "bolt" wands: a beam from the zapper to the

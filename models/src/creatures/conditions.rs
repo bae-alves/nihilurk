@@ -35,8 +35,8 @@ use crate::components::{
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{
-    Asleep, Bided, Blind, Clamped, Confused, Effects, Grant, Lifetime, MagicWard, Paralyzed,
-    Petrified, Pinned, Polymorphed, Rooted, SeesInvisible, Sluggish, Stealthy, SustainsStrength,
+    Asleep, Bided, Blind, Clamped, Confused, Effects, Grant, Lifetime, Paralyzed,
+    Petrified, Pinned, Polymorphed, Rooted, SeesInvisible, Stealthy, SustainsStrength,
     clear_floor_grants,
 };
 use crate::helpers::item_label;
@@ -258,11 +258,10 @@ pub const AFFLICTIONS: &[Affliction] = &[
     },
 ];
 
-/// Held until a staircase, but nothing a cure can lift — a ward is a boon, not
+/// Held until a staircase, but nothing a cure can lift — a boon, not
 /// an affliction, and a rosé coin should not offer to take it off you. A
 /// polymorph is the same kind of thing: a loan, not a malady.
 const FLOOR_BOONS: &[(Grant, &str)] = &[
-    (Grant::of::<MagicWard>(), strings::adjective_warded()),
     (Grant::of::<Polymorphed>(), strings::adjective_polymorphed()),
 ];
 
@@ -410,22 +409,14 @@ fn report_cure(world: &mut World, entity: Entity, player_line: &str, mob_noun: &
 // Tempo
 // ---------------------------------------------------------------------------
 
-/// The tempo `entity` actually acts at: its own [`Speed`], dropped one notch if
-/// it is wearing something that weighs it down ([`Sluggish`] — a ring of slow
-/// digestion).
+/// The tempo `entity` actually acts at: its own [`Speed`].
 ///
 /// Everything that reads a tempo reads it through here rather than off the
-/// component, which is what lets a ring slow you without touching the condition
-/// a potion of haste set — take the ring off and the haste is still there,
-/// exactly as it was.
+/// component.
 pub fn tempo(world: &World, entity: Entity) -> SpeedKind {
-    let base = world
+    world
         .get::<Speed>(entity)
-        .map_or(SpeedKind::Normal, |s| s.kind);
-    match world.get::<Sluggish>(entity).is_some() {
-        true => base.slower(),
-        false => base,
-    }
+        .map_or(SpeedKind::Normal, |s| s.kind)
 }
 
 /// Wand of haste / slow monster: step one creature — monster or player — one
@@ -596,14 +587,12 @@ fn touch_viewshed(world: &mut World, entity: Entity) {
 
 /// Everything that is a condition without being an affliction, a hold or a
 /// floor boon: the rest of what the HUD badges, each with the adjective that
-/// completes "You are no longer ___." A ward is already a [`FLOOR_BOONS`] row;
-/// these four have no list of their own because nothing else ever had to ask
+/// completes "You are no longer ___." These three have no list of their own because nothing else ever had to ask
 /// about them together.
 const OTHER_CONDITIONS: &[(Grant, &str)] = &[
     (Grant::of::<Bided>(), strings::adjective_coiled()),
     (Grant::of::<Petrified>(), strings::adjective_stone()),
     (Grant::of::<Stealthy>(), strings::adjective_stealthy()),
-    (Grant::of::<Sluggish>(), strings::adjective_sluggish()),
 ];
 
 /// Every condition in the game, each with its "no longer ___" adjective: the

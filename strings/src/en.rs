@@ -150,18 +150,16 @@ pub fn polymorph_drops_gear() -> &'static str {
     "Your gear slips off you."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn form_holds_player() -> &'static str {
-    "The bolt of change finds nothing in you to bend."
+    "The bolt of change is ineffective."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn form_holds_mob(name: &str) -> String {
-    format!("The bolt of change slides off the {name}.")
+    format!("The bolt of change does not affect the {name}.")
 }
 
 pub fn polymorph_same_looking(old_name: &str, new_name: &str) -> String {
-    format!("The {old_name} twists and warps into a different-looking {new_name}!")
+    format!("The {old_name} polymorphs into a different-looking {new_name}!")
 }
 
 pub fn polymorph_different(old_name: &str, article: &str, new_name: &str) -> String {
@@ -334,11 +332,8 @@ pub fn dart_poison_took() -> &'static str {
 // models/src/items/theft.rs
 // ---------------------------------------------------------------------------
 
-pub fn leprechaun_theft(attacker: &str, item: &str, target: &str) -> String {
-    format!("The {attacker} snatches the {item} from {target} and cackles!")
-}
-
-pub fn nymph_theft(attacker: &str, item: &str, target: &str) -> String {
+// TODO: placeholder English; needs a human's pass.
+pub fn theft(attacker: &str, item: &str, target: &str) -> String {
     format!("The {attacker} rips the {item} from {target} and vanishes in a puff of smoke!")
 }
 
@@ -472,10 +467,6 @@ pub const fn feel_freezing() -> &'static str {
     "You feel numbingly cold."
 }
 
-pub const fn feel_steals_and_flees() -> &'static str {
-    "You feel light-fingered."
-}
-
 pub const fn feel_steals_and_vanishes() -> &'static str {
     "You feel sneaky."
 }
@@ -500,9 +491,8 @@ pub const fn feel_shapeshift_on_kill() -> &'static str {
     "You feel restless in your own skin."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub const fn feel_mirror_on_kill() -> &'static str {
-    "You feel like whatever you see."
+    "You turn into what you just killed."
 }
 
 pub const fn feel_faerie_on_death() -> &'static str {
@@ -539,7 +529,6 @@ pub fn leaderboard_empty() -> &'static str {
     "No runs recorded yet."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn leaderboard_unreadable(path: &str) -> String {
     format!(
         "Can't read the leaderboard at '{path}': it is damaged or from another version. \
@@ -551,12 +540,10 @@ pub fn leaderboard_entry(rank: usize, name: &str, outcome: &str, score: i64, whe
     format!("{rank}. {name} - {outcome} - {score} ({when})")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_header(name: &str, version: &str) -> String {
     format!("nihilurk {version} - {name}")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_summary(outcome: &str, cause: &str, depth: u8, score: i64) -> String {
     match cause.is_empty() {
         true => format!("{outcome} - Depth {depth} - Score {score}"),
@@ -564,32 +551,26 @@ pub fn morgue_summary(outcome: &str, cause: &str, depth: u8, score: i64) -> Stri
     }
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_ended(when: &str) -> String {
     format!("Ended {when} UTC")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_screen_title() -> &'static str {
     "-- Final screen --"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_pack_title() -> &'static str {
     "-- Pack --"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_kills_title(total: u32) -> String {
     format!("-- Kills ({total}) --")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_conducts_title(bonus_percent: i64) -> String {
     format!("-- Conducts (+{bonus_percent}%) --")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn conduct_name(bit: usize) -> &'static str {
     const NAMES: [&str; 13] = [
         "no potions",
@@ -609,12 +590,10 @@ pub fn conduct_name(bit: usize) -> &'static str {
     NAMES[bit]
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_messages_title() -> &'static str {
     "-- Messages --"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn morgue_written(path: &str) -> String {
     format!("Run dump written to '{path}'.")
 }
@@ -674,12 +653,10 @@ pub fn conflicting_bodies(first_flag: &str, second: &str) -> String {
     format!("nihilurk: {first_flag} and {second} are the same choice. Pick one.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn fast_and_endless() -> String {
     "nihilurk: -fast and -endless cannot be combined. Pick one.".to_string()
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn mode_flags_dropped(flags: &str) -> String {
     format!(
         "nihilurk: a save keeps the mode it was started in, so {flags} is dropped. Load anyway? [y/N]"
@@ -694,17 +671,14 @@ pub fn no_such_monster(name: &str) -> String {
     format!("nihilurk: no monster called '{name}'. Try -content for the bestiary.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn name_too_long(name: &str, max: usize) -> String {
     format!("nihilurk: the name '{name}' is longer than {max} characters.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn name_is_a_device(name: &str) -> String {
     format!("nihilurk: '{name}' is a reserved device name on Windows, so it cannot be a name.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn name_has_control_chars() -> String {
     "nihilurk: a name cannot hold control characters.".to_string()
 }
@@ -713,12 +687,10 @@ pub fn stray_positional(stray: &str) -> String {
     format!("nihilurk: '{stray}' is not a flag, and a name has to come first: nihilurk {stray} ...")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn invalid_argument(arg: &str) -> String {
     format!("invalid argument {arg}. Please see -help for more information")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn keymap_error(err: &str) -> String {
     format!("keymap: {err}")
 }
@@ -738,7 +710,6 @@ pub fn body_conflicts_with_load(flag: &str, name: &str) -> String {
     format!("nihilurk: a save already knows what body it is in; drop {flag} {name} to load it.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn invalid_save() -> &'static str {
     "Invalid save file for this version, or it is corrupted."
 }
@@ -868,7 +839,7 @@ pub fn pack_nothing_zap() -> &'static str {
 pub fn pack_nothing_wield() -> &'static str {
     "You have nothing to wield."
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn no_other_weapon() -> &'static str {
     "You have no other weapon you know well enough to switch to."
 }
@@ -971,7 +942,7 @@ pub const fn ends_rooted() -> &'static str {
 pub const fn ends_clamped() -> &'static str {
     "The jaws locked around your leg finally go slack."
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub const fn ends_protected() -> &'static str {
     "The hush lifts. You can bleed again."
 }
@@ -1083,9 +1054,6 @@ pub fn system_shock_mob(name: &str) -> String {
 pub const fn adjective_polymorphed() -> &'static str {
     "polymorphed"
 }
-pub const fn adjective_warded() -> &'static str {
-    "warded"
-}
 pub const fn adjective_coiled() -> &'static str {
     "coiled"
 }
@@ -1094,9 +1062,6 @@ pub const fn adjective_stone() -> &'static str {
 }
 pub const fn adjective_stealthy() -> &'static str {
     "stealthy"
-}
-pub const fn adjective_sluggish() -> &'static str {
-    "sluggish"
 }
 
 pub fn too_many_conditions() -> &'static str {
@@ -1131,11 +1096,11 @@ pub fn slow_player_line() -> &'static str {
 pub fn haste_mob_line(name: &str) -> String {
     format!("The {name} blurs into sudden speed!")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn haste_overflow_player_line() -> &'static str {
     "Your speed overflows, no longer hasted!"
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn haste_overflow_mob_line(name: &str) -> String {
     format!("The {name}'s speed overflows, no longer hasted!")
 }
@@ -1190,12 +1155,10 @@ pub fn blocked_finger(name: &str) -> String {
     format!("You can't - the {name} won't leave your finger.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn curses_merge(recipient: &str, donor: &str, result: &str) -> String {
     format!("The curses fuse! The {recipient} and the {donor} become the {result}.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn curses_merge_break(recipient: &str, donor: &str) -> String {
     format!("The curses clash! The {recipient} and the {donor} shatter.")
 }
@@ -1208,17 +1171,14 @@ pub fn armor_corrodes(name: &str) -> String {
     format!("Your {name} corrodes! It is weaker.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn armor_shatters(target_name: &str) -> String {
     format!("The {target_name}'s armour shatters!")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn cursed_armor_splinters() -> &'static str {
     "Splinters of evil magic fly out of it!"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn splinter_hits(target_name: &str, damage: i32) -> String {
     format!("A splinter pierces the {target_name} for {damage} damage.")
 }
@@ -1253,13 +1213,12 @@ pub fn chaos_recoil() -> &'static str {
     "The edge of chaos bites you!"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn spike_prick_player() -> &'static str {
     "Spikes prick you as you strike!"
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn spike_prick_mob(name: &str) -> String {
-    format!("The {name} is pricked by spikes for striking!")
+    format!("The {name} is pricked by spikes!")
 }
 
 pub fn venom_resisted_player() -> &'static str {
@@ -1311,11 +1270,6 @@ pub fn trap_spotted(article: &str, label: &str) -> String {
 // models/src/combat/helpers.rs
 // ---------------------------------------------------------------------------
 
-pub fn ward_turns_aside(name: &str) -> String {
-    format!("The {name}'s ward turns the magic aside.")
-}
-
-// TODO: placeholder English; needs a human's pass.
 pub fn protection_turns_aside(name: &str) -> String {
     format!("The hush swallows the harm meant for {name}.")
 }
@@ -1324,7 +1278,6 @@ pub fn unharmed_by(name: &str, element_noun: &str) -> String {
     format!("The {name} is unharmed by the {element_noun}.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn armor_takes_the_blow(name: &str) -> String {
     format!("Your {name} is splintered and cracked, and takes the blow meant for you!")
 }
@@ -1437,34 +1390,26 @@ pub fn red_room_enter() -> &'static str {
     "Treasure gleams, but you can only pick one."
 }
 
-// TODO: placeholder line; needs real wording.
-// TODO: placeholder English; needs a human's pass.
 pub fn monster_zoo_enter() -> &'static str {
-    "Every tile in here is looking at you."
+    "Welcome to Monster Zoo! Keep your hands off the cages! Oh wait. There are none."
 }
 
-// TODO: placeholder line; needs real wording.
-// TODO: placeholder English; needs a human's pass.
 pub fn dark_room_enter() -> &'static str {
-    "It is very dark in here."
+    "It's very dark in here."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn feeling_safe() -> &'static str {
-    "This floor feels safe."
+    "This floor feels safe. Relatively, at least."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn feeling_dangerous() -> &'static str {
-    "This floor feels dangerous."
+    "This floor feels very dangerous."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn feeling_poor() -> &'static str {
     "You sense little of value here."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn feeling_rich() -> &'static str {
     "You sense riches here."
 }
@@ -1481,7 +1426,6 @@ pub fn bee_world_arrival() -> &'static str {
     "Welcome to the bee world."
 }
 
-/// One of these follows [`bee_world_arrival`], picked at random.
 pub fn bee_world_quotes() -> [&'static str; 7] {
     [
         "\"Ya like jazz?\"",
@@ -1504,12 +1448,6 @@ pub fn hidden_item_found() -> &'static str {
 
 pub fn red_room_claimed() -> &'static str {
     "The rest crumbles to dust the moment your hand closes."
-}
-
-pub fn element_bursts_thief(thief: &str) -> String {
-    format!(
-        "The {thief}'s hand closes on the Element of Yoord, and the {thief} bursts apart in a shower of gore!"
-    )
 }
 
 pub fn element_surfaces() -> &'static str {
@@ -1734,7 +1672,6 @@ pub fn wand_clatters_unspent(seen_name: &str) -> String {
     format!("The {seen_name} clatters to the floor, its magic still bottled up.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn boomerang_returns(seen_name: &str) -> String {
     format!("The {seen_name} returns to you.")
 }
@@ -1748,7 +1685,7 @@ pub fn picked_up_thrown_verb_body() -> &'static str {
 pub fn picked_up_thrown_verb_other() -> &'static str {
     "slips it on"
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn armor_binds_thrown(victim_name: &str, armor: &str) -> String {
     format!("The {victim_name} is somehow bound by the {armor}! But they can still attack!")
 }
@@ -1841,13 +1778,6 @@ pub fn force_lance_hits(name: &str, damage: i32) -> String {
     format!("The lance forces the {name} for {damage} damage!")
 }
 
-pub fn setup_planted() -> &'static str {
-    "You plant arrow traps at your flanks, springs cocked in plain sight."
-}
-pub fn setup_no_room() -> &'static str {
-    "There's no room at your flanks for a trap."
-}
-
 pub fn lux_cast() -> &'static str {
     "You hurl a shard of pure light!"
 }
@@ -1861,10 +1791,6 @@ pub fn circle_of_death_cast() -> &'static str {
 }
 pub fn circle_of_death_drain(drained: i32) -> String {
     format!("You drain {drained} life from the circle.")
-}
-
-pub fn magic_ward_cast() -> &'static str {
-    "You ward yourself. Only your own magic can touch you now."
 }
 
 pub fn heal_self_line(healed: i32) -> String {
@@ -2108,12 +2034,10 @@ pub fn not_while_monster_in_sight() -> &'static str {
     "Not while a creature is in sight."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn charge() -> &'static str {
     "CHARGE!"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn cannot_charge_in_the_thick_of_it() -> &'static str {
     "You cannot charge while in the thick of it."
 }
@@ -2228,23 +2152,22 @@ pub fn item_turns_to_dust() -> &'static str {
     "The item turns to dust!"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub const fn scroll_recharged() -> &'static str {
     "Your wands drink in the scroll's light."
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub const fn scroll_recharge_nothing() -> &'static str {
     "The scroll hums. You carry no wand to charge."
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub const fn scroll_justice_marks() -> &'static str {
     "The scroll burns a verdict into everything that sees you. When they fall, they burst."
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub const fn scroll_justice_nobody() -> &'static str {
     "The scroll finds nobody to judge."
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn scroll_protection_cast(turns: u32) -> String {
     format!("A hush falls over you. Nothing can hurt you for {turns} turns.")
 }
@@ -2252,8 +2175,6 @@ pub fn scroll_protection_cast(turns: u32) -> String {
 // ---------------------------------------------------------------------------
 // models/src/combat/
 // ---------------------------------------------------------------------------
-
-// TODO: placeholder English; needs a human's pass.
 pub fn mangled_beyond_recognition() -> &'static str {
     "Mangled beyond recognition"
 }
@@ -2265,8 +2186,6 @@ pub fn mob_dies(name: &str) -> String {
 // ---------------------------------------------------------------------------
 // Helpers (models/src/creatures/companion.rs)
 // ---------------------------------------------------------------------------
-
-/// Use, from the pack, on a treat or a piece of ammunition.
 pub fn for_throwing(name: &str) -> String {
     format!("The {name} is for throwing.")
 }
@@ -2305,8 +2224,6 @@ pub fn lunge_hit(target_name: &str, damage: i32) -> String {
     )
 }
 
-/// [`lunge_hit`], for the lurk: a wolf closing the last stride of a run and
-/// finishing with its teeth rather than a blade.
 pub fn lunge_hit_lurk(target_name: &str, damage: i32) -> String {
     format!("You lunge, jaws snapping shut, and tear into the {target_name} for {damage} damage!")
 }
@@ -2403,19 +2320,18 @@ pub fn quit_question() -> &'static str {
 pub fn quit_answers() -> &'static str {
     "[y] yes    [n] no"
 }
-// TODO: placeholder English; needs a human's pass.
-/// The key [`quit_answers`] labels yes.
+
 pub fn quit_yes_key() -> char {
     'y'
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn time_stopped_not_saved() -> [&'static str; 2] {
     [
         "Time is stopped, so the game did not save",
         "since you activated THE WORLD.",
     ]
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn quit_really_sure() -> &'static str {
     "REALLY sure?"
 }
@@ -2476,7 +2392,7 @@ pub fn action_throw() -> &'static str {
 pub fn action_drop() -> &'static str {
     " Drop   "
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn action_info() -> &'static str {
     " Info   "
 }
@@ -2485,41 +2401,40 @@ pub fn action_info() -> &'static str {
 // models/src/items/identify.rs - the Info row's text
 // ---------------------------------------------------------------------------
 
-// TODO: placeholder English; needs a human's pass.
 pub fn info_melee(die: i32) -> String {
-    format!("Melee: d{die}")
+    format!("Power: {die}")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_armor(die: i32) -> String {
     format!("Armor: d{die}")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_thrown(die: i32) -> String {
     format!("Thrown: d{die}")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_launched(die: i32) -> String {
-    format!("Loosed from its launcher: d{die}")
+    format!("{die} when fired with the proper launcher")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_reach(n: i32) -> String {
     format!("Reach: {n} tiles")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_enchantment(plus: i32) -> String {
     format!("Enchantment: {plus:+}")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_health(hp: i32, max_hp: i32) -> String {
     format!("Health: {hp}/{max_hp}")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_attack(die: i32, bonus: i32) -> String {
-    format!("Attack: d{die}{}", info_bonus(bonus))
+    format!("Attack: {die}{}", info_bonus(bonus))
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_defence(die: i32, bonus: i32) -> String {
-    format!("Defence: d{die}{}", info_bonus(bonus))
+    format!("Defense: {die}{}", info_bonus(bonus))
 }
 fn info_bonus(bonus: i32) -> String {
     if bonus == 0 {
@@ -2534,41 +2449,41 @@ fn hits(n: u32) -> String {
         n => format!("{n} hits"),
     }
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_they_kill_you(n: Option<u32>) -> String {
     match n {
         Some(n) => format!("They will likely kill you in {}", hits(n)),
-        None => "They cannot hurt you".to_string(),
+        None => "They cannot hurt you normally".to_string(),
     }
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_you_kill_them(n: Option<u32>) -> String {
     match n {
         Some(n) => format!("You will likely kill them in {}", hits(n)),
-        None => "You cannot hurt them".to_string(),
+        None => "You cannot normally hurt them".to_string(),
     }
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_speed(kind: &str) -> String {
     format!("Speed: {kind}")
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub const fn speed_slow() -> &'static str {
     "slow"
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub const fn speed_normal() -> &'static str {
     "normal"
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub const fn speed_quick() -> &'static str {
     "quick"
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub const fn speed_fast() -> &'static str {
     "fast"
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn trap_explained(id: &str, snare_turns: u32) -> String {
     match id {
         "trapdoor" => "Drops whatever steps on it to the next floor.".to_string(),
@@ -2585,25 +2500,19 @@ pub fn trap_explained(id: &str, snare_turns: u32) -> String {
         _ => String::new(),
     }
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn cursed_explained() -> &'static str {
-    "Cursed: once you wear or wield it, it sticks to you and will not come off \
-     until a scroll of remove curse lifts it."
+    "Cursed: once you wear or wield it, it sticks to you and will not come off."
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn megacursed_explained() -> &'static str {
-    "MEGACURSED: once you wear or wield it, it sticks to you for good. No scroll, \
-     spirit or spell lifts or destroys it. Only a suit of armor taking a killing \
-     blow will ever be rid of it."
+    "MEGACURSED: once you wear or wield it, it sticks to you for good."
 }
-// TODO: placeholder English; needs a human's pass.
+
 pub fn info_close_hint() -> &'static str {
     "Any key closes."
 }
 
-// TODO: placeholder English; needs a human's pass.
-/// One authored line about a catalog row, keyed by its id. Most rows need
-/// none: the numbers and the name already say it.
 pub fn item_blurb(id: &str) -> Option<&'static str> {
     Some(match id {
         "rapier" => "Every hit that lands makes the next one hit harder.",
@@ -2798,7 +2707,6 @@ pub fn card_no_stair() -> &'static str {
     "The card points nowhere."
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn scroll_to_stair(up: bool) -> &'static str {
     match up {
         true => "The scroll whisks you to the stair up.",
@@ -2880,7 +2788,6 @@ pub fn hand_five_flush() -> &'static str {
     "Five Flush!"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn card_five_flush_gear() -> &'static str {
     "Everything you wear burns white: +5, and no curse holds."
 }
@@ -2889,27 +2796,22 @@ pub fn throw_hangs_in_the_air(name: &str) -> String {
     format!("The {name} leaves your hand and stops in the air.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn ice_cube_name() -> &'static str {
     "ice cube"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn mob_freezes_solid(name: &str) -> String {
     format!("The {name} freezes solid.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn ice_cube_slams(name: &str) -> String {
     format!("The ice cube slams into the {name}.")
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn ice_cube_shatters() -> &'static str {
     "The ice cube shatters!"
 }
 
-// TODO: placeholder English; needs a human's pass.
 pub fn killed_by_ice_cube() -> &'static str {
     "Killed by an ice cube"
 }

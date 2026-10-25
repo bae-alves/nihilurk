@@ -583,7 +583,7 @@ fn the_test_of_faith_blesses_only_equipped_gear() {
 }
 
 #[test]
-fn sylphid_salamander_and_undyne_open_their_respective_offers() {
+fn sylphid_salamander_and_undine_open_their_respective_offers() {
     fn is_weapon(o: &OfferOption) -> bool {
         matches!(o, OfferOption::Weapon(_))
     }
@@ -597,7 +597,7 @@ fn sylphid_salamander_and_undyne_open_their_respective_offers() {
     let cases: [Case; 3] = [
         ("sylphid", is_weapon),
         ("salamander", is_armor),
-        ("undyne", is_ring),
+        ("undine", is_ring),
     ];
     for (name, is_right_kind) in cases {
         let mut w = spirits_world(0);

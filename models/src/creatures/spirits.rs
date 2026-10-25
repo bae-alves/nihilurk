@@ -165,7 +165,7 @@ pub fn shift_alignment(world: &mut World, player: Entity, delta: i8) {
 // ---------------------------------------------------------------------------
 // The "choose one of three" menu — the blue demon's spells, the sphynx's
 // (traded rather than given, see the barter menu instead), the sylphid's
-// weapons, the salamander's armor, undyne's rings.
+// weapons, the salamander's armor, undine's rings.
 // ---------------------------------------------------------------------------
 
 /// How many rows an offer menu shows — three, always, per every spirit that
@@ -736,8 +736,8 @@ pub(crate) fn salamander_event(world: &mut World, _player: Entity, spirit: Entit
     open_offer_menu(world, options, Some(spirit), false);
 }
 
-/// Undyne: a choice of three identified rings.
-pub(crate) fn undyne_event(world: &mut World, _player: Entity, spirit: Entity) {
+/// Undine: a choice of three identified rings.
+pub(crate) fn undine_event(world: &mut World, _player: Entity, spirit: Entity) {
     let options = roll_ring_offer(world);
     open_offer_menu(world, options, Some(spirit), false);
 }

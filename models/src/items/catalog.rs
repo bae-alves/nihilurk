@@ -47,7 +47,6 @@ use crate::particles::BlastPalette;
 // The numbers a *drop* rolls that are not part of any one row: wand battery
 // size, ammunition bundle size, and the enchantment odds / bonus ranges.
 // All defined and documented in `constants/`.
-use crate::constants::items::ESTOC_NUMBER_OF_ATTACKS;
 use crate::constants::loot::{
     AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN, CURSED_BONUS_MAX, CURSED_BONUS_MIN, EXCEPTIONAL_BONUS_MAX,
     EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, IMPROVISED_THROW_DIE, MEGACURSED_BONUS_MAX,
@@ -986,60 +985,23 @@ fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
 /// Every melee weapon in the game, one row each.
 #[rustfmt::skip]
 pub const WEAPONS: &[WeaponDef] = &[
-    WeaponDef::new("dagger",           Color::Grey,       4).missile(4).piercing(),
-    WeaponDef::new("spear",            Color::DarkGrey,   6).missile(8).piercing(),
-    WeaponDef::new("boomerang",        Color::DarkYellow, 5).returning(),
+    WeaponDef::new("dagger",           Color::Grey,       4).missile(8).piercing(),
+    WeaponDef::new("boomerang",        Color::DarkYellow, 4).returning(),
     WeaponDef::new("moon blade",       Color::Cyan,       3).returning().hits(3),
     WeaponDef::new("mace",             Color::DarkGrey,   6),
     WeaponDef::new("long sword",       Color::White,      8),
     WeaponDef::new("two-handed sword", Color::Cyan,       10),
-    // The arc of a battle axe's swing catches everything standing next to you.
-    WeaponDef::new("battle axe",       Color::DarkYellow, 7)
-        .grants(&[Grant::of::<Cleaves>()]),
-    // Colossal and slow: a hit staggers its victim outright, and the effort
-    // costs the wielder a beat of their own.
-    WeaponDef::new("greatclub",        Color::DarkRed,    12)
-        .grants(&[Grant::of::<HeavySwing>()]),
-    // A polearm: strikes two tiles out, and runs clean through anything in the
-    // way.
-    WeaponDef::new("bardiche",         Color::Grey,       7)
-        .reach(2).reach_piercing(),
-    // The longest reach in the dungeon, and the least behind it.
-    WeaponDef::new("whip",             Color::DarkMagenta, 3)
-        .reach(5),
-    // Thin, fast steel: every attack goes out ESTOC_NUMBER_OF_ATTACKS times in
-    // the time a plainer blade manages once, and closing the last stride of a
-    // run lands a lunge.
-    WeaponDef::new("estoc",            Color::White,      5)
-        .grants(&[Grant::counted::<Fencer>(ESTOC_NUMBER_OF_ATTACKS), Grant::of::<Lunges>()]),
-    // Whirled at the end of its chain in step with your feet: moving between
-    // two tiles both next to the same enemy lands a free cut on it.
-    WeaponDef::new("chain-sickle",     Color::DarkGreen,  5)
-        .grants(&[Grant::of::<WhirlOnMove>()]),
-    // No edge to speak of — it doesn't need one against something that can't
-    // fight back.
-    WeaponDef::new("garrote",          Color::DarkGrey,   0)
-        .grants(&[Grant::of::<VorpalOnCondition>()]),
-    // Doubles the toll of every spell cast through it, and triples the fury.
-    // The only weapon that says so at both ends: neither multiplier shows on
-    // the HUD, so the two log lines are the whole of the player's notice.
-    WeaponDef::new("staff",            Color::Yellow,     5)
-        .grants(&[Grant::of::<TurboMagic>()])
-        .on_wear(OnWear(announce_wizard))
-        .on_doff(OnDoff(announce_not_wizard)),
-    // A blade with an edge in the world it half-belongs to: every hit that
-    // lands there also lands a little on you.
-    WeaponDef::new("chaos blade",      Color::Magenta,    12)
-        .grants(&[Grant::of::<SelfDamageOnHit>()]),
-    // Momentum, not mass: every hit that lands makes the next one hit harder,
-    // for as long as you keep swinging it.
-    WeaponDef::new("rapier",           Color::Red,        3)
-        .grants(&[Grant::of::<BuildsMomentum>()]),
-    // Mass, not momentum. The one weapon a petrified creature is no safer
-    // from than any other: stone turns steel aside and a hammer goes through
-    // it whole.
-    WeaponDef::new("war hammer",       Color::DarkGrey,   9)
-        .grants(&[Grant::of::<ShattersStone>()]),
+    WeaponDef::new("battle axe",       Color::DarkYellow, 7).grants(&[Grant::of::<Cleaves>()]),
+    WeaponDef::new("greatclub",        Color::DarkRed,    12).grants(&[Grant::of::<HeavySwing>(), Grant::of::<ShattersStone>()]),
+    WeaponDef::new("bardiche",         Color::Grey,       7).reach(2).reach_piercing(),
+    WeaponDef::new("whip",             Color::DarkMagenta, 3).reach(5).reach_piercing(),
+    WeaponDef::new("estoc",            Color::White,      5).grants(&[Grant::of::<Lunges>()]),
+    WeaponDef::new("chain-sickle",     Color::DarkGreen,  5).grants(&[Grant::of::<WhirlOnMove>()]),
+    WeaponDef::new("garrote",          Color::DarkGrey,   1).grants(&[Grant::of::<VorpalOnCondition>()]),
+    WeaponDef::new("wizard staff",     Color::Yellow,     5).grants(&[Grant::of::<TurboMagic>()]).on_wear(OnWear(announce_wizard)).on_doff(OnDoff(announce_not_wizard)),
+    WeaponDef::new("chaos blade",      Color::Magenta,    12).grants(&[Grant::of::<SelfDamageOnHit>()]),
+    WeaponDef::new("rapier",           Color::Red,        3).grants(&[Grant::counted::<Fencer>(2), Grant::of::<BuildsMomentum>()]),
+    WeaponDef::new("war hammer",       Color::DarkGrey,   9).grants(&[Grant::of::<ShattersStone>()]),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1123,12 +1085,9 @@ impl ItemDef for &'static AmmoDef {
 /// does more than damage, and add a row here.
 #[rustfmt::skip]
 pub static AMMO: &[&AmmoDef] = &[
-    // The arrow a bow looses.
-    &AmmoDef { name: "arrow",    color: Color::DarkYellow, die: IMPROVISED_THROW_DIE, launched_die: 3, launched_by: Grant::of::<FireArrow>(),   on_blood: |_, _| {} },
-    // The quarrel a crossbow looses.
+    &AmmoDef { name: "arrow",    color: Color::DarkYellow, die: IMPROVISED_THROW_DIE, launched_die: 4, launched_by: Grant::of::<FireArrow>(),   on_blood: |_, _| {} },
     &AmmoDef { name: "quarrel",  color: Color::Grey,       die: IMPROVISED_THROW_DIE, launched_die: 5, launched_by: Grant::of::<FireQuarrel>(), on_blood: |_, _| {} },
-    // The blowdart a blowgun looses. It saps a victim it bleeds.
-    &AmmoDef { name: "blowdart", color: Color::Green,      die: IMPROVISED_THROW_DIE, launched_die: 2, launched_by: Grant::of::<FireDart>(),    on_blood: throwing::sap },
+    &AmmoDef { name: "blowdart", color: Color::Green,      die: IMPROVISED_THROW_DIE, launched_die: 3, launched_by: Grant::of::<FireDart>(),    on_blood: throwing::sap },
 ];
 
 /// The row a monster's shot is loosed from: the ammunition answering to the
@@ -1289,15 +1248,10 @@ impl ItemDef for ArmorDef {
 pub const ARMORS: &[ArmorDef] = &[
     ArmorDef { name: "leather armor",          color: Color::DarkYellow, armor_die: 2, grants: &[] },
     ArmorDef { name: "ring mail",              color: Color::Grey,       armor_die: 3, grants: &[] },
-    ArmorDef { name: "studded leather armor",  color: Color::DarkYellow, armor_die: 4, grants: &[] },
-    ArmorDef { name: "scale mail",             color: Color::Grey,       armor_die: 5, grants: &[] },
-    ArmorDef { name: "chain mail",             color: Color::Grey,       armor_die: 6, grants: &[] },
-    ArmorDef { name: "splint mail",            color: Color::White,      armor_die: 7, grants: &[] },
-    ArmorDef { name: "banded mail",            color: Color::White,      armor_die: 8, grants: &[] },
-    ArmorDef { name: "plate mail",             color: Color::Cyan,       armor_die: 9, grants: &[] },
-    // Barbed all over: whoever lands a blow on the wearer is pricked for it.
-    ArmorDef { name: "spikemail",              color: Color::DarkGrey,   armor_die: 4,
-               grants: &[Grant::of::<Spiked>()] },
+    ArmorDef { name: "chain mail",             color: Color::Grey,       armor_die: 4, grants: &[] },
+    ArmorDef { name: "splint mail",            color: Color::White,      armor_die: 5, grants: &[] },
+    ArmorDef { name: "plate mail",             color: Color::Cyan,       armor_die: 6, grants: &[] },
+    ArmorDef { name: "spikemail",              color: Color::DarkGrey,   armor_die: 4, grants: &[Grant::of::<Spiked>()] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1469,10 +1423,6 @@ pub static RINGS: &[&RingDef] = &[
         .power_bonus(PLAIN_BONUS),
     &RingDef::new("ring of regeneration")
         .grants(&[Grant::of::<Regenerates>()]),
-    // The joke it has always been, taken literally: it slows your digestion by
-    // slowing *you*.
-    &RingDef::new("ring of slow digestion")
-        .grants(&[Grant::of::<Sluggish>()]),
     &RingDef::new("ring of teleportation")
         .grants(&[Grant::of::<Teleportitis>()]),
     &RingDef::new("ring of stealth")
@@ -1641,32 +1591,24 @@ pub fn spell_row(name: &str) -> Option<&'static SpellDef> {
 pub static SPELLS: &[&SpellDef] = &[
     // --- 1 Ma ---------------------------------------------------------
     &SpellDef::new("Sting", 1, spells::sting).attack().aimed(8),
-    // The eel's bolt.
     &SpellDef::new("Thunderbolt", 1, spells::thunderbolt).attack().aimed(8),
     &SpellDef::new("Cure", 1, spells::cure_self),
-    // What a lurk is born knowing.
     &SpellDef::new("Bide", 1, spells::bide),
     // --- 2 Ma ---------------------------------------------------------
-    // The fire blast a dragon breathes, and the player casts.
     &SpellDef::new("Fireball", 2, spells::breathe_fire).attack().aimed(8).bursts(BLAST_RADIUS).wasted_on(wands::fireproof),
-    // The card caster's lance.
     &SpellDef::new("Force Lance", 2, spells::force_lance).attack().aimed(8).line(),
     &SpellDef::new("Identify", 2, spells::identify),
-    &SpellDef::new("Setup", 2, spells::setup),
     &SpellDef::new("Polymorph Self", 2, spells::polymorph_self),
     // --- 3 Ma ---------------------------------------------------------
     &SpellDef::new("Lux", 3, spells::lux).attack().aimed(8).bursts(GRENADE_RADIUS),
     &SpellDef::new("Circle of Death", 3, spells::circle_of_death).attack(),
-    &SpellDef::new("Magic Ward", 3, spells::magic_ward),
     &SpellDef::new("Heal", 3, spells::heal_self),
-    // An aimed skill: it does no damage, so a staff has nothing to double.
     &SpellDef::new("Polymorph Other", 3, spells::polymorph_other).aimed(8),
     // --- 4 Ma ---------------------------------------------------------
     &SpellDef::new("Meteor Strike", 4, spells::meteor_strike).attack().aimed(8).bursts(GRENADE_RADIUS).spreads(METEOR_STRIKE_CHAIN_SPREAD).wasted_on(wands::fireproof),
     &SpellDef::new("Frost Nova", 4, spells::frost_nova).attack(),
     &SpellDef::new("Magic Mapping", 4, spells::magic_mapping),
     &SpellDef::new("Haste Self", 4, spells::haste_self),
-    &SpellDef::new("Gate Down", 4, spells::gate_down),
 ];
 
 // ---------------------------------------------------------------------------

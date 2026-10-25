@@ -274,10 +274,6 @@ pub mod loot {
 
 /// Throw range and stack size.
 pub mod items {
-    /// How many times an estoc throws each attack: the total, so `2` is the
-    /// blow and one more.
-    pub const ESTOC_NUMBER_OF_ATTACKS: u8 = 2;
-
     /// How far a heavy thing can be hurled, in tiles — the throw reticle's
     /// default leash. A wand overrides this with its own `range` when zapped,
     /// but a *thrown* wand obeys a leash like anything else.

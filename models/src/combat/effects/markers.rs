@@ -56,21 +56,10 @@ pub struct SustainsForm;
 #[derive(Component, Default, Clone, Copy)]
 pub struct RustsArmor;
 
-/// Whatever carries this moves one notch below its own tempo — a ring of slow
-/// digestion slows *everything* down, digestion included. Not a [`Speed`] of its
-/// own: the notch is folded in when the tempo is read
-/// ([`crate::conditions::tempo`]), so taking the ring off gives the notch back
-/// and a potion of haste still reads on top of it.
-///
-/// [`Speed`]: crate::components::Speed
-#[derive(Component, Default, Clone, Copy)]
-pub struct Sluggish;
-
 /// Hands charged with a charm (a scroll of monster confusion): the next blow
 /// the bearer *lands* confuses what it hits, and the charge is spent doing it.
 /// Nothing about the bearer is impaired, which is why it is an effect and not
-/// a condition — it is a buff they are holding, the same way [`Sluggish`] is
-/// one they are suffering. It does not wear off with time and it survives a
+/// a condition — it is a buff they are holding, It does not wear off with time and it survives a
 /// staircase; [`crate::combat::resolve_attack`] discharges it. Shown in the
 /// HUD as `GLOW`.
 ///
@@ -386,15 +375,9 @@ pub struct ScoreBounty;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Freezing;
 
-/// Every hit from this creature lifts something loose from its victim's pack,
-/// uses it on the spot, and vanishes — the leprechaun's whole (dangerous)
-/// routine. See `crate::abilities::leprechaun_theft`.
-#[derive(Component, Default, Clone, Copy)]
-pub struct StealsAndFlees;
-
 /// Every hit from this creature strips one thing its victim has *equipped*
-/// and disappears the instant it does — the nymph. See
-/// `crate::abilities::nymph_theft`.
+/// and disappears the instant it does — the leprechaun. See
+/// `crate::items::theft`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct StealsAndVanishes;
 
