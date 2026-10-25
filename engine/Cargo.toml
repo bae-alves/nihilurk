@@ -1,7 +1,7 @@
 [package]
 name = "nihilurk"
 description = "A Rogue-like dungeon crawler for the terminal: descend thirteen floors, take the Element of Yoord, carry it back up. One binary, no assets, permanent death."
-version = "0.7.0"
+version = "1.0.0"
 edition = "2024"
 license.workspace = true
 repository.workspace = true
@@ -21,8 +21,8 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
-models = { package = "nihilurk-models", path = "../models", version = "0.7.0" }
-strings = { package = "nihilurk-strings", path = "../strings", version = "0.7.0" }
+models = { package = "nihilurk-models", path = "../models", version = "1.0.0" }
+strings = { package = "nihilurk-strings", path = "../strings", version = "1.0.0" }
 crossterm = "0.29.0"
 bevy_ecs = "0.12"
 rand = "0.8"

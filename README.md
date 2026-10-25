@@ -10,12 +10,12 @@ What you get:
   * Trick shots, the thing nihilurk does that Rogue never did: shoot a trap, a coin or a potion on the floor from across the room and it goes off over everything around it. Bursts chain. Only ranged attacks do it, and it catches you too if you stand close.
   * Seeded floors (`-s 1234`), and two ways down: nihil, who carries gear, or the lurk (`-b lurk`), who has claws and fur.
 
-Download a prebuilt game (v0.7.0), no Rust needed:
+Download a prebuilt game (v1.0.0), no Rust needed:
 
-  * [Windows, x86_64 (.zip)](https://github.com/bae-alves/nihilurk/releases/download/v0.7.0/nihilurk-0.7.0-x86_64-pc-windows-msvc.zip)
-  * [macOS, Apple Silicon (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.7.0/nihilurk-0.7.0-aarch64-apple-darwin.tar.gz)
-  * [Linux, x86_64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.7.0/nihilurk-0.7.0-x86_64-unknown-linux-musl.tar.gz)
-  * [Linux, aarch64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.7.0/nihilurk-0.7.0-aarch64-unknown-linux-musl.tar.gz)
+  * [Windows, x86_64 (.zip)](https://github.com/bae-alves/nihilurk/releases/download/v1.0.0/nihilurk-1.0.0-x86_64-pc-windows-msvc.zip)
+  * [macOS, Apple Silicon (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v1.0.0/nihilurk-1.0.0-aarch64-apple-darwin.tar.gz)
+  * [Linux, x86_64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v1.0.0/nihilurk-1.0.0-x86_64-unknown-linux-musl.tar.gz)
+  * [Linux, aarch64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v1.0.0/nihilurk-1.0.0-aarch64-unknown-linux-musl.tar.gz)
 
 Unpack it and run `./nihilurk` (`nihilurk.exe` on Windows). The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it. Every file has a checksum at the same address plus `.sha256`, and older versions are on the [releases page](https://github.com/bae-alves/nihilurk/releases).
 

@@ -1,7 +1,7 @@
 [package]
 name = "nihilurk-strings"
 description = "Every player-facing sentence of nihilurk, a terminal roguelike, in English."
-version = "0.7.0"
+version = "1.0.0"
 edition = "2024"
 license.workspace = true
 repository.workspace = true
