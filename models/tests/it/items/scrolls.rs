@@ -7,6 +7,7 @@
 #[allow(dead_code)] // only the handless fixture is wanted here
 use crate::common::monster;
 
+use crate::common::fixtures::{scroll_row, spawn_launcher, spawn_named, spawn_weapon};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
@@ -59,10 +60,21 @@ fn stash(w: &mut World, user: Entity, item: Entity) {
 
 /// Put a fresh scroll of the row called `name` in `user`'s pack and read it.
 fn read(w: &mut World, user: Entity, name: &str) {
-    let scroll = spawn_named(w, name, Position { x: 0, y: 0 }).unwrap();
+    read_row(w, user, scroll_row(name).unwrap());
+}
+
+/// The same for a row in hand.
+fn read_row(w: &mut World, user: Entity, row: &'static ScrollDef) {
+    let scroll = row.spawn(w, Position { x: 0, y: 0 });
     stash(w, user, scroll);
     use_item(w, user, scroll);
 }
+
+/// Fixtures wired to the shipped detection handlers, so these tests follow
+/// the behaviour and not whatever the rows are called.
+static DETECT_SCROLL: ScrollDef = ScrollDef::new("detect scroll", scrolls::detect_mundane_items);
+static DETECT_POTION: PotionDef =
+    PotionDef::new("detect potion", Color::Yellow, potions::detect_magic);
 
 fn logged(w: &World, needle: &str) -> bool {
     w.resource::<GameLog>()
@@ -662,7 +674,7 @@ fn detection_turns_a_stashed_item_up_for_good() {
     let p = player(&mut w);
     let plain = spawn_weapon(&mut w, "dagger", spot);
     w.entity_mut(plain).insert((Hidden, Invisible));
-    read(&mut w, p, "scroll of food detection");
+    read_row(&mut w, p, &DETECT_SCROLL);
     assert!(w.get::<Detected>(plain).is_some());
     assert!(w.get::<Hidden>(plain).is_none());
     assert!(w.get::<Invisible>(plain).is_none());
@@ -671,7 +683,7 @@ fn detection_turns_a_stashed_item_up_for_good() {
     let p = player(&mut w);
     let potion = spawn_named(&mut w, "potion of healing", spot).unwrap();
     w.entity_mut(potion).insert((Hidden, Invisible));
-    let detection = spawn_named(&mut w, "potion of magic detection", spot).unwrap();
+    let detection = (&DETECT_POTION).spawn(&mut w, spot);
     stash(&mut w, p, detection);
     use_item(&mut w, p, detection);
     assert!(w.get::<Detected>(potion).is_some());
@@ -686,7 +698,7 @@ fn both_detections_find_the_element_of_yoord() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let relic = spawn_element_of_yoord(&mut w, spot);
-    read(&mut w, p, "scroll of food detection");
+    read_row(&mut w, p, &DETECT_SCROLL);
     assert!(
         w.get::<Detected>(relic).is_some(),
         "the scroll finds the relic"
@@ -695,7 +707,7 @@ fn both_detections_find_the_element_of_yoord() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let relic = spawn_element_of_yoord(&mut w, spot);
-    let potion = spawn_named(&mut w, "potion of magic detection", Position { x: 0, y: 0 }).unwrap();
+    let potion = (&DETECT_POTION).spawn(&mut w, Position { x: 0, y: 0 });
     stash(&mut w, p, potion);
     use_item(&mut w, p, potion);
     assert!(
@@ -713,16 +725,20 @@ fn both_detections_find_the_element_of_yoord() {
 /// queue their flourish, which is the half those tests can't see.
 #[test]
 fn the_new_scrolls_queue_their_flourish_when_there_is_an_effect_layer() {
-    let cases = [
+    let cases: Vec<&'static ScrollDef> = [
         "scroll of enchant weapon",
         "scroll of enchant armor",
         "scroll of monster confusion",
         "scroll of hold monster",
         "scroll of sleep",
-        "scroll of food detection",
         "scroll of teleportation",
-    ];
-    for name in cases {
+    ]
+    .into_iter()
+    .map(|name| scroll_row(name).unwrap())
+    .chain([&DETECT_SCROLL])
+    .collect();
+    for row in cases {
+        let name = row.name;
         let mut w = test_world(6);
         w.insert_resource(Particles::new());
         let p = player(&mut w);
@@ -731,7 +747,7 @@ fn the_new_scrolls_queue_their_flourish_when_there_is_an_effect_layer() {
         w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
             vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
 
-        read(&mut w, p, name);
+        read_row(&mut w, p, row);
 
         let fx = w.resource::<Particles>();
         assert!(

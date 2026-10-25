@@ -1,5 +1,6 @@
 //! Things that come into view together read as one line, not one per thing.
 
+use crate::common::fixtures::spawn_ammo;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;

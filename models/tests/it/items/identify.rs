@@ -3,6 +3,7 @@
 //! [`KnownQuality`] says otherwise. Potions, scrolls, wands and rings carry no
 //! hidden type at all — they are always shown by their true name.
 
+use crate::common::fixtures::{spawn_armor, spawn_named, spawn_weapon};
 use bevy_ecs::prelude::*;
 use models::*;
 

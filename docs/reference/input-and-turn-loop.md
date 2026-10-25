@@ -127,7 +127,7 @@ Fast move (Shift+direction), auto-explore (`o`) and travel (`>`/`<` to a distant
 Testing
 -------
 
-`update.rs`'s tests cover what `dispatch_key` and `dispatch_mouse` decide: the `--MORE--` gate, the escape hatch, the quit prompt, the keyboard and numpad, Ctrl and function keys, the menus and keymap, the reticle and look, the mouse, and time stop with seeds. `models/tests/it/creatures/pack.rs` and `models/tests/it/mind/autoexplore.rs` cover what the menus show and where a walk goes. The walking loops and everything the renderer draws are checked by playing.
+`update.rs`'s tests cover what `dispatch_key` and `dispatch_mouse` decide: the `--MORE--` gate, the escape hatch, the quit prompt, the keyboard and numpad, Ctrl and function keys, the menus and keymap, the reticle and look, and the mouse. `models/tests/it/creatures/pack.rs` and `models/tests/it/mind/autoexplore.rs` cover what the menus show and where a walk goes. The walking loops and everything the renderer draws are checked by playing.
 
 When you add a branch here, move the *decision* into a pure function (`dispatch_key`, or something in `models/`) and leave `engine/` holding only what must touch the terminal.
 

@@ -199,36 +199,11 @@ pub fn render(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::i
     let tempo = player_entity.map(|pe| models::tempo(world, pe));
     let stealthy = player_entity.is_some_and(|pe| world.get::<Stealthy>(pe).is_some());
     let polymorphed = player_entity.is_some_and(|pe| world.get::<Polymorphed>(pe).is_some());
-    // A deck's ledgers: what the cards left on the player for the floor.
-    let holds = |has: fn(&World, Entity) -> bool| player_entity.is_some_and(|pe| has(world, pe));
-    let card_badges: Vec<(&str, Color)> = [
-        (holds(|w, e| w.get::<Bala>(e).is_some()), "BALA", Color::Red),
-        (
-            holds(|w, e| w.get::<Bole>(e).is_some()),
-            "BOLE",
-            Color::DarkYellow,
-        ),
-        (
-            holds(|w, e| w.get::<Crit>(e).is_some()),
-            "CRT!",
-            Color::Yellow,
-        ),
-        (
-            holds(|w, e| w.get::<Oof>(e).is_some()),
-            "OOF!",
-            Color::DarkRed,
-        ),
-        (holds(|w, e| w.get::<Vuln>(e).is_some()), "VULN", Color::Red),
-        (
-            holds(|w, e| w.get::<TimeStopped>(e).is_some()),
-            "WRLD",
-            Color::Yellow,
-        ),
-    ]
-    .into_iter()
-    .filter(|(on, _, _)| *on)
-    .map(|(_, tag, color)| (tag, color))
-    .collect();
+    let vulnerable = player_entity.is_some_and(|pe| world.get::<Vuln>(pe).is_some());
+    let mark_badges: Vec<(&str, Color)> = vulnerable
+        .then_some(("VULN", Color::Red))
+        .into_iter()
+        .collect();
     let conditions: Vec<(&str, Color)> = {
         let mut q = world.query_filtered::<(
             Option<&Confused>,
@@ -256,7 +231,7 @@ pub fn render(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::i
             if polymorphed {
                 v.push(("POLY", Color::DarkMagenta));
             }
-            v.extend(card_badges.iter().copied());
+            v.extend(mark_badges.iter().copied());
             if confused.is_some() {
                 v.push(("CONF", Color::Magenta));
             }
@@ -834,7 +809,7 @@ pub fn render(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::i
     }
 
     if world.resource::<QuitPrompt>().open {
-        draw_quit_prompt(screen, world.resource::<QuitPrompt>().warned);
+        draw_quit_prompt(screen);
     }
 
     term.present(screen)?;
@@ -1191,18 +1166,12 @@ pub(crate) fn row_text(letter: char, name: &str, equipped: bool) -> String {
 /// game that exists to *slow the player down* — every other one is a menu — so
 /// it sits in the centre rather than off in a corner where a key could be
 /// answered by reflex, and it spells out both answers instead of leaning on
-/// "any key". `warned` swaps the question for the red time-stopped warning
-/// and a second "Really sure?".
-fn draw_quit_prompt(screen: &mut Screen, warned: bool) {
-    let mut rows = vec![(strings::quit_question(), Color::Yellow)];
-    if warned {
-        rows = strings::time_stopped_not_saved()
-            .iter()
-            .map(|&line| (line, Color::Red))
-            .chain([(strings::quit_really_sure(), Color::Yellow)])
-            .collect();
-    }
-    rows.push((strings::quit_answers(), Color::White));
+/// "any key".
+fn draw_quit_prompt(screen: &mut Screen) {
+    let rows = [
+        (strings::quit_question(), Color::Yellow),
+        (strings::quit_answers(), Color::White),
+    ];
 
     let inner = rows
         .iter()

@@ -212,7 +212,7 @@ impl TrapReveal {
 /// floors, rising at each boundary in [`TRAP_DAMAGE_TIER_LAST_DEPTH`]. Coarser
 /// than `map::difficulty_tier` on purpose — a trap steps up three times over a
 /// run, not four.
-pub(crate) fn trap_damage_tier(depth: u8) -> i32 {
+pub fn trap_damage_tier(depth: u8) -> i32 {
     TRAP_DAMAGE_TIER_LAST_DEPTH
         .iter()
         .position(|&last| depth <= last)
@@ -332,7 +332,7 @@ pub fn trap_system(world: &mut World) {
 /// Springs the trap under `mover`, if there is one and it does not fly. What
 /// [`trap_system`] does for each mover, for the one move that lands after it
 /// has run (a [`crate::effects::Batty`] hop, out of `ability_system`).
-pub(crate) fn spring_under(world: &mut World, mover: Entity) {
+pub fn spring_under(world: &mut World, mover: Entity) {
     if world.get::<crate::effects::Flies>(mover).is_some() {
         return;
     }
@@ -367,7 +367,7 @@ pub fn trap_at(world: &mut World, pos: Position) -> Option<Entity> {
 /// Fires `trap`'s effect on `victim`, reveals the trap for good, and despawns
 /// it if the mechanism is spent — always for the bear trap, otherwise
 /// [`TRAP_BREAK_CHANCE`] of the time.
-pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
+pub fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
     let Some(row) = world.get::<Trap>(trap).map(|t| t.row) else {
         return;
     };
@@ -502,20 +502,13 @@ pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -
 /// A pickup has no mechanism to let go, so what goes off is the shot itself —
 /// which is why it covers [`PICKUP_TRICK_SHOT_RADIUS`], wider than a trap's
 /// [`TRICK_SHOT_RADIUS`].
-/// And `shooter` **gets the coin's effect**, across the room, before the burst
-/// rolls out: a red coin heals whoever shot it, a gold one pays them, a
-/// platinum one makes them its promise. That is the whole appeal — a coin you
-/// cannot reach in time is a coin you can still use, and a coin in the middle
-/// of a crowd is worth using that way even when you could have walked to it.
-///
-/// The effect goes nowhere at all when nothing shot it (a coin caught in a
-/// chain reaction with no author at the end of it): it is spent, and that is
-/// it.
+/// The coin's effect goes to nobody: a shot coin is spent, and the burst is all
+/// it leaves behind.
 ///
 /// **The hero coin is the loud one.** Everything it knows comes out at once —
 /// the same triple burst the Element of Yoord answers a missile with (see
 /// `ultimate_burst`), except the coin does not survive saying it. It is the
-/// one pickup in the game worth shooting for the shot rather than the payout.
+/// one pickup in the game worth shooting at all.
 ///
 /// Returns whether there was a pickup here to set off.
 pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity>) -> bool {
@@ -525,9 +518,6 @@ pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity
     let Some(row) = world.get::<Pickup>(pickup).map(|p| p.row) else {
         return false;
     };
-    if let Some(shooter) = shooter {
-        crate::items::claim_from_afar(world, shooter, pickup);
-    }
     stand_in(world, pickup);
     world.entity_mut(pickup).despawn();
     if row.name == crate::catalog::COINS[HERO_COIN].name {
@@ -729,7 +719,7 @@ fn burst_of(
 /// whatever their number: a blast's disc, a bolt's line, a dart's one tile.
 /// `fire` says the thing was a fire blast, which scorches the ice cubes in its
 /// way ([`scorch_ice_cube`]).
-pub(crate) fn chain_react(
+pub fn chain_react(
     world: &mut World,
     area: &std::collections::HashSet<(u16, u16)>,
     shooter: Option<Entity>,
@@ -743,7 +733,7 @@ pub(crate) fn chain_react(
 /// kills something freezes it inside its own footprint, and that cube is
 /// the blast's work, not a link in it: the caller names the cubes that stood
 /// there *before* it hurt anyone.
-pub(crate) fn chain_react_with(
+pub fn chain_react_with(
     world: &mut World,
     area: &std::collections::HashSet<(u16, u16)>,
     shooter: Option<Entity>,
@@ -821,7 +811,7 @@ fn set_off_ice_cube(
 
 /// Everything carrying `C` standing on one of `cells`. Collected up front
 /// because setting one off mutates the world out from under the query.
-pub(crate) fn things_in<C: Component>(
+pub fn things_in<C: Component>(
     world: &mut World,
     cells: &std::collections::HashSet<(u16, u16)>,
 ) -> Vec<Entity> {
@@ -967,12 +957,12 @@ fn trap_spark(world: &mut World, trap_pos: Option<Position>) {
 }
 
 /// The trapdoor: the victim drops a floor.
-fn trapdoor(world: &mut World, spring: Spring) {
+pub fn trapdoor(world: &mut World, spring: Spring) {
     trapdoor_effect(world, spring.victim, spring.is_player, spring.seen);
 }
 
 /// The bear trap: the victim is [`Pinned`] for the row's `snare_turns`.
-fn bear(world: &mut World, spring: Spring) {
+pub fn bear(world: &mut World, spring: Spring) {
     snare_victim(
         world,
         spring,
@@ -983,7 +973,7 @@ fn bear(world: &mut World, spring: Spring) {
 
 /// The sleeping gas trap: the victim is [`Asleep`] for the row's
 /// `snare_turns`.
-fn sleep(world: &mut World, spring: Spring) {
+pub fn sleep(world: &mut World, spring: Spring) {
     snare_victim(
         world,
         spring,
@@ -993,12 +983,12 @@ fn sleep(world: &mut World, spring: Spring) {
 }
 
 /// The teleport trap: the victim lands on a random open tile.
-fn teleport(world: &mut World, spring: Spring) {
+pub fn teleport(world: &mut World, spring: Spring) {
     teleport_effect(world, spring.victim, spring.is_player);
 }
 
 /// The arrow trap ([`arrow_effect`]).
-fn arrow(world: &mut World, spring: Spring) {
+pub fn arrow(world: &mut World, spring: Spring) {
     arrow_effect(
         world,
         spring.victim,
@@ -1009,7 +999,7 @@ fn arrow(world: &mut World, spring: Spring) {
 }
 
 /// The dart trap ([`dart_effect`]).
-fn dart(world: &mut World, spring: Spring) {
+pub fn dart(world: &mut World, spring: Spring) {
     dart_effect(
         world,
         spring.victim,
@@ -1019,7 +1009,8 @@ fn dart(world: &mut World, spring: Spring) {
     );
 }
 
-pub(crate) fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: bool) {
+/// A trapdoor opens under `victim`; `seen` is whether the player sees it.
+pub fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: bool) {
     if !is_player {
         if seen {
             let who = actor_label(world, victim);
@@ -1093,17 +1084,17 @@ fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
 
 /// No flourish of its own: the trapdoor and the teleport trap show theirs
 /// where the victim ends up, which only their `apply` knows.
-fn no_flourish(_world: &mut World, _row: &'static TrapDef, _at: Position) {}
+pub fn no_flourish(_world: &mut World, _row: &'static TrapDef, _at: Position) {}
 
 /// The arrow and dart traps: a shake, and the bolt flying in
 /// ([`missile_flourish`]) in the trap's colour.
-fn missile(world: &mut World, row: &'static TrapDef, at: Position) {
+pub fn missile(world: &mut World, row: &'static TrapDef, at: Position) {
     kick_shake(world, ShakeKind::Hit);
     missile_flourish(world, at, row.color);
 }
 
 /// The bear trap: the jaws spark shut, and the held mark follows.
-fn jaws(world: &mut World, _row: &'static TrapDef, at: Position) {
+pub fn jaws(world: &mut World, _row: &'static TrapDef, at: Position) {
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.spark_burst(at.x, at.y, Color::DarkGreen);
         fx.condition_mark(at.x, at.y, '#', Color::DarkGreen, BEAR_MARK_DELAY_MS);
@@ -1111,7 +1102,7 @@ fn jaws(world: &mut World, _row: &'static TrapDef, at: Position) {
 }
 
 /// The sleeping gas trap: a puff of gas, and the sleep mark follows.
-fn gas(world: &mut World, _row: &'static TrapDef, at: Position) {
+pub fn gas(world: &mut World, _row: &'static TrapDef, at: Position) {
     let cells = burst_cells(world, at, 1);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.smoke_burst(&cells);
@@ -1242,7 +1233,7 @@ fn dart_effect(
 
 /// A uniformly random walkable tile on the current floor that no actor is
 /// standing on. `None` only if the map is somehow wall-to-wall.
-pub(crate) fn random_open_tile(world: &mut World) -> Option<(u16, u16)> {
+pub fn random_open_tile(world: &mut World) -> Option<(u16, u16)> {
     let occupied: std::collections::HashSet<(u16, u16)> = world
         .query_filtered::<&Position, Or<(With<Player>, With<Mob>)>>()
         .iter(world)

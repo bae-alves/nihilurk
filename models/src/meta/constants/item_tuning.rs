@@ -92,51 +92,14 @@ pub mod scrolls {
 }
 
 // ===========================================================================
-// Decks of cards
+// Decks
 // ===========================================================================
 
-/// The deck's size, its reversals, the chain cap and what each card is worth.
-/// The cards themselves are `crate::catalog::CARDS`; what they do lives in the
-/// `decks` submodule of `crate::items`.
+/// The deck's size. The effects it holds are `crate::catalog::deck_pool`; what
+/// they do lives with the potions and scrolls.
 pub mod decks {
-    /// Cards stacked into a deck when it is rolled.
+    /// Effects stacked into a deck when it is rolled.
     pub const DECK_SIZE: usize = 5;
-
-    /// The fewest cards a rolled deck holds reversed.
-    pub const REVERSED_MIN: usize = 1;
-
-    /// The most cards a rolled deck holds reversed.
-    pub const REVERSED_MAX: usize = 2;
-
-    /// The most cards one draw may play, chains included (the Joker, Pot of
-    /// Sin, The +4). A chain dies out on its own almost always; this is the
-    /// guarantee that it does.
-    pub const CARD_CHAIN_CAP: u32 = 32;
-
-    /// What `BALA` adds to its holder's damage roll.
-    pub const BALA_POWER: i32 = 4;
-
-    /// What `BOLE` adds to its holder's armour roll.
-    pub const BOLE_ARMOR: i32 = 4;
-
-    /// How many turns THE WORLD stops time for.
-    pub const WORLD_TURNS: u32 = 5;
-
-    /// How many casts of their spell the Skull King and the Black Mage are
-    /// born with. They spam it.
-    pub const CARD_CASTER_CASTS: u8 = 13;
-
-    /// How many monsters a reversed GOLDEN WIND conjures.
-    pub const GOLDEN_WIND_SUMMONS: usize = 8;
-
-    /// Score a hand pays for each card that took part in it: both of a pair,
-    /// all five of a full house, the one card an anti-flush plays. Cards a
-    /// chain plays (the Joker, Pot of Sin, The +4) were never in the hand and
-    /// pay nothing.
-    pub const CARD_POINTS: i32 = 5_000;
-
-    /// The plus a Five Flush sets every piece of worn gear to, curse burnt off.
-    pub const FIVE_FLUSH_PLUS: i32 = 5;
 }
 
 // ===========================================================================

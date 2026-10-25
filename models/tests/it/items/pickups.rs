@@ -9,6 +9,7 @@
 
 use crate::common::monster;
 
+use crate::common::fixtures::spawn_named;
 use bevy_ecs::prelude::*;
 use models::constants::score::{BOUNTY_SCORE_MULTIPLIER, KILL_PER_MAX_HP};
 use models::*;
@@ -262,12 +263,22 @@ fn shoot(w: &mut World, coin: &str) -> (Option<TrickShot>, Entity) {
 }
 
 #[test]
-fn a_shot_coin_does_not_ask_whether_you_needed_it() {
+fn a_shot_coin_gives_the_shooter_nothing() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    let full = w.get::<Fighter>(p).unwrap().hp;
+    w.get_mut::<Fighter>(p).unwrap().hp = 1;
     assert_eq!(shoot(&mut w, "red coin").0, Some(TrickShot::Pickup));
-    assert!(w.get::<Fighter>(p).unwrap().hp <= full);
+    assert!(w.get::<Fighter>(p).unwrap().hp <= 1, "no heal from afar");
+
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    assert_eq!(shoot(&mut w, "platine coin").0, Some(TrickShot::Pickup));
+    assert!(w.get::<Plated>(p).is_none(), "no promise from afar");
+
+    let mut w = test_world(1);
+    let before = score(&mut w);
+    assert_eq!(shoot(&mut w, "gold coin").0, Some(TrickShot::Pickup));
+    assert_eq!(score(&mut w), before, "no score from afar");
 }
 
 #[test]
@@ -290,60 +301,6 @@ fn the_element_answers_a_shot_and_survives_it() {
         w.get::<Position>(relic).is_some(),
         "nothing the player does to the relic can cost them it"
     );
-}
-
-#[test]
-fn a_shot_hero_coin_gives_up_everything_it_knows() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let at = *w.get::<Position>(p).unwrap();
-    let beside = Position {
-        x: at.x + 5,
-        y: at.y,
-    };
-    let troll = monster::monster(&mut w, "test monster", beside);
-    w.get_mut::<Fighter>(troll).unwrap().hp = 500;
-    let (shot, coin) = shoot(&mut w, "hero coin");
-
-    assert_eq!(shot, Some(TrickShot::Pickup));
-    assert!(
-        w.get_entity(coin).is_none(),
-        "unlike the relic, it is spent"
-    );
-    assert!(
-        w.resource::<GameLog>()
-            .history
-            .iter()
-            .any(|l| l.contains("ULTIMATE TRICK SHOT!")),
-        "it answers the way the Element of Yoord does"
-    );
-}
-
-#[test]
-fn a_coin_shot_for_nothing_says_nothing() {
-    let names_the_coin = |w: &World| {
-        w.resource::<GameLog>()
-            .unread
-            .iter()
-            .any(|e| e.text.contains("red coin"))
-    };
-    for (hp, says) in [(None, false), (Some(1), true)] {
-        let mut w = test_world(1);
-        let p = player(&mut w);
-        if let Some(hp) = hp {
-            w.get_mut::<Fighter>(p).unwrap().hp = hp;
-        }
-        let at = *w.get::<Position>(p).unwrap();
-        let spot = Position {
-            x: at.x + 4,
-            y: at.y,
-        };
-        spawn_named(&mut w, "red coin", spot).expect("a coin");
-
-        detonate_at(&mut w, spot, Some(p));
-
-        assert_eq!(names_the_coin(&w), says, "hp {hp:?}");
-    }
 }
 
 #[test]

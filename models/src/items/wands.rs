@@ -158,7 +158,7 @@ fn trace_bolt(
 /// distance from the centre so the animation can ripple outward. What a blast
 /// covers, asked by [`elemental_blast`] before it burns and by an agent before
 /// it breathes (see `crate::agents`).
-pub(crate) fn blast_cells(map: &Map, center: Position, radius: f32) -> Vec<(u16, u16, f32)> {
+pub fn blast_cells(map: &Map, center: Position, radius: f32) -> Vec<(u16, u16, f32)> {
     let cx = center.x as i32;
     let cy = center.y as i32;
     let r = radius.ceil() as i32;
@@ -196,7 +196,7 @@ pub(crate) fn blast_cells(map: &Map, center: Position, radius: f32) -> Vec<(u16,
 /// reaction at the end of it does — a coin caught in a blast pays its effect to
 /// whoever caused the blast, exactly as if they had shot the coin.
 #[allow(clippy::too_many_arguments)] // one blast, and everything one is made of
-pub(crate) fn elemental_blast(
+pub fn elemental_blast(
     world: &mut World,
     shooter: Option<Entity>,
     center: Position,
@@ -254,7 +254,7 @@ pub(crate) fn elemental_blast(
 /// Every open neighbouring tile (never through a wall) gets its own puff,
 /// staggered a beat apart so it reads as smoke rolling outward from the
 /// transformed creature rather than every tile igniting at once.
-pub(crate) fn leave_smoke_ring(world: &mut World, center: Position) {
+pub fn leave_smoke_ring(world: &mut World, center: Position) {
     const RING: [(i32, i32); 8] = [
         (-1, -1),
         (0, -1),
@@ -293,7 +293,7 @@ pub(crate) fn leave_smoke_ring(world: &mut World, center: Position) {
 /// [`crate::conditions::confuse`] does the rest. The wand owns the *flavour*
 /// (a flash) and nothing else; what confusion means to a player as against a
 /// monster is not this file's business.
-pub(crate) fn dazzle(world: &mut World, entity: Entity) {
+pub fn dazzle(world: &mut World, entity: Entity) {
     confuse(
         world,
         entity,
@@ -312,24 +312,24 @@ pub fn wand_wasted_on(world: &World, wand: &WandDef, target: Entity) -> bool {
 }
 
 /// Wasted on: something fireproof.
-pub(crate) fn fireproof(world: &World, target: Entity) -> bool {
+pub fn fireproof(world: &World, target: Entity) -> bool {
     world.get::<FireImmune>(target).is_some()
 }
 
 /// Wasted on: something proof against cold.
-pub(crate) fn coldproof(world: &World, target: Entity) -> bool {
+pub fn coldproof(world: &World, target: Entity) -> bool {
     world.get::<ColdImmune>(target).is_some()
 }
 
 /// Wasted on: something already slow.
-pub(crate) fn already_slow(world: &World, target: Entity) -> bool {
+pub fn already_slow(world: &World, target: Entity) -> bool {
     world
         .get::<Speed>(target)
         .is_some_and(|s| s.kind == SpeedKind::Slow)
 }
 
 /// Wasted on: an ally already.
-pub(crate) fn already_an_ally(world: &World, target: Entity) -> bool {
+pub fn already_an_ally(world: &World, target: Entity) -> bool {
     world.get::<Faction>(target) == Some(&Faction::Ally)
 }
 
@@ -337,12 +337,7 @@ pub(crate) fn already_an_ally(world: &World, target: Entity) -> bool {
 /// when it does not. An aimed zap fires the targeted-ability hooks of whoever
 /// stands there, then the row's handler runs. A wand that takes aim and was
 /// given none does nothing.
-pub(super) fn zap_wand(
-    world: &mut World,
-    user: Entity,
-    target: Option<Position>,
-    row: &'static WandDef,
-) {
+pub fn zap_wand(world: &mut World, user: Entity, target: Option<Position>, row: &'static WandDef) {
     let Some(from) = world.get::<Position>(user).copied() else {
         return;
     };
@@ -368,37 +363,37 @@ pub(super) fn zap_wand(
 }
 
 /// Wand of light: the zapper's room, lit for good.
-pub(crate) fn light(world: &mut World, zap: Zap) {
+pub fn light(world: &mut World, zap: Zap) {
     light_area(world, zap.user, zap.from);
 }
 
 /// Wand of magic missile: a bolt.
-pub(crate) fn magic_missile(world: &mut World, zap: Zap) {
+pub fn magic_missile(world: &mut World, zap: Zap) {
     fire_bolt(world, zap, strings::bolt_magic_missile(), Color::Cyan);
 }
 
 /// Wand of lightning: a bolt.
-pub(crate) fn lightning(world: &mut World, zap: Zap) {
+pub fn lightning(world: &mut World, zap: Zap) {
     fire_bolt(world, zap, strings::bolt_lightning(), Color::Yellow);
 }
 
 /// Wand of striking: a bolt.
-pub(crate) fn striking(world: &mut World, zap: Zap) {
+pub fn striking(world: &mut World, zap: Zap) {
     fire_bolt(world, zap, strings::bolt_striking(), Color::White);
 }
 
 /// Wand of drain life: a bolt that feeds the zapper.
-pub(crate) fn drain_life(world: &mut World, zap: Zap) {
+pub fn drain_life(world: &mut World, zap: Zap) {
     fire_bolt(world, zap, strings::bolt_drain_life(), Color::DarkMagenta);
 }
 
 /// Wand of fire: a blast where aimed.
-pub(crate) fn fire(world: &mut World, zap: Zap) {
+pub fn fire(world: &mut World, zap: Zap) {
     blast(world, zap, strings::blast_fire());
 }
 
 /// Wand of cold: a blast where aimed.
-pub(crate) fn cold(world: &mut World, zap: Zap) {
+pub fn cold(world: &mut World, zap: Zap) {
     blast(world, zap, strings::blast_cold());
 }
 
@@ -419,64 +414,64 @@ fn blast(world: &mut World, zap: Zap, msg: &str) {
 }
 
 /// Wand of polymorph.
-pub(crate) fn polymorph(world: &mut World, zap: Zap) {
+pub fn polymorph(world: &mut World, zap: Zap) {
     polymorph_target(world, zap.at);
 }
 
 /// Wand of haste monster.
-pub(crate) fn haste_monster(world: &mut World, zap: Zap) {
+pub fn haste_monster(world: &mut World, zap: Zap) {
     shift_target_speed(world, zap.at, true);
 }
 
 /// Wand of slow monster.
-pub(crate) fn slow_monster(world: &mut World, zap: Zap) {
+pub fn slow_monster(world: &mut World, zap: Zap) {
     shift_target_speed(world, zap.at, false);
 }
 
 /// Wand of teleport away.
-pub(crate) fn teleport_away(world: &mut World, zap: Zap) {
+pub fn teleport_away(world: &mut World, zap: Zap) {
     teleport_target_away(world, zap.at);
 }
 
 /// Wand of teleport to.
-pub(crate) fn teleport_to(world: &mut World, zap: Zap) {
+pub fn teleport_to(world: &mut World, zap: Zap) {
     teleport_target_here(world, zap.user, zap.from, zap.at);
 }
 
 /// Wand of cancellation.
-pub(crate) fn cancellation(world: &mut World, zap: Zap) {
+pub fn cancellation(world: &mut World, zap: Zap) {
     cancel_target(world, zap.at);
 }
 
 /// Wand of charming.
-pub(crate) fn charming(world: &mut World, zap: Zap) {
+pub fn charming(world: &mut World, zap: Zap) {
     charm_target(world, zap.at);
 }
 
 /// Wand of digging.
-pub(crate) fn digging(world: &mut World, zap: Zap) {
+pub fn digging(world: &mut World, zap: Zap) {
     dig_tunnel(world, zap.from, zap.at);
 }
 
 /// Wand of swapping.
-pub(crate) fn swapping(world: &mut World, zap: Zap) {
+pub fn swapping(world: &mut World, zap: Zap) {
     swap_with_target(world, zap.user, zap.from, zap.at);
 }
 
 /// Wand of nothing: says so.
-pub(crate) fn nothing(world: &mut World, _zap: Zap) {
+pub fn nothing(world: &mut World, _zap: Zap) {
     world
         .resource_mut::<GameLog>()
         .add(strings::wand_does_nothing());
 }
 
 /// A thrown wand of haste monster, on one creature it caught.
-pub(crate) fn haste_entity(world: &mut World, victim: Entity) {
+pub fn haste_entity(world: &mut World, victim: Entity) {
     shift_entity_speed(world, victim, true);
 }
 
 /// A thrown wand of slow monster, on one creature it caught.
-pub(crate) fn slow_entity(world: &mut World, victim: Entity) {
+pub fn slow_entity(world: &mut World, victim: Entity) {
     shift_entity_speed(world, victim, false);
 }
 
@@ -542,7 +537,7 @@ fn break_rock(world: &mut World, cells: impl Iterator<Item = (u16, u16)>) -> Vec
 
 /// A thrown wand of digging bursting on `center`: every wall in the disc of
 /// `radius` goes, in sight of the centre or not.
-pub(super) fn crater(world: &mut World, center: Position, radius: f32) {
+pub fn crater(world: &mut World, center: Position, radius: f32) {
     let r = radius.ceil() as i32;
     let disc = (-r..=r)
         .flat_map(|dy| (-r..=r).map(move |dx| (dx, dy)))
@@ -660,7 +655,7 @@ fn light_area(world: &mut World, user: Entity, from: Position) {
 /// Wand of polymorph: replace the monster on `pos` with a different species,
 /// fresh, on the same tile. Aimed at the player's own tile, it polymorphs the
 /// player ([`polymorph_player_into`]).
-pub(crate) fn polymorph_target(world: &mut World, pos: Position) {
+pub fn polymorph_target(world: &mut World, pos: Position) {
     let player = world
         .query_filtered::<(Entity, &Position), With<Player>>()
         .iter(world)
@@ -707,14 +702,14 @@ fn charm_target(world: &mut World, pos: Position) {
 /// Either way the creature is left [`Polymorphed`], and polymorphing one that
 /// already is has two outcomes at even odds: system shock ([`system_shock`]),
 /// or the creature settles into a chimeric form ([`assume_form`]).
-pub(crate) fn polymorph_entity(world: &mut World, victim: Entity) {
+pub fn polymorph_entity(world: &mut World, victim: Entity) {
     polymorph_entity_with(world, victim, true);
 }
 
 /// [`polymorph_entity`], with the system shock switched off for a polymorph
 /// that must never kill: the ring's, which comes due on its own. Without the
 /// shock, polymorphing the [`Polymorphed`] is simply a chimeric form.
-pub(super) fn polymorph_entity_with(world: &mut World, victim: Entity, can_shock: bool) {
+pub fn polymorph_entity_with(world: &mut World, victim: Entity, can_shock: bool) {
     let is_player = world.get::<Player>(victim).is_some();
     if !is_player && world.get::<Mob>(victim).is_none() {
         return;
@@ -873,7 +868,7 @@ fn teleport_target_away(world: &mut World, pos: Position) {
 /// scroll of teleportation (see [`teleport_reader`]); for a monster it is a
 /// yank into the dark. Either way, the wand's own signature — smoke left where
 /// they stood — marks the departure; the scroll gets no such flourish.
-pub(crate) fn teleport_entity_away(world: &mut World, victim: Entity) {
+pub fn teleport_entity_away(world: &mut World, victim: Entity) {
     if world.get::<Player>(victim).is_some() {
         let old_pos = world.get::<Position>(victim).copied();
         teleport_reader(world, victim);
@@ -952,7 +947,7 @@ fn burst_in_transit(world: &mut World, victim: Entity, source: Option<Position>)
 
 /// Teleport-to with no other target: the creature arrives exactly where it
 /// started, to no effect but the indignity.
-pub(crate) fn teleport_entity_to_self(world: &mut World, who: Entity) {
+pub fn teleport_entity_to_self(world: &mut World, who: Entity) {
     let msg = if world.get::<Player>(who).is_some() {
         strings::teleport_self_player().to_string()
     } else {
@@ -1040,7 +1035,7 @@ fn relocate(world: &mut World, who: Entity, to: Position) {
 /// onto the tile of the next in a random ring, so nobody keeps their own. Only
 /// creatures on dry floor join, since anyone can stand there; a ghost in the
 /// rock or a swimmer in deep water sits it out.
-pub(super) fn shuffle_places(world: &mut World, caught: &[Entity]) {
+pub fn shuffle_places(world: &mut World, caught: &[Entity]) {
     let mut ring: Vec<(Entity, Position)> = caught
         .iter()
         .filter(|&&e| world.get::<Mob>(e).is_some() || world.get::<Player>(e).is_some())
@@ -1075,7 +1070,7 @@ fn cancel_target(world: &mut World, pos: Position) {
 
 /// Cancellation applied to one creature. A monster loses its magic and its
 /// tempo. The player loses far more (see [`cancel_player`]).
-pub(crate) fn cancel_entity(world: &mut World, victim: Entity) {
+pub fn cancel_entity(world: &mut World, victim: Entity) {
     if world.get::<Player>(victim).is_some() {
         cancel_player(world, victim);
         return;

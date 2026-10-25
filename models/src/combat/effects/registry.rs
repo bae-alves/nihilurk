@@ -242,13 +242,7 @@ effects! {
     "chimera" => Chimera;
     "typhon" => Typhon;
     "echidna" => Echidna;
-    // The deck of cards' ledgers. See `crate::items`'s `decks`.
-    "bala" => Bala;
-    "bole" => Bole;
-    "crit" => Crit;
-    "oof" => Oof;
     "vuln" => Vuln;
-    "time_stopped" => TimeStopped, ends strings::ends_time_stopped();
     // The scroll of protection's, and the scroll of justice's.
     "protected" => Protected, ends strings::ends_protected();
     "explodes_on_death" => ExplodesOnDeath;

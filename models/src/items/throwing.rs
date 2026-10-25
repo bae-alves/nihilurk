@@ -447,7 +447,7 @@ fn resolve_wand_throw(
 ///
 /// [`Thrown::GRENADE`]: crate::catalog::Thrown::GRENADE
 /// [`Thrown::FLASH`]: crate::catalog::Thrown::FLASH
-pub(crate) fn grenade(world: &mut World, burst: Burst) {
+pub fn grenade(world: &mut World, burst: Burst) {
     let damage = roll_dice(world, burst.charges, GRENADE_DIE_PER_CHARGE);
     let caught = shatter(world, burst, damage);
     touch(world, burst, &caught, burst.row.thrown.each);
@@ -456,7 +456,7 @@ pub(crate) fn grenade(world: &mut World, burst: Burst) {
 /// [`Thrown::blast`]: it deals *no* damage; the payload is the row's `each`.
 ///
 /// [`Thrown::blast`]: crate::catalog::Thrown::blast
-pub(crate) fn blast(world: &mut World, burst: Burst) {
+pub fn blast(world: &mut World, burst: Burst) {
     let caught = shatter(world, burst, 0);
     touch(world, burst, &caught, burst.row.thrown.each);
 }
@@ -465,7 +465,7 @@ pub(crate) fn blast(world: &mut World, burst: Burst) {
 /// places.
 ///
 /// [`Thrown::SHUFFLE`]: crate::catalog::Thrown::SHUFFLE
-pub(crate) fn shuffle(world: &mut World, burst: Burst) {
+pub fn shuffle(world: &mut World, burst: Burst) {
     let caught = shatter(world, burst, 0);
     shuffle_places(world, &caught);
     touch(world, burst, &caught, Some(|_, _| {}));
@@ -474,7 +474,7 @@ pub(crate) fn shuffle(world: &mut World, burst: Burst) {
 /// [`Thrown::CONFETTI`].
 ///
 /// [`Thrown::CONFETTI`]: crate::catalog::Thrown::CONFETTI
-pub(crate) fn confetti(world: &mut World, burst: Burst) {
+pub fn confetti(world: &mut World, burst: Burst) {
     world
         .resource_mut::<GameLog>()
         .add(strings::thrown_wand_confetti(burst.seen_name));
@@ -486,7 +486,7 @@ pub(crate) fn confetti(world: &mut World, burst: Burst) {
 /// [`Thrown::CRATER`]: the grenade's reach, dug.
 ///
 /// [`Thrown::CRATER`]: crate::catalog::Thrown::CRATER
-pub(crate) fn crater(world: &mut World, burst: Burst) {
+pub fn crater(world: &mut World, burst: Burst) {
     world
         .resource_mut::<GameLog>()
         .add(strings::thrown_wand_shatters(
@@ -552,10 +552,6 @@ fn burst_radius(burst: Burst) -> f32 {
 /// queued, so this only has to resolve what arrives. A throw that names a pack
 /// row finds its item still in the pack and takes it in hand here (see
 /// `take_in_hand`).
-///
-/// With time stopped a throw hangs in the air ([`FrozenThrows`]), except a
-/// [`Returns`] weapon: THE WORLD has no hold on it, so it strikes and comes
-/// home at once.
 pub fn throw_system(world: &mut World) {
     let queued = std::mem::take(&mut world.resource_mut::<ThrowQueue>().throws);
     let throws: Vec<WantsToThrow> = queued
@@ -565,37 +561,8 @@ pub fn throw_system(world: &mut World) {
     for throw in &throws {
         crate::equipment::reset_momentum(world, throw.thrower);
     }
-    if time_stopped(world) {
-        let (returning, held): (Vec<_>, Vec<_>) = throws
-            .into_iter()
-            .partition(|t| world.get::<Returns>(t.item).is_some());
-        for throw in returning {
-            resolve_throw(world, throw, None);
-        }
-        for throw in held {
-            let Some(&from) = world.get::<Position>(throw.thrower) else {
-                continue;
-            };
-            let name = display_name(world, throw.item);
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::throw_hangs_in_the_air(&name));
-            world
-                .get_resource_or_insert_with(FrozenThrows::default)
-                .0
-                .push((throw, from));
-        }
-        return;
-    }
-    let thawed = world
-        .get_resource_mut::<FrozenThrows>()
-        .map(|mut f| std::mem::take(&mut f.0))
-        .unwrap_or_default();
-    for (throw, from) in thawed {
-        resolve_throw(world, throw, Some(from));
-    }
     for throw in throws {
-        resolve_throw(world, throw, None);
+        resolve_throw(world, throw);
     }
 }
 
@@ -613,44 +580,10 @@ fn take_in_hand(world: &mut World, mut throw: WantsToThrow) -> Option<WantsToThr
     Some(throw)
 }
 
-/// Throws made while THE WORLD held time still, each with the tile it left the
-/// hand from. Released, in order, by [`throw_system`] the turn time runs again.
-#[derive(bevy_ecs::prelude::Resource, Default)]
-pub struct FrozenThrows(pub Vec<(WantsToThrow, Position)>);
-
-/// Whether the player holds [`TimeStopped`] right now. The engine asks too:
-/// no save is written while it holds.
-pub fn time_stopped(world: &mut World) -> bool {
-    world
-        .query_filtered::<(), (
-            bevy_ecs::prelude::With<Player>,
-            bevy_ecs::prelude::With<TimeStopped>,
-        )>()
-        .iter(world)
-        .next()
-        .is_some()
-}
-
-/// Every throw still hanging in the air goes back to its thrower's pack, in
-/// the row it left (`put_back`). Called
-/// before a save and before a floor change: a frozen throw is aimed at this
-/// floor as it stands, and the save has no slot for one in flight, so nothing
-/// thrown is ever lost.
-pub fn thaw_into_pack(world: &mut World) {
-    let frozen = world
-        .get_resource_mut::<FrozenThrows>()
-        .map(|mut f| std::mem::take(&mut f.0))
-        .unwrap_or_default();
-    for (throw, _) in frozen.into_iter().rev() {
-        put_back(world, throw.thrower, throw.item, throw.slot_idx);
-    }
-}
-
 /// Puts a thrown `item` back in `carrier`'s pack at `slot_idx`, the row it left
 /// (the bottom when `None`), and returns whether there was a pack to put it in.
 /// One arrow off a quiver that still holds that row tops the quiver back up
-/// and is gone. Several throws go back last first: each row was counted with
-/// the earlier ones already out of the pack.
+/// and is gone.
 fn put_back(world: &mut World, carrier: Entity, item: Entity, slot_idx: Option<usize>) -> bool {
     let Some(items) = world.get::<Backpack>(carrier).map(|bp| &bp.items) else {
         return false;
@@ -686,12 +619,12 @@ fn put_back(world: &mut World, carrier: Entity, item: Entity, slot_idx: Option<u
 /// That is the trick shot, and it is why this is a wrapper rather than the
 /// whole job — it happens whatever the item was, whether or not the shot hit
 /// anyone, and whether or not it was the shot the thrower had in mind.
-fn resolve_throw(world: &mut World, throw: WantsToThrow, from: Option<Position>) {
+fn resolve_throw(world: &mut World, throw: WantsToThrow) {
     let by_hand = world.get::<Ammo>(throw.item).is_none();
     let thrower_is_player = world.get::<Player>(throw.thrower).is_some();
     crate::conduct::player_broke(world, throw.thrower, crate::conduct::Conduct::Ranged);
 
-    let Some(landing) = deliver_throw(world, throw, from) else {
+    let Some(landing) = deliver_throw(world, throw) else {
         return;
     };
     let Some(_shot) = detonate_at(world, landing, Some(throw.thrower)) else {
@@ -715,21 +648,14 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow, from: Option<Position>)
 ///
 /// Returns the tile the throw came down on, or `None` if there was no throw to
 /// make.
-fn deliver_throw(
-    world: &mut World,
-    throw: WantsToThrow,
-    from: Option<Position>,
-) -> Option<Position> {
+fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     let WantsToThrow {
         thrower,
         item,
         target,
         slot_idx,
     } = throw;
-    let origin = match from {
-        Some(from) => from,
-        None => *world.get::<Position>(thrower)?,
-    };
+    let origin = *world.get::<Position>(thrower)?;
 
     let wielded = world
         .get::<Equipped>(item)
@@ -779,7 +705,7 @@ fn deliver_throw(
     }
 
     if world.get::<Deck>(item).is_some() {
-        super::decks::throw_deck(world, thrower, item);
+        super::decks::throw_deck(world, thrower, item, landing, &seen_name);
         return Some(landing);
     }
 
@@ -1054,7 +980,7 @@ fn confetti_burst(fx: &mut Particles, center: Position) {
 /// A no-op if `shooter` isn't actually wielding one — the caller has already
 /// checked, but this is the one place that knows how to loose a shot, so it
 /// checks again rather than trust it.
-pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: Entity) {
+pub fn monster_ranged_attack(world: &mut World, shooter: Entity, target: Entity) {
     if crate::equipment::wielded_launcher(world, shooter).is_none() {
         return;
     }
@@ -1131,7 +1057,7 @@ fn envenom(world: &mut World, item: Entity, victim: Entity, bled: bool) {
 }
 
 /// The blowdart's venom: the rattlesnake's bite, carried by the dart.
-pub(crate) fn sap(world: &mut World, victim: Entity) {
+pub fn sap(world: &mut World, victim: Entity) {
     crate::abilities::venomous_bite(world, victim, Some(victim));
 }
 

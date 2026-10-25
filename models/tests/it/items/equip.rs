@@ -3,6 +3,7 @@
 //! values, and that a plus or a curse stays hidden until the item is worn or
 //! identified.
 
+use crate::common::fixtures::{spawn_armor, spawn_ring, spawn_weapon, spell_row};
 use bevy_ecs::prelude::*;
 use models::constants::spells::{TURBO_MAGIC_COST_MULT, TURBO_MAGIC_POWER_MULT};
 use models::*;

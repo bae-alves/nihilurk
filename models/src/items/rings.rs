@@ -85,7 +85,7 @@ use strings::FANFARE;
 /// well as the last thing a run does (the victory climb queues it, and the
 /// engine plays it out before the WIN panel) and as a thing that happens in the
 /// middle of a floor.
-pub(crate) fn do_it_with_style(world: &mut World) {
+pub fn do_it_with_style(world: &mut World) {
     if player_tile(world).is_none() {
         return;
     }
@@ -95,7 +95,7 @@ pub(crate) fn do_it_with_style(world: &mut World) {
 
 /// [`do_it_with_style`] for show: the fireworks, the shake and the fanfare,
 /// and no score doubled. A deck's Five Flush ends this way.
-pub(crate) fn flourish(world: &mut World) {
+pub fn flourish(world: &mut World) {
     let Some(at) = player_tile(world) else {
         return;
     };
@@ -144,7 +144,7 @@ fn fireworks(world: &mut World, at: Position) {
 /// It is the one piece of gear in the dungeon that is worth exactly one action.
 /// A monster that puts one on gets nothing: there is no score to double, so the
 /// ring simply stays a ring.
-pub(crate) fn wear_adornment(world: &mut World, wearer: Entity, item: Entity) {
+pub fn wear_adornment(world: &mut World, wearer: Entity, item: Entity) {
     if world.get::<Player>(wearer).is_none() {
         return;
     }
@@ -158,7 +158,7 @@ pub(crate) fn wear_adornment(world: &mut World, wearer: Entity, item: Entity) {
 
 /// The handle the catalog row names, so `RINGS` can chain `.on_wear(ADORNMENT)`
 /// without a function pointer's worth of punctuation on the table.
-pub(crate) const ADORNMENT: OnWear = OnWear(wear_adornment);
+pub const ADORNMENT: OnWear = OnWear(wear_adornment);
 
 // ---------------------------------------------------------------------------
 // Regeneration
@@ -171,7 +171,7 @@ pub(crate) const ADORNMENT: OnWear = OnWear(wear_adornment);
 ///
 /// Returns whether it found anything to mend; a bearer in perfect health rolls
 /// this every other turn and must do it silently.
-pub(crate) fn regenerate(world: &mut World, bearer: Entity) -> bool {
+pub fn regenerate(world: &mut World, bearer: Entity) -> bool {
     if crate::conditions::cure_one_condition(world, bearer) {
         return true;
     }
@@ -188,7 +188,7 @@ pub(crate) fn regenerate(world: &mut World, bearer: Entity) -> bool {
 /// next turn — so the player lands, sees where they landed, and acts from there
 /// before anything on the floor has moved. That free action is the whole
 /// difference between a ring you might keep on and a curse.
-pub(crate) fn teleportitis(world: &mut World, bearer: Entity) -> bool {
+pub fn teleportitis(world: &mut World, bearer: Entity) -> bool {
     super::wands::teleport_entity_away(world, bearer);
     true
 }
@@ -202,7 +202,7 @@ pub(crate) fn teleportitis(world: &mut World, bearer: Entity) -> bool {
 /// The polymorph a wand casts, minus the system shock: the ring comes due on
 /// its own schedule, and nothing that does that may kill or maim its bearer.
 /// A bearer already [`Polymorphed`](crate::Polymorphed) settles into a chimeric form instead.
-pub(crate) fn polymorphitis(world: &mut World, bearer: Entity) -> bool {
+pub fn polymorphitis(world: &mut World, bearer: Entity) -> bool {
     super::wands::polymorph_entity_with(world, bearer, false);
     true
 }

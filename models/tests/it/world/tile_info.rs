@@ -2,6 +2,7 @@
 //! the sighting line: stats for a creature, mechanics for a trap, the pack's
 //! Info lines for an item.
 
+use crate::common::fixtures::spawn_named;
 use bevy_ecs::prelude::*;
 use models::*;
 

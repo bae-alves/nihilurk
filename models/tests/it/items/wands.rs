@@ -9,6 +9,7 @@
 
 use crate::common::monster;
 
+use crate::common::fixtures::{spawn_named, spawn_weapon, wand_row};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::constants::wands::{DAMAGE_DICE, DAMAGE_SIDES, DIG_RANGE, WAND_CHARGES};

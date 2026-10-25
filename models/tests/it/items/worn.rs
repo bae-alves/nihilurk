@@ -3,6 +3,7 @@
 
 use crate::common::monster;
 
+use crate::common::fixtures::{spawn_armor, spawn_launcher, spawn_weapon};
 use bevy_ecs::prelude::*;
 use models::*;
 

@@ -36,7 +36,7 @@ use super::potions::{is_the_relic, worth_detecting};
 /// curse): each one is unequipped, pulled out of the pack and despawned. Cursed
 /// items sitting unequipped in the pack are left untouched, and so is anything
 /// [`MegaCurse`]d. Returns how many items were destroyed.
-pub(super) fn lift_curses(world: &mut World, user: Entity) -> usize {
+pub fn lift_curses(world: &mut World, user: Entity) -> usize {
     let doomed: Vec<Entity> = equipped_items(world, user)
         .into_iter()
         .filter(|&e| world.get::<Curse>(e).is_some() && world.get::<MegaCurse>(e).is_none())
@@ -63,7 +63,7 @@ fn has_hidden_quality(world: &World, e: Entity) -> bool {
 /// plus or curse ([`has_hidden_quality`]) in one read — a potion, scroll, wand
 /// or ring has nothing left to teach, since its true type is always shown.
 /// The scroll of identify.
-pub(crate) fn identify_everything_hidden(world: &mut World, user: Entity) {
+pub fn identify_everything_hidden(world: &mut World, user: Entity) {
     let candidates: Vec<Entity> = world
         .get::<Backpack>(user)
         .map(|bp| bp.items.clone())
@@ -91,7 +91,7 @@ pub(crate) fn identify_everything_hidden(world: &mut World, user: Entity) {
 }
 
 /// Scroll of remove curse ([`lift_curses`]).
-pub(crate) fn remove_curse(world: &mut World, user: Entity) {
+pub fn remove_curse(world: &mut World, user: Entity) {
     let freed = lift_curses(world, user);
     let (msg, category) = if freed > 0 {
         (strings::remove_curse_freed(), LogCategory::Curse)
@@ -105,7 +105,7 @@ pub(crate) fn remove_curse(world: &mut World, user: Entity) {
 
 /// Scroll of scare monster: every monster in view turns tail for good
 /// ([`scare_in_view`]).
-pub(crate) fn scare_monster(world: &mut World, user: Entity) {
+pub fn scare_monster(world: &mut World, user: Entity) {
     let scared = scare_in_view(world, user);
     let msg = if scared > 0 {
         strings::scare_monster_some()
@@ -117,33 +117,33 @@ pub(crate) fn scare_monster(world: &mut World, user: Entity) {
 
 /// Scroll of blank paper, what a wand of cancellation leaves of a scroll: it
 /// reads as nothing happening, and means it.
-pub(crate) fn blank_paper(world: &mut World, _user: Entity) {
+pub fn blank_paper(world: &mut World, _user: Entity) {
     world.resource_mut::<GameLog>().add(strings::blank_paper());
 }
 
 /// Scroll of enchant weapon: a permanent plus on the wielded weapon, and its
 /// curse lifted. Fizzles with an empty hand.
-pub(crate) fn enchant_weapon(world: &mut World, user: Entity) {
+pub fn enchant_weapon(world: &mut World, user: Entity) {
     enchant_gear(world, user, Slot::Hand);
 }
 
 /// Scroll of enchant armor: a permanent plus on the worn armour, and its curse
 /// lifted. Fizzles with nothing worn.
-pub(crate) fn enchant_armor(world: &mut World, user: Entity) {
+pub fn enchant_armor(world: &mut World, user: Entity) {
     enchant_gear(world, user, Slot::Body);
 }
 
 /// Scroll of pitfall: a trapdoor opens under the reader.
-pub(crate) fn pitfall(world: &mut World, user: Entity) {
+pub fn pitfall(world: &mut World, user: Entity) {
     let is_player = world.get::<Player>(user).is_some();
     trapdoor_effect(world, user, is_player, true);
 }
 
 /// Scroll of teleport to stairs: the reader lands on the down stair, or the up
 /// stair while the Element of Yoord is in the pack.
-pub(crate) fn teleport_to_stairs(world: &mut World, user: Entity) {
+pub fn teleport_to_stairs(world: &mut World, user: Entity) {
     let up = crate::map::holding_element_of_yoord(world);
-    if super::decks::move_to_stair(world, user, up) {
+    if move_to_stair(world, user, up) {
         world
             .resource_mut::<GameLog>()
             .add(strings::scroll_to_stair(up).to_string());
@@ -151,12 +151,12 @@ pub(crate) fn teleport_to_stairs(world: &mut World, user: Entity) {
 }
 
 /// Scroll of atonement ([`crate::spirits::atone`]).
-pub(crate) fn atonement(world: &mut World, _user: Entity) {
+pub fn atonement(world: &mut World, _user: Entity) {
     crate::spirits::atone(world);
 }
 
 /// Scroll of charming ([`charm_room`]).
-pub(crate) fn charming(world: &mut World, user: Entity) {
+pub fn charming(world: &mut World, user: Entity) {
     let charmed = charm_room(world, user);
     let msg = if charmed > 0 {
         strings::charm_room_some()
@@ -184,7 +184,7 @@ fn charm_room(world: &mut World, user: Entity) -> usize {
 
 /// Arms the magic-map wipe centred on `user` and logs its flavour line. The
 /// scroll and the Element's climb share it.
-pub(crate) fn map_the_floor(world: &mut World, user: Entity) {
+pub fn map_the_floor(world: &mut World, user: Entity) {
     let hero = world
         .get::<Position>(user)
         .map(|p| (p.x, p.y))
@@ -206,7 +206,7 @@ pub(crate) fn map_the_floor(world: &mut World, user: Entity) {
 /// a hero coin was in teaching it — and every tile they have ever seen on
 /// this floor is wiped from memory, [`crate::magicmap::MagicMapReveal`]'s own
 /// wipe in reverse.
-pub(crate) fn read_amnesia(world: &mut World, user: Entity) {
+pub fn read_amnesia(world: &mut World, user: Entity) {
     let slot_count = world.get::<Spellset>(user).map_or(0, |m| m.slots.len());
     let mut lines = vec![strings::amnesia_poof().to_string()];
     match slot_count {
@@ -231,7 +231,7 @@ pub(crate) fn read_amnesia(world: &mut World, user: Entity) {
 
 /// Scroll of teleportation: whisk the reader to a random open tile somewhere on
 /// the current floor.
-pub(crate) fn teleport_reader(world: &mut World, user: Entity) {
+pub fn teleport_reader(world: &mut World, user: Entity) {
     if let Some(tile) = random_open_tile(world) {
         move_reader_to(world, user, tile);
     }
@@ -245,7 +245,7 @@ pub(crate) fn teleport_reader(world: &mut World, user: Entity) {
 /// trap's), and out of whatever was holding them in place — otherwise a bear
 /// trap's snare survives the jump and keeps thrashing a leg on a tile nowhere
 /// near the actual trap. Shared with the deck's Child and Crone.
-pub(super) fn move_reader_to(world: &mut World, user: Entity, (x, y): (u16, u16)) {
+pub fn move_reader_to(world: &mut World, user: Entity, (x, y): (u16, u16)) {
     if let Some(was) = world.get::<Position>(user).copied() {
         crate::helpers::leave_tinted_smoke(world, was, Color::Magenta);
     }
@@ -262,7 +262,7 @@ pub(super) fn move_reader_to(world: &mut World, user: Entity, (x, y): (u16, u16)
 /// Scroll of aggravate monsters: every creature on the floor drops what it was
 /// doing and homes in on the reader's tile, out of sight; in sight it fights
 /// the way it always does. See [`Aggravated`].
-pub(crate) fn aggravate_floor(world: &mut World, user: Entity) {
+pub fn aggravate_floor(world: &mut World, user: Entity) {
     let _heard = aggravate_all_monsters(world, user);
     world
         .resource_mut::<GameLog>()
@@ -276,7 +276,7 @@ pub(crate) fn aggravate_floor(world: &mut World, user: Entity) {
 /// Returns whether anything heard it. An empty floor makes no noise, which is
 /// what keeps a cursed ring from announcing itself in a dungeon with nothing
 /// left alive on it.
-pub(crate) fn aggravate_all_monsters(world: &mut World, origin: Entity) -> bool {
+pub fn aggravate_all_monsters(world: &mut World, origin: Entity) -> bool {
     let Some(&hero) = world.get::<Position>(origin) else {
         return false;
     };
@@ -315,7 +315,7 @@ fn scare_in_view(world: &mut World, user: Entity) -> usize {
 
 /// Scroll of create monster: conjure any creature from the bestiary next to the
 /// reader (or, failing an open adjacent tile, anywhere on the floor).
-pub(crate) fn create_monster(world: &mut World, user: Entity) {
+pub fn create_monster(world: &mut World, user: Entity) {
     let Some((x, y)) = summon_spot(world, user) else {
         world
             .resource_mut::<GameLog>()
@@ -354,7 +354,7 @@ pub(crate) fn create_monster(world: &mut World, user: Entity) {
 
 /// Where a conjured creature arrives: beside `user`, or failing an open
 /// adjacent tile, anywhere on the floor.
-pub(super) fn summon_spot(world: &mut World, user: Entity) -> Option<(u16, u16)> {
+pub fn summon_spot(world: &mut World, user: Entity) -> Option<(u16, u16)> {
     let origin = world.get::<Position>(user).copied();
     origin
         .and_then(|o| free_adjacent_tile(world, o))
@@ -368,7 +368,7 @@ pub(super) fn summon_spot(world: &mut World, user: Entity) -> Option<(u16, u16)>
 ///
 /// A bow or crossbow in hand doesn't count — the edge has nothing to bite
 /// with — so it fizzles exactly as if the hand were empty.
-pub(crate) fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
+pub fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
     let weapon =
         equipped_in(world, user, Slot::Hand).filter(|&e| world.get::<Launcher>(e).is_none());
     let Some(weapon) = weapon else {
@@ -433,7 +433,7 @@ fn raise_plus(world: &mut World, item: Entity) -> bool {
 
 /// [`raise_plus`] with any rule for the new plus: `to` maps the old one to it.
 /// Returns whether there was anything on `item` to change.
-pub(super) fn shift_plus(world: &mut World, item: Entity, to: fn(i32) -> i32) -> bool {
+pub fn shift_plus(world: &mut World, item: Entity, to: fn(i32) -> i32) -> bool {
     let mut e = world.entity_mut(item);
     let mut shifted = false;
     if e.contains::<PowerDie>() {
@@ -454,24 +454,6 @@ pub(super) fn shift_plus(world: &mut World, item: Entity, to: fn(i32) -> i32) ->
     shifted
 }
 
-/// The reversed Prince of Swords and Queen of Cups: one point off the plus of
-/// whatever `user` has in `slot`. Returns whether there was gear to dull.
-pub(super) fn lower_equipped(world: &mut World, user: Entity, slot: Slot) -> bool {
-    let Some(item) = equipped_in(world, user, slot) else {
-        return false;
-    };
-    if !shift_plus(world, item, |b| b - 1) {
-        return false;
-    }
-    world.entity_mut(item).insert(KnownQuality);
-    let name = crate::identify::display_name(world, item);
-    spark_burst_at(world, user, Color::DarkGrey);
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::card_dulls(&name));
-    true
-}
-
 /// Scroll of enchant weapon / enchant armor: the gear in the reader's `slot`
 /// gains a permanent point of plus ([`mended_plus`]) and loses its curse, in a
 /// shower of orange sparks. Reading it also settles what the item *is* — you
@@ -480,7 +462,7 @@ pub(super) fn lower_equipped(world: &mut World, user: Entity, slot: Slot) -> boo
 ///
 /// Read over an empty hand (or an unarmoured back) it gutters out the way a
 /// scroll of vorpalize weapon does: the words need something to bite into.
-pub(crate) fn enchant_gear(world: &mut World, user: Entity, slot: Slot) {
+pub fn enchant_gear(world: &mut World, user: Entity, slot: Slot) {
     if enchant_equipped(world, user, slot) {
         return;
     }
@@ -497,7 +479,7 @@ pub(crate) fn enchant_gear(world: &mut World, user: Entity, slot: Slot) {
 /// ([`crate::items::pickups`]) buys the same enchantment but has two slots to
 /// try and wants to move on to the second when the first is empty, rather than
 /// telling the player about bare skin.
-pub(crate) fn enchant_equipped(world: &mut World, user: Entity, slot: Slot) -> bool {
+pub fn enchant_equipped(world: &mut World, user: Entity, slot: Slot) -> bool {
     let Some(item) = equipped_in(world, user, slot) else {
         return false;
     };
@@ -525,7 +507,7 @@ pub(crate) fn enchant_equipped(world: &mut World, user: Entity, slot: Slot) -> b
 
 /// Why an enchantment found nothing to land on — an empty hand for the weapon
 /// scroll, bare skin for the armour one.
-pub(super) fn missing_gear_line(slot: Slot) -> &'static str {
+pub fn missing_gear_line(slot: Slot) -> &'static str {
     match slot {
         Slot::Body => strings::enchant_missing_armor(),
         _ => strings::enchant_missing_weapon(),
@@ -543,7 +525,7 @@ pub(super) fn missing_gear_line(slot: Slot) -> &'static str {
 ///
 /// Reading a second one before spending the first is not wasted so much as
 /// redundant: the hands can only be charged, not more charged.
-pub(crate) fn charm_hands(world: &mut World, user: Entity) {
+pub fn charm_hands(world: &mut World, user: Entity) {
     let already = world.get::<ConfusingTouch>(user).is_some();
     if !already {
         crate::effects::lend(
@@ -580,7 +562,7 @@ pub(crate) fn charm_hands(world: &mut World, user: Entity) {
 ///
 /// Lives here rather than in `crate::combat` because *what the charm does* is
 /// the scroll's business; combat only knows when a blow landed.
-pub(crate) fn discharge_confusing_touch(world: &mut World, attacker: Entity, victim: Entity) {
+pub fn discharge_confusing_touch(world: &mut World, attacker: Entity, victim: Entity) {
     if world.get::<ConfusingTouch>(attacker).is_none() {
         return;
     }
@@ -603,7 +585,7 @@ pub(crate) fn discharge_confusing_touch(world: &mut World, attacker: Entity, vic
 /// [`HOLD_TURNS`] turns ([`crate::effects::Rooted`]). A held monster is pinned, not
 /// helpless — walk into its reach and it still bites — so what the scroll buys
 /// is the room to leave, or the range to shoot from.
-pub(crate) fn hold_in_view(world: &mut World, user: Entity) {
+pub fn hold_in_view(world: &mut World, user: Entity) {
     let caught = hostiles_in_view(world, user);
     for &t in &caught {
         snare(world, t, Grant::of::<Rooted>(), HOLD_TURNS);
@@ -629,7 +611,7 @@ pub(crate) fn hold_in_view(world: &mut World, user: Entity) {
 /// A sleeper is helpless, not merely pinned — no action of any kind until it
 /// wears off — so this is the one scroll that hands out free kills, in either
 /// direction.
-pub(crate) fn read_sleep(world: &mut World, user: Entity) {
+pub fn read_sleep(world: &mut World, user: Entity) {
     let backfires = world
         .resource_mut::<GameRng>()
         .0
@@ -684,7 +666,7 @@ fn sleep_the_reader(world: &mut World, user: Entity) {
 ///
 /// Like the potions, it is only worth anything to the player: a monster that
 /// reads one aloud has learned where the coins are and no way to care.
-pub(crate) fn detect_mundane_items(world: &mut World, user: Entity) {
+pub fn detect_mundane_items(world: &mut World, user: Entity) {
     if world.get::<Player>(user).is_none() {
         world
             .resource_mut::<GameLog>()
@@ -716,7 +698,7 @@ pub(crate) fn detect_mundane_items(world: &mut World, user: Entity) {
 
 /// Scroll of recharging: [`RECHARGE_STEP`] more in every wand `user` carries,
 /// never past [`RECHARGE_CAP`] and never lowering one that is already there.
-pub(crate) fn recharging(world: &mut World, user: Entity) {
+pub fn recharging(world: &mut World, user: Entity) {
     let carried = world
         .get::<Backpack>(user)
         .map(|bp| bp.items.clone())
@@ -741,7 +723,7 @@ pub(crate) fn recharging(world: &mut World, user: Entity) {
 
 /// Scroll of protection: no damage at all for [`PROTECTION_TURNS`] turns
 /// ([`Protected`]).
-pub(crate) fn protection(world: &mut World, user: Entity) {
+pub fn protection(world: &mut World, user: Entity) {
     lend(
         world,
         user,
@@ -754,7 +736,7 @@ pub(crate) fn protection(world: &mut World, user: Entity) {
 
 /// Scroll of justice: every hostile in view will burst when it dies
 /// ([`ExplodesOnDeath`]). Held for the floor, which is as long as they live.
-pub(crate) fn justice(world: &mut World, user: Entity) {
+pub fn justice(world: &mut World, user: Entity) {
     let watchers = hostiles_in_view(world, user);
     let line = match watchers.is_empty() {
         true => strings::scroll_justice_nobody(),
@@ -769,4 +751,43 @@ pub(crate) fn justice(world: &mut World, user: Entity) {
         );
     }
     world.resource_mut::<GameLog>().add(line.to_string());
+}
+
+/// Moves `user` to the stair, saying only that there is none when it cannot.
+/// Returns whether it moved. The stair's own tile if nothing stands on it,
+/// else a free one beside it.
+pub fn move_to_stair(world: &mut World, user: Entity, up: bool) -> bool {
+    use crate::map::{Map, TileType};
+    let want = if up {
+        TileType::Upstairs
+    } else {
+        TileType::Downstairs
+    };
+    let none = |world: &mut World| {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::scroll_no_stair().to_string());
+        false
+    };
+    let Some(stair) = crate::map::find_tile(&world.resource::<Map>().tiles, want) else {
+        return none(world);
+    };
+    let at = Position {
+        x: stair.0,
+        y: stair.1,
+    };
+    let occupied = crate::helpers::mob_at(world, at).is_some()
+        || world
+            .query_filtered::<&Position, With<Player>>()
+            .iter(world)
+            .any(|p| *p == at);
+    let tile = match occupied {
+        false => Some(stair),
+        true => crate::helpers::free_adjacent_tile(world, at),
+    };
+    let Some(tile) = tile else {
+        return none(world);
+    };
+    move_reader_to(world, user, tile);
+    true
 }

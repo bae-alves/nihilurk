@@ -228,20 +228,24 @@ ring mail), put it in the `Backpack`, then equip it.
 `equipment::equip_silently(world, wearer, item)` is the function for that
 last part — it puts the item on without narrating it, which is exactly
 what you want for something the player is *born* wearing rather than
-something they just picked up and pulled on. Import it beside `Slot` in the `use crate::equipment::` line.
+something they just picked up and pulled on. Import it beside `Slot` in the `use crate::equipment::` line, and bring `ItemDef` in from `crate::catalog` for `.spawn`.
+
+    const LEATHER_ARMOR: usize = index_of!(crate::catalog::ARMORS, "leather armor");
+    const RING_OF_PROTECTION: usize = index_of!(crate::catalog::RINGS, "ring of protection");
+    const DAGGER: usize = index_of!(crate::catalog::WEAPONS, "dagger");
 
     let origin = Position { x: 0, y: 0 };
     let strip = |world: &mut World, item: Entity| {
         world.entity_mut(item).remove::<Position>();
     };
 
-    let armor = crate::catalog::spawn_armor(world, "leather armor", origin);
+    let armor = crate::catalog::ARMORS[LEATHER_ARMOR].spawn(world, origin);
     strip(world, armor);
-    let ring = crate::catalog::spawn_ring(world, "ring of protection", origin);
+    let ring = crate::catalog::RINGS[RING_OF_PROTECTION].spawn(world, origin);
     strip(world, ring);
     let daggers: Vec<Entity> = (0..5)
         .map(|_| {
-            let dagger = crate::catalog::spawn_weapon(world, "dagger", origin);
+            let dagger = crate::catalog::WEAPONS[DAGGER].spawn(world, origin);
             strip(world, dagger);
             dagger
         })

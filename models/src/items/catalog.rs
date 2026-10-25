@@ -35,12 +35,12 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
-use crate::conditions::{blind, hasten, paralyse};
+use crate::conditions::blind;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
 use crate::items::wands::dazzle;
-use crate::items::{decks, pickups, potions, scrolls, spells, throwing, wands};
-use crate::monsters::{BESTIARY, SUMMONS};
+use crate::items::{pickups, potions, scrolls, spells, throwing, wands};
+use crate::monsters::BESTIARY;
 use crate::particles::BlastPalette;
 
 // --- Tuning constants -----------------------------------------------------
@@ -198,7 +198,7 @@ impl PotionDef {
     }
 
     /// Never dropped: only something else turns a potion into this one.
-    const fn never_drops(mut self) -> Self {
+    pub const fn never_drops(mut self) -> Self {
         self.weight = 0;
         self
     }
@@ -236,7 +236,6 @@ impl ItemDef for &'static PotionDef {
 #[rustfmt::skip]
 pub static POTIONS: &[&PotionDef] = &[
     &PotionDef::new("potion of confusion",         Color::Magenta,     potions::confusion),
-    &PotionDef::new("potion of paralysis",         Color::DarkGrey,    paralyse),
     &PotionDef::new("potion of poison",            Color::Green,       potions::poison),
     &PotionDef::new("potion of gain strength",     Color::Red,         potions::gain_strength),
     &PotionDef::new("potion of see invisible",     Color::Cyan,        potions::see_invisible),
@@ -244,11 +243,8 @@ pub static POTIONS: &[&PotionDef] = &[
     &PotionDef::new("potion of monster detection", Color::Yellow,      potions::detect_monsters),
     &PotionDef::new("potion of magic detection",   Color::Yellow,      potions::detect_magic),
     &PotionDef::new("potion of raise level",       Color::White,       potions::raise_level),
-    &PotionDef::new("potion of extra healing",     Color::Red,         potions::extra_healing),
-    &PotionDef::new("potion of haste self",        Color::DarkYellow,  hasten),
     &PotionDef::new("potion of restore strength",  Color::Red,         potions::restore_strength),
     &PotionDef::new("potion of blindness",         Color::DarkGrey,    blind),
-    &PotionDef::new("potion of fruit juice",       Color::DarkYellow,  potions::fruit_juice),
     &PotionDef::new("potion of magic",             Color::Blue,        potions::gain_magic),
     &PotionDef::new("potion of adjustment",        Color::DarkCyan,    potions::adjustment),
     &PotionDef::new("potion of polymorph",         Color::DarkMagenta, potions::polymorph),
@@ -290,19 +286,19 @@ impl ScrollDef {
     }
 
     /// Dropped twice as often as most.
-    const fn common(mut self) -> Self {
+    pub const fn common(mut self) -> Self {
         self.weight *= 2;
         self
     }
 
     /// Dropped half as often as most.
-    const fn rare(mut self) -> Self {
+    pub const fn rare(mut self) -> Self {
         self.weight /= 2;
         self
     }
 
     /// Never dropped: only something else turns a scroll into this one.
-    const fn never_drops(mut self) -> Self {
+    pub const fn never_drops(mut self) -> Self {
         self.weight = 0;
         self
     }
@@ -348,17 +344,17 @@ pub static SCROLLS: &[&ScrollDef] = &[
     &ScrollDef::new("scroll of enchant armor",      scrolls::enchant_armor),
     &ScrollDef::new("scroll of identify",           scrolls::identify_everything_hidden).common(),
     &ScrollDef::new("scroll of scare monster",      scrolls::scare_monster),
-    &ScrollDef::new("scroll of food detection",     scrolls::detect_mundane_items),
+    &ScrollDef::new("scroll of mundane detection",     scrolls::detect_mundane_items),
     &ScrollDef::new("scroll of teleportation",      scrolls::teleport_reader),
     &ScrollDef::new("scroll of enchant weapon",     scrolls::enchant_weapon),
     &ScrollDef::new("scroll of create monster",     scrolls::create_monster),
     &ScrollDef::new("scroll of remove curse",       scrolls::remove_curse).common(),
     &ScrollDef::new("scroll of aggravate monsters", scrolls::aggravate_floor),
-    &ScrollDef::new("scroll of vorpalize weapon",   scrolls::vorpalize_wielded_weapon),
+    &ScrollDef::new("scroll of vorpalize weapon",   scrolls::vorpalize_wielded_weapon).common(),
     &ScrollDef::new("scroll of amnesia",            scrolls::read_amnesia),
     &ScrollDef::new("scroll of charming",           scrolls::charming),
-    &ScrollDef::new("scroll of pitfall",            scrolls::pitfall),
-    &ScrollDef::new("scroll of atonement",          scrolls::atonement),
+    &ScrollDef::new("scroll of pitfall",            scrolls::pitfall).rare(),
+    &ScrollDef::new("scroll of atonement",          scrolls::atonement).rare(),
     &ScrollDef::new("scroll of recharging",         scrolls::recharging).rare(),
     &ScrollDef::new("scroll of protection",         scrolls::protection).rare(),
     &ScrollDef::new("scroll of justice",            scrolls::justice).rare(),
@@ -372,68 +368,12 @@ pub fn scroll_row(name: &str) -> Option<&'static ScrollDef> {
 }
 
 // ---------------------------------------------------------------------------
-// Decks of cards
+// Decks
 // ---------------------------------------------------------------------------
 
-/// One card: the name the log calls it, and what drawing it does.
-pub struct CardDef {
-    /// The row's identity: the save file stores it, and the log calls it this
-    /// through [`strings::content_name`].
-    pub name: &'static str,
-    /// What the card does when it plays, either way up: `card` is the card
-    /// itself, so `card.reversed` says which way it lay. `deal` is the draw in
-    /// progress: who plays it, and the deck it came from.
-    pub play: fn(&mut World, &mut decks::Deal, Card),
-}
-
-impl PartialEq for CardDef {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
-impl Eq for CardDef {}
-
-impl std::fmt::Debug for CardDef {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name)
-    }
-}
-
-/// Every card a deck can hold, one row each. A rolled deck draws from these
-/// evenly, with replacement.
-#[rustfmt::skip]
-pub static CARDS: &[&CardDef] = &[
-    &CardDef { name: "The Joker",             play: decks::joker },
-    &CardDef { name: "King of Clubs",         play: decks::king_of_clubs },
-    &CardDef { name: "Prince of Swords",      play: decks::prince_of_swords },
-    &CardDef { name: "Queen of Cups",         play: decks::queen_of_cups },
-    &CardDef { name: "Princess of Diamonds",  play: decks::princess_of_diamonds },
-    &CardDef { name: "The Balance",           play: decks::balance },
-    &CardDef { name: "The Bole",              play: decks::bole },
-    &CardDef { name: "The +4",                play: decks::plus_four },
-    &CardDef { name: "THE SKULL KING!",       play: decks::skull_king },
-    &CardDef { name: "Pot of Sin",            play: decks::pot_of_sin },
-    &CardDef { name: "THE BLACK MAGE",        play: decks::black_mage },
-    &CardDef { name: "The Child",             play: decks::child },
-    &CardDef { name: "The Crone",             play: decks::crone },
-    &CardDef { name: "The Eyes Never Lie",    play: decks::eyes },
-    &CardDef { name: "FOOL",                  play: decks::fool },
-    &CardDef { name: "THE EXCUSE",           play: decks::excuse },
-    &CardDef { name: "JESTER",                play: decks::jester },
-    &CardDef { name: "VII THE CHARIOT",       play: decks::chariot },
-    &CardDef { name: "XXII THE WORLD",        play: decks::the_world },
-    &CardDef { name: "XXIII GOLDEN WIND",     play: decks::golden_wind },
-];
-
-/// The card row named `name`, for a save to find its card by.
-pub fn card_row(name: &str) -> Option<&'static CardDef> {
-    CARDS.iter().copied().find(|row| row.name == name)
-}
-
-/// A deck of cards: read off the top one card at a time, or thrown and played
-/// as a poker hand. Its mechanic lives in the `decks` submodule of
-/// `crate::items`.
+/// A deck: a stack of potion and scroll effects, read off the top one at a
+/// time, or thrown and burst like a wand of light. Its mechanic lives in the
+/// `decks` submodule of `crate::items`.
 pub struct DeckDef {
     /// The row's identity, as [`ScrollDef::name`].
     pub name: &'static str,
@@ -444,19 +384,13 @@ impl ItemDef for DeckDef {
         self.name
     }
 
-    /// The deck as the table prints it: the first [`DECK_SIZE`] rows of
-    /// [`CARDS`], all upright, the last of them on top.
+    /// The deck as the table prints it: the first [`DECK_SIZE`] effects of
+    /// [`deck_pool`], the last of them on top.
     ///
     /// [`DECK_SIZE`]: crate::constants::decks::DECK_SIZE
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         use crate::constants::decks::DECK_SIZE;
-        let cards = CARDS[..DECK_SIZE]
-            .iter()
-            .map(|&row| Card {
-                row,
-                reversed: false,
-            })
-            .collect();
+        let effects = deck_pool().into_iter().take(DECK_SIZE).collect();
         world
             .spawn((
                 Name {
@@ -468,7 +402,7 @@ impl ItemDef for DeckDef {
                 },
                 pos,
                 Item,
-                Deck { cards },
+                Deck { effects },
             ))
             .id()
     }
@@ -480,28 +414,31 @@ impl ItemDef for DeckDef {
     }
 }
 
-/// A freshly rolled deck: [`DECK_SIZE`] faces drawn evenly from [`CARDS`] with
-/// replacement, then [`REVERSED_MIN`] to [`REVERSED_MAX`] of them turned over.
+/// Every effect a deck can stack: each potion and scroll row the dungeon drops,
+/// potions first, in table order.
+pub fn deck_pool() -> Vec<DeckEffect> {
+    let potions = POTIONS
+        .iter()
+        .filter(|row| row.weight > 0)
+        .map(|&row| DeckEffect::Potion(row));
+    let scrolls = SCROLLS
+        .iter()
+        .filter(|row| row.weight > 0)
+        .map(|&row| DeckEffect::Scroll(row));
+    potions.chain(scrolls).collect()
+}
+
+/// A freshly rolled deck: [`DECK_SIZE`] effects drawn evenly from
+/// [`deck_pool`], with replacement.
 ///
 /// [`DECK_SIZE`]: crate::constants::decks::DECK_SIZE
-/// [`REVERSED_MIN`]: crate::constants::decks::REVERSED_MIN
-/// [`REVERSED_MAX`]: crate::constants::decks::REVERSED_MAX
 pub fn roll_deck(rng: &mut ChaCha12Rng) -> Deck {
-    use crate::constants::decks::{DECK_SIZE, REVERSED_MAX, REVERSED_MIN};
-    use rand::seq::SliceRandom;
-    let mut cards: Vec<Card> = (0..DECK_SIZE)
-        .map(|_| Card {
-            row: CARDS[rng.gen_range(0..CARDS.len())],
-            reversed: false,
-        })
+    use crate::constants::decks::DECK_SIZE;
+    let pool = deck_pool();
+    let effects = (0..DECK_SIZE)
+        .map(|_| pool[rng.gen_range(0..pool.len())])
         .collect();
-    let flips = rng.gen_range(REVERSED_MIN..=REVERSED_MAX).min(DECK_SIZE);
-    let mut slots: Vec<usize> = (0..DECK_SIZE).collect();
-    slots.shuffle(rng);
-    for &i in &slots[..flips] {
-        cards[i].reversed = true;
-    }
-    Deck { cards }
+    Deck { effects }
 }
 
 /// Every kind of deck: there is one.
@@ -663,32 +600,32 @@ impl WandDef {
     }
 
     /// It deals damage, and thrown it is the grenade.
-    const fn attack(mut self) -> Self {
+    pub const fn attack(mut self) -> Self {
         self.attack = true;
         self.thrown = Thrown::GRENADE;
         self
     }
 
     /// Its damage carries `element`.
-    const fn element(mut self, element: Element) -> Self {
+    pub const fn element(mut self, element: Element) -> Self {
         self.element = Some(element);
         self
     }
 
     /// A zap bursts over [`BLAST_RADIUS`] where it is aimed.
-    const fn bursts(mut self) -> Self {
+    pub const fn bursts(mut self) -> Self {
         self.zap_radius = Some(BLAST_RADIUS);
         self
     }
 
     /// It takes no aim: zapping acts on the spot.
-    const fn unaimed(mut self) -> Self {
+    pub const fn unaimed(mut self) -> Self {
         self.needs_target = false;
         self
     }
 
     /// The reticle passes over a creature `wasted` says it would not change.
-    const fn wasted_on(mut self, wasted: fn(&World, Entity) -> bool) -> Self {
+    pub const fn wasted_on(mut self, wasted: fn(&World, Entity) -> bool) -> Self {
         self.wasted_on = wasted;
         self
     }
@@ -700,7 +637,7 @@ impl WandDef {
     }
 
     /// Never dropped: no floor ever rolls it.
-    const fn never_drops(mut self) -> Self {
+    pub const fn never_drops(mut self) -> Self {
         self.weight = 0;
         self
     }
@@ -823,7 +760,8 @@ pub struct WeaponDef {
 }
 
 impl WeaponDef {
-    const fn new(name: &'static str, color: Color, power_die: i32) -> Self {
+    /// A weapon row: its name, colour and the die it adds to the swing.
+    pub const fn new(name: &'static str, color: Color, power_die: i32) -> Self {
         Self {
             name,
             color,
@@ -843,59 +781,59 @@ impl WeaponDef {
 
     /// A weapon shaped to fly: it rolls `die` on impact rather than its own
     /// class, and behaves as a [`Projectile`].
-    const fn missile(mut self, die: i32) -> Self {
+    pub const fn missile(mut self, die: i32) -> Self {
         self.thrown_die = die;
         self.projectile = true;
         self
     }
 
     /// The throw does not stop at the first creature: it runs the whole line.
-    const fn piercing(mut self) -> Self {
+    pub const fn piercing(mut self) -> Self {
         self.piercing = true;
         self
     }
 
     /// The throw comes back to the thrower, hit or miss.
-    const fn returning(mut self) -> Self {
+    pub const fn returning(mut self) -> Self {
         self.returns = true;
         self
     }
 
     /// One throw strikes `n` creatures in all: the first in its way, then the
     /// nearest other one the thrower can see, and so on (see [`ChainHits`]).
-    const fn hits(mut self, n: u8) -> Self {
+    pub const fn hits(mut self, n: u8) -> Self {
         self.hits = n;
         self
     }
 
     /// A reach weapon, aimed rather than walked into: a bardiche, a whip.
-    const fn reach(mut self, tiles: i32) -> Self {
+    pub const fn reach(mut self, tiles: i32) -> Self {
         self.reach = tiles;
         self
     }
 
     /// The reach strike runs the whole line instead of stopping at the first
     /// body — a bardiche's polearm sweep, not a whip's single crack.
-    const fn reach_piercing(mut self) -> Self {
+    pub const fn reach_piercing(mut self) -> Self {
         self.reach_piercing = true;
         self
     }
 
     /// Marker effects the wielder gains while it's in hand.
-    const fn grants(mut self, grants: &'static [Grant]) -> Self {
+    pub const fn grants(mut self, grants: &'static [Grant]) -> Self {
         self.grants = grants;
         self
     }
 
     /// A one-shot fired the instant it goes on (see [`OnWear`]).
-    const fn on_wear(mut self, on_wear: OnWear) -> Self {
+    pub const fn on_wear(mut self, on_wear: OnWear) -> Self {
         self.on_wear = Some(on_wear);
         self
     }
 
     /// A one-shot fired the instant it is deliberately taken off again (see
     /// [`OnDoff`]).
-    const fn on_doff(mut self, on_doff: OnDoff) -> Self {
+    pub const fn on_doff(mut self, on_doff: OnDoff) -> Self {
         self.on_doff = Some(on_doff);
         self
     }
@@ -962,7 +900,7 @@ impl ItemDef for WeaponDef {
 /// ([`crate::constants::spells::TURBO_MAGIC_COST_MULT`] and
 /// `TURBO_MAGIC_POWER_MULT`), and neither multiplier appears anywhere on the
 /// HUD. See [`announce_not_wizard`] for the other end of it.
-fn announce_wizard(world: &mut World, wearer: Entity, _item: Entity) {
+pub fn announce_wizard(world: &mut World, wearer: Entity, _item: Entity) {
     if world.get::<Player>(wearer).is_none() {
         return;
     }
@@ -973,7 +911,7 @@ fn announce_wizard(world: &mut World, wearer: Entity, _item: Entity) {
 /// away ([`OnDoff`]). The multipliers leave with it, nothing on screen would
 /// otherwise say so, and a player about to cast at the price they got used to
 /// is owed the warning.
-fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
+pub fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
     if world.get::<Player>(wearer).is_none() {
         return;
     }
@@ -1515,37 +1453,37 @@ impl SpellDef {
     }
 
     /// It deals damage.
-    const fn attack(mut self) -> Self {
+    pub const fn attack(mut self) -> Self {
         self.kind = SpellKind::Attack;
         self
     }
 
     /// It opens the reticle, which reaches `range` tiles.
-    const fn aimed(mut self, range: i32) -> Self {
+    pub const fn aimed(mut self, range: i32) -> Self {
         self.range = range;
         self
     }
 
     /// It bursts over `radius` where it is aimed.
-    const fn bursts(mut self, radius: f32) -> Self {
+    pub const fn bursts(mut self, radius: f32) -> Self {
         self.blast = Some(radius);
         self
     }
 
     /// Its impacts chain up to `spread` tiles past the blast.
-    const fn spreads(mut self, spread: i32) -> Self {
+    pub const fn spreads(mut self, spread: i32) -> Self {
         self.spread = spread;
         self
     }
 
     /// It flies the line and stops at the first wall.
-    const fn line(mut self) -> Self {
+    pub const fn line(mut self) -> Self {
         self.line = true;
         self
     }
 
     /// The reticle passes over a creature `wasted` says it would not change.
-    const fn wasted_on(mut self, wasted: fn(&World, Entity) -> bool) -> Self {
+    pub const fn wasted_on(mut self, wasted: fn(&World, Entity) -> bool) -> Self {
         self.wasted_on = wasted;
         self
     }
@@ -1763,8 +1701,6 @@ pub static TREATS: &[&TreatDef] = &[
 /// spawns them through [`crate::spawn::spawn_named`], for which a name is the
 /// key. Placed by `map::population`.
 pub const PROGRESSION_ITEMS: &[&str] = &[
-    "platine coin",
-    "forge coin",
     "hero coin",
     "potion of healing",
     "potion of magic",
@@ -1799,68 +1735,24 @@ pub fn spawn_element_of_yoord(world: &mut World, pos: Position) -> Entity {
 // Spawning by name or effect
 // ---------------------------------------------------------------------------
 
-/// Looks a row up by name in `table`, panicking on a miss — callers pass string
-/// literals straight from the catalog, same as [`crate::MonsterDef::named`].
-/// The forgiving version, for callers holding a name they did not write
-/// themselves, is [`crate::spawn::spawn_named`].
-fn named<'a, D: ItemDef>(table: &'a [D], name: &str, kind: &str) -> &'a D {
-    table
-        .iter()
-        .find(|d| d.name() == name)
-        .unwrap_or_else(|| panic!("no {kind} named {name:?}"))
-}
-
-/// The ring called `name` on the floor at `pos`. Panics if [`RINGS`] has no
-/// such row; see [`spawn_weapon`].
-pub fn spawn_ring(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(RINGS, name, "ring").spawn(world, pos)
-}
-
 /// The ring row named `name`, for a save to find its ring by.
 pub fn ring_row(name: &str) -> Option<&'static RingDef> {
     RINGS.iter().copied().find(|row| row.name == name)
 }
 
-/// The weapon called `name` on the floor at `pos`. Panics if [`WEAPONS`] has no
-/// such row: pass a literal from the catalog, or go through
-/// [`crate::spawn::spawn_named`] for a name you did not write.
-pub fn spawn_weapon(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(WEAPONS, name, "weapon").spawn(world, pos)
-}
-
-/// The armour called `name` on the floor at `pos`. Panics if [`ARMORS`] has no
-/// such row; see [`spawn_weapon`].
-pub fn spawn_armor(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(ARMORS, name, "armor").spawn(world, pos)
-}
-
-/// One arrow or quarrel. Ammunition arrives in bundles from the dungeon floor
-/// ([`ItemDef::spawn_as_loot`]); this is the single unit tests and splits want.
-pub fn spawn_ammo(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(AMMO, name, "ammo").spawn(world, pos)
-}
-
-/// The bow or crossbow called `name` on the floor at `pos`. Panics if [`LAUNCHERS`]
-/// has no such row; see [`spawn_weapon`].
-pub fn spawn_launcher(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(LAUNCHERS, name, "launcher").spawn(world, pos)
-}
-
 /// A fresh single unit of whatever `item` is a stack of, spawned nowhere in
 /// particular — the one arrow that leaves a quiver when you shoot it, the one
-/// snack that leaves the bag when you throw it. `None` if
-/// `item` is not something the catalog knows how to make more of.
+/// snack that leaves the bag when you throw it. `None` if `item` is not ammunition
+/// or a treat.
 ///
-/// Re-rolling the row rather than copying the entity is the same trick the save
-/// file plays: a catalog row is the definition, so it is always cheaper to look
-/// one up by name than to remember what it said.
+/// The row comes off the stack itself ([`Ammo`], [`Treat`]), so the new unit is
+/// the same kind whatever the stack is called.
 pub fn split_one(world: &mut World, item: Entity) -> Option<Entity> {
-    let name = world.get::<Name>(item)?.what.clone();
-    let one = match AMMO.iter().find(|d| d.display_name() == name) {
-        Some(def) => def.spawn(world, Position { x: 0, y: 0 }),
-        None => TREATS
-            .iter()
-            .find(|d| d.display_name() == name)?
+    let one = match world.get::<Ammo>(item).map(|a| a.row) {
+        Some(row) => row.spawn(world, Position { x: 0, y: 0 }),
+        None => world
+            .get::<Treat>(item)
+            .map(|t| t.row)?
             .spawn(world, Position { x: 0, y: 0 }),
     };
     world.entity_mut(one).remove::<Position>();
@@ -1879,12 +1771,7 @@ pub(crate) fn content_id_of(display: &str) -> Option<&'static str> {
         .chain(AMMO.iter().map(|d| (d.display_name(), d.name)))
         .chain(LAUNCHERS.iter().map(|d| (d.display_name(), d.name)))
         .chain(TREATS.iter().map(|d| (d.display_name(), d.name)))
-        .chain(
-            BESTIARY
-                .iter()
-                .chain(SUMMONS)
-                .map(|m| (m.display_name(), m.name)),
-        );
+        .chain(BESTIARY.iter().map(|m| (m.display_name(), m.name)));
     ids.into_iter()
         .find(|(shown, _)| *shown == display)
         .map(|(_, id)| id)

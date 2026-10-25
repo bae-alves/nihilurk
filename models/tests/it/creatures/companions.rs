@@ -5,6 +5,7 @@
 use crate::common;
 use crate::common::monster;
 
+use crate::common::fixtures::{spawn_named, spawn_weapon};
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -196,7 +197,7 @@ fn a_helper_and_a_bag_of_snacks_survive_a_save() {
     let pal = monster::plain_monster(&mut w, "rat", at);
     recruit(&mut w, pal);
     for _ in 0..3 {
-        let snack = spawn_named(&mut w, "snack", Position { x: 0, y: 0 }).unwrap();
+        let snack = TREATS[0].spawn(&mut w, Position { x: 0, y: 0 });
         stow(&mut w, p, snack);
     }
 

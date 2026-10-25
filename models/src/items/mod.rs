@@ -13,7 +13,7 @@
 //! * [`throwing`] — hurling anything at anything, and what catches it
 //! * [`rings`] — the three rings whose effect is a verb rather than a number
 //! * [`pickups`] — coins: what happens the instant you step on one
-//! * [`decks`] — drawing a card off a deck, and playing a thrown one as a hand
+//! * [`decks`] — playing the top effect off a deck, and bursting a thrown one
 //!
 //! [`item_system`] is the single schedule step: it drains the use-queue, works
 //! out what kind of thing each queued item is, manages its physical existence
@@ -27,17 +27,17 @@
 //! verbs that put an affliction on or take one off are [`crate::conditions`].
 
 pub mod catalog;
-pub(crate) mod decks;
+pub mod decks;
 pub mod equipment;
 pub(crate) mod identify;
-pub(crate) mod pickups;
-pub(crate) mod potions;
-pub(crate) mod rings;
-pub(crate) mod scrolls;
-pub(crate) mod spells;
-mod theft;
-pub(crate) mod throwing;
-pub(crate) mod wands;
+pub mod pickups;
+pub mod potions;
+pub mod rings;
+pub mod scrolls;
+pub mod spells;
+pub mod theft;
+pub mod throwing;
+pub mod wands;
 
 pub use spells::{can_afford_spell, pay_for_spell, spell_cost, spell_system};
 pub use wands::{polymorph_player_into, wand_wasted_on};
@@ -54,16 +54,14 @@ pub(crate) use theft::theft;
 /// What a blast covers, for anything that must know before it lets one off.
 pub(crate) use wands::blast_cells;
 
-pub use decks::{Deal, Hand, Rank, score_hand};
-
 pub(crate) use scrolls::map_the_floor;
 /// One blast, resolved. A creature marked to burst when it dies
 /// ([`crate::effects::ExplodesOnDeath`]) lets one off through it.
 pub(crate) use wands::elemental_blast;
 
 pub use throwing::{
-    FrozenThrows, aim_footprint, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow,
-    thaw_into_pack, throw_reach, throw_refusal, throw_system, time_stopped, use_refusal,
+    aim_footprint, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, throw_reach,
+    throw_refusal, throw_system, use_refusal,
 };
 
 /// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a
@@ -79,10 +77,6 @@ pub use rings::{can_teleport_at_will, willed_teleport};
 /// coins that are spent where they lie. The input handler calls this and knows
 /// nothing about any of it.
 pub use pickups::{break_promises, pick_up, settle_promises};
-
-/// A coin claimed by shooting it rather than stepping on it — see
-/// [`crate::traps::detonate_pickup`].
-pub(crate) use pickups::claim_from_afar;
 
 /// A potion broken by a blast rather than drunk — thrown, or simply caught in
 /// somebody else's. See [`crate::traps::chain_react`].
@@ -239,8 +233,8 @@ struct UsePlan {
     /// [`DualZap`](crate::effects::DualZap) wearer with the charges to pay.
     casts: u8,
     scroll: Option<&'static crate::catalog::ScrollDef>,
-    /// The card just taken off the top of a deck.
-    card: Option<Card>,
+    /// The effect just taken off the top of a deck.
+    effect: Option<DeckEffect>,
     is_equipment: bool,
     destroy: bool,
     keep: bool,
@@ -271,8 +265,8 @@ fn plan_use(world: &mut World, user: Entity, item: Entity) -> UsePlan {
         plan.keep = battery.charges > 0;
     }
     if let Some(mut deck) = e.get_mut::<Deck>() {
-        plan.card = deck.cards.pop();
-        plan.destroy = deck.cards.is_empty();
+        plan.effect = deck.effects.pop();
+        plan.destroy = deck.effects.is_empty();
         plan.keep = !plan.destroy;
     }
     plan.destroy |= e.get::<Consume>().is_some();
@@ -301,7 +295,7 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         && plan.potion.is_none()
         && plan.wand.is_none()
         && plan.scroll.is_none()
-        && plan.card.is_none();
+        && plan.effect.is_none();
     if inert {
         let name = with_the(&item_label(world, item_use.item));
         world
@@ -314,7 +308,7 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         return_used_item(world, &item_use);
     }
     if plan.destroy {
-        if plan.card.is_none() {
+        if plan.effect.is_none() {
             log_destruction(world, item_use.item, &seen_name);
         }
         world.entity_mut(item_use.item).despawn();
@@ -338,9 +332,8 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
     if let Some(row) = plan.scroll {
         (row.apply)(world, item_use.user);
     }
-    if let Some(card) = plan.card {
-        let deck = (!plan.destroy).then_some(item_use.item);
-        decks::draw(world, item_use.user, deck, card);
+    if let Some(effect) = plan.effect {
+        decks::play(world, item_use.user, effect);
     }
 }
 

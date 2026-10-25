@@ -29,9 +29,9 @@ use crate::components::{
 use crate::conditions::snare;
 use crate::effects::{
     AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Clamped, ClampedBy, Cleaves,
-    ConfusingTouch, Freezing, Gorgon, Grant, HeavySwing, Momentum, Petrified,
-    Polymorphitis, Regenerates, RustsArmor, SelfDamageOnHit, Spiked, Splits, StealsAndVanishes,
-    Teleportitis, Vampiric, Venomous,
+    ConfusingTouch, Freezing, Gorgon, Grant, HeavySwing, Momentum, Petrified, Polymorphitis,
+    Regenerates, RustsArmor, SelfDamageOnHit, Spiked, Splits, StealsAndVanishes, Teleportitis,
+    Vampiric, Venomous,
 };
 use crate::equipment::{Slot, equipped_in};
 use crate::helpers::{adjacent_mobs, apply_damage, item_label};

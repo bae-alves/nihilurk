@@ -3,6 +3,7 @@
 //! dart-trap formula, a hero coin teaching a spell up to the
 //! four-slot cap, and a scroll of amnesia taking one back.
 
+use crate::common::fixtures::{coin_row, spawn_named, spell_row};
 use bevy_ecs::prelude::*;
 use models::constants::combat::BIDE_ATTACK_BONUS;
 use models::constants::spells::SPELLSET_CAP;

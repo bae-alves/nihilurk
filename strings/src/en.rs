@@ -1470,10 +1470,6 @@ pub fn pick_up_pickup(name: &str, line: &str) -> String {
     format!("You pick up the {name}. {line}")
 }
 
-pub fn coin_gives_itself_up(name: &str, line: &str) -> String {
-    format!("The {name} gives itself up to you. {line}")
-}
-
 pub fn coin_ledger() -> &'static str {
     "It goes straight into the ledger."
 }
@@ -2325,17 +2321,6 @@ pub fn quit_yes_key() -> char {
     'y'
 }
 
-pub fn time_stopped_not_saved() -> [&'static str; 2] {
-    [
-        "Time is stopped, so the game did not save",
-        "since you activated THE WORLD.",
-    ]
-}
-
-pub fn quit_really_sure() -> &'static str {
-    "REALLY sure?"
-}
-
 pub fn onboarding_keys() -> [&'static str; 3] {
     ["[hjklyubn] MOVE", "[o/TAB] EXPLORE/FIGHT", "[i] ITEMS"]
 }
@@ -2644,67 +2629,9 @@ pub fn equipped_suffix() -> &'static str {
     " (E)"
 }
 
-// ---------------------------------------------------------------------------
-// Decks of cards (models/src/items/decks.rs)
-// ---------------------------------------------------------------------------
-
-pub fn card_drawn(name: &str, reversed: bool) -> String {
-    match reversed {
-        false => format!("You draw {name}."),
-        true => format!("You draw {name}, reversed."),
-    }
-}
-
-pub fn card_chain_spent() -> &'static str {
-    "The cards run out of tricks."
-}
-
-pub fn card_dulls(name: &str) -> String {
-    format!("The {name} dulls with a grey flicker.")
-}
-
-pub fn card_bala() -> &'static str {
-    "The scales tip your way. And the deal is battle!"
-}
-
-pub fn card_bole() -> &'static str {
-    "Your skin goes hard as bark."
-}
-
-pub fn card_crit() -> &'static str {
-    "The Chariot rides with you. Every blow lands true."
-}
-
-pub fn card_oof() -> &'static str {
-    "The Chariot rides over you. Every blow will find you."
-}
-
-pub fn card_fool() -> &'static str {
-    "Nothing happens. The Fool grins."
-}
-
-pub fn card_world() -> &'static str {
-    "THE WORLD! Time stops."
-}
-
-pub const fn ends_time_stopped() -> &'static str {
-    "Time flows again."
-}
-
-pub fn card_wands_full() -> &'static str {
-    "Your wands hum, full to the brim."
-}
-
-pub fn card_wands_empty() -> &'static str {
-    "Your wands go cold and quiet."
-}
-
-pub fn card_no_ring() -> &'static str {
-    "The Princess looks for a ring and finds none."
-}
-
-pub fn card_no_stair() -> &'static str {
-    "The card points nowhere."
+// TODO: placeholder English; needs a human's pass.
+pub fn scroll_no_stair() -> &'static str {
+    "The scroll points nowhere."
 }
 
 pub fn scroll_to_stair(up: bool) -> &'static str {
@@ -2712,88 +2639,6 @@ pub fn scroll_to_stair(up: bool) -> &'static str {
         true => "The scroll whisks you to the stair up.",
         false => "The scroll whisks you to the stair down.",
     }
-}
-
-pub fn card_to_stair(up: bool) -> &'static str {
-    match up {
-        true => "A small hand leads you to the stair up.",
-        false => "A bony hand leads you to the stair down.",
-    }
-}
-
-pub fn card_seen(name: &str, reversed: bool) -> String {
-    match reversed {
-        false => name.to_string(),
-        true => format!("{name} (reversed)"),
-    }
-}
-
-pub fn card_eyes(names: &[String]) -> String {
-    format!("The deck holds, top first: {}.", names.join(", "))
-}
-
-pub fn card_eyes_nothing() -> &'static str {
-    "There is no deck left to see."
-}
-
-pub fn card_eyes_never_lie() -> &'static str {
-    "They really, really never lie."
-}
-
-pub fn card_excuse_nobody() -> &'static str {
-    "The excuse falls on no one."
-}
-
-pub fn card_jester_nothing() -> &'static str {
-    "The Jester shrugs. There is nothing left to play."
-}
-
-pub fn card_golden_wind() -> &'static str {
-    "A golden wind blows. The floor comes alive, on your side."
-}
-
-pub fn card_golden_wind_nothing() -> &'static str {
-    "A golden wind blows over a bare floor."
-}
-
-pub fn card_hand(hand: &str, points: i32) -> String {
-    format!("{hand} ({points} points)")
-}
-
-pub fn hand_anti_flush() -> &'static str {
-    "Anti-Flush"
-}
-
-pub fn hand_pair() -> &'static str {
-    "A Pair"
-}
-
-pub fn hand_two_pair() -> &'static str {
-    "Two Pair"
-}
-
-pub fn hand_three_of_a_kind() -> &'static str {
-    "Three of a Kind"
-}
-
-pub fn hand_full_house() -> &'static str {
-    "Full House"
-}
-
-pub fn hand_four_of_a_kind() -> &'static str {
-    "Four of a Kind"
-}
-
-pub fn hand_five_flush() -> &'static str {
-    "Five Flush!"
-}
-
-pub fn card_five_flush_gear() -> &'static str {
-    "Everything you wear burns white: +5, and no curse holds."
-}
-
-pub fn throw_hangs_in_the_air(name: &str) -> String {
-    format!("The {name} leaves your hand and stops in the air.")
 }
 
 pub fn ice_cube_name() -> &'static str {

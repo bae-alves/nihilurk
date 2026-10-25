@@ -143,43 +143,11 @@ pub struct Typhon;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Echidna;
 
-/// The Balance (a deck card): [`BALA_POWER`] more on every damage roll this
-/// creature makes, for the floor. Shown in the HUD as `BALA`.
-///
-/// [`BALA_POWER`]: crate::constants::decks::BALA_POWER
-#[derive(Component, Default, Clone, Copy)]
-pub struct Bala;
-
-/// The Bole (a deck card): [`BOLE_ARMOR`] more on every armour roll this
-/// creature makes, for the floor. Shown in the HUD as `BOLE`.
-///
-/// [`BOLE_ARMOR`]: crate::constants::decks::BOLE_ARMOR
-#[derive(Component, Default, Clone, Copy)]
-pub struct Bole;
-
-/// VII THE CHARIOT (a deck card): every melee blow this creature lands is an
-/// excellent hit, for the floor. Shown in the HUD as `CRT!`.
-#[derive(Component, Default, Clone, Copy)]
-pub struct Crit;
-
-/// VII THE CHARIOT, reversed: every melee blow this creature takes is an
-/// excellent hit, for the floor. Shown in the HUD as `OOF!`.
-#[derive(Component, Default, Clone, Copy)]
-pub struct Oof;
-
 /// A charge's price: every melee blow this creature takes lands
 /// [`VULN_DAMAGE_PERCENT`](crate::constants::combat::VULN_DAMAGE_PERCENT) harder,
 /// until the creatures have had their turn. Shown in the HUD as `VULN`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Vuln;
-
-/// XXII THE WORLD (a deck card): while the player holds this, nothing else on
-/// the floor moves (`crate::ai::ai` stands down) and whatever the player throws
-/// hangs in the air until it ends, save a returning weapon
-/// ([`crate::components::Returns`]), which flies as ever. Shown in the HUD as
-/// `WRLD`.
-#[derive(Component, Default, Clone, Copy)]
-pub struct TimeStopped;
 
 /// One of the shapes a twice-polymorphed creature settles into.
 pub struct FormDef {

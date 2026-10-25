@@ -3,6 +3,7 @@
 use crate::common;
 use crate::common::monster;
 
+use crate::common::fixtures::{spawn_named, spell_row};
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -80,14 +81,16 @@ fn round_trip() {
         w3.despawn(e);
     }
     let pos = Position { x: 5, y: 5 };
-    let vorpal_sword = spawn_weapon(&mut w3, "long sword", pos);
+    let (sword, plate) = (&WEAPONS[0], &ARMORS[0]);
+    let (scroll, ring) = (SCROLLS[0], RINGS[0]);
+    let vorpal_sword = sword.spawn(&mut w3, pos);
     w3.entity_mut(vorpal_sword).insert(Vorpal {
         bane: "dragon".into(),
     });
-    let cursed_armor = spawn_armor(&mut w3, "plate mail", pos);
+    let cursed_armor = plate.spawn(&mut w3, pos);
     w3.entity_mut(cursed_armor).insert(Curse);
-    spawn_named(&mut w3, "scroll of magic mapping", pos).unwrap();
-    spawn_ring(&mut w3, "ring of regeneration", pos);
+    scroll.spawn(&mut w3, pos);
+    ring.spawn(&mut w3, pos);
     spawn_element_of_yoord(&mut w3, pos);
     let save3 = common::SaveFile::new("gear");
     let p3 = save3.path();
@@ -99,16 +102,7 @@ fn round_trip() {
     w4.init_resource::<GameLog>();
     w4.insert_resource(PlayerName { what: "Z".into() });
     load_game(&mut w4, p3).unwrap();
-    let sword_die = WEAPONS
-        .iter()
-        .find(|d| d.name == "long sword")
-        .unwrap()
-        .power_die;
-    let plate_die = ARMORS
-        .iter()
-        .find(|d| d.name == "plate mail")
-        .unwrap()
-        .armor_die;
+    let (sword_die, plate_die) = (sword.power_die, plate.armor_die);
     assert_eq!(
         w4.query::<&PowerDie>()
             .iter(&w4)
@@ -128,14 +122,14 @@ fn round_trip() {
             .iter(&w4)
             .map(|s| s.row.name)
             .collect::<Vec<_>>(),
-        vec!["scroll of magic mapping"],
+        vec![scroll.name],
     );
     assert_eq!(
         w4.query::<&Ring>()
             .iter(&w4)
             .map(|r| r.row.name)
             .collect::<Vec<_>>(),
-        vec!["ring of regeneration"],
+        vec![ring.name],
     );
     assert_eq!(w4.query::<&Amulet>().iter(&w4).count(), 1);
     assert_eq!(w4.query::<&Curse>().iter(&w4).count(), 1);
@@ -180,10 +174,15 @@ fn equipped_gear_stays_on_across_a_save() {
         w.despawn(e);
     }
     let here = *w.get::<Position>(hero).unwrap();
-    let ring = spawn_ring(&mut w, "ring of perception", here);
+    let ring_row = RINGS
+        .iter()
+        .find(|r| !r.grants.is_empty())
+        .expect("a ring that lends an effect");
+    let lends = ring_row.grants[0];
+    let ring = ring_row.spawn(&mut w, here);
     assert!(toggle_equipped(&mut w, hero, ring));
-    assert!(w.get::<SeesInvisible>(hero).is_some());
-    let dagger = spawn_weapon(&mut w, "dagger", here);
+    assert!(lends.probe(&w, hero));
+    let dagger = WEAPONS[0].spawn(&mut w, here);
     let orc = monster::monster(&mut w, "test monster", here);
     assert!(equip_silently(&mut w, orc, dagger));
 
@@ -208,17 +207,17 @@ fn equipped_gear_stays_on_across_a_save() {
     let worn = equipped_in(&w2, hero2, Slot::Finger).expect("the ring stayed on");
     assert_eq!(
         w2.get::<Ring>(worn).map(|r| r.row.name),
-        Some("ring of perception")
+        Some(ring_row.name)
     );
     assert!(
-        w2.get::<SeesInvisible>(hero2).is_some(),
+        lends.probe(&w2, hero2),
         "the ring's loaned effect did not come back with the ring"
     );
     assert_eq!(loadout(&w2, hero2), before);
     let held = equipped_in(&w2, orc2, Slot::Hand).expect("the orc kept its dagger");
     assert_eq!(
         w2.get::<Name>(held).map(|n| n.what.as_str()),
-        Some("dagger")
+        Some(WEAPONS[0].name)
     );
 }
 

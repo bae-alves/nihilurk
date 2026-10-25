@@ -4,6 +4,7 @@
 //! `crate::common`. `tests/effects.rs`, a binary of its own, borrows
 //! `monster.rs` by path.
 
+pub mod fixtures;
 pub mod monster;
 
 use std::path::PathBuf;

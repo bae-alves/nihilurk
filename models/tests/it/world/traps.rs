@@ -5,6 +5,7 @@
 
 use crate::common;
 
+use crate::common::fixtures::{spawn_named, spawn_ring};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::constants::traps::TRAP_BREAK_CHANCE;
@@ -184,11 +185,12 @@ fn a_bear_trap_blocks_your_feet_not_your_fists() {
 // Arrow — the miss drops loot
 // ---------------------------------------------------------------------------
 
-/// Arrows lying on one tile.
+/// Spent arrows lying on one tile: the trap's drop is a plain item worth a
+/// couple of points.
 fn arrows_on(w: &mut World, spot: Position) -> usize {
-    w.query_filtered::<(&Position, &Name), With<Item>>()
+    w.query_filtered::<&Position, (With<Item>, With<Value>)>()
         .iter(w)
-        .filter(|(pos, n)| n.what == "arrow" && (pos.x, pos.y) == (spot.x, spot.y))
+        .filter(|pos| (pos.x, pos.y) == (spot.x, spot.y))
         .count()
 }
 
@@ -465,8 +467,10 @@ fn traps_and_snares_survive_a_save_and_reload() {
     clear_traps(&mut w);
     let p = player(&mut w);
 
-    spawn_named(&mut w, "teleport trap", Position { x: 10, y: 5 }).unwrap();
-    let known = spawn_named(&mut w, "arrow trap", Position { x: 12, y: 5 }).unwrap();
+    let (hidden_row, known_row) = (TRAPS[0], TRAPS[1]);
+    let at = |row, x| TrapBundle::from_def(row, TrapReveal::Sight, Position { x, y: 5 });
+    w.spawn(at(hidden_row, 10));
+    let known = w.spawn(at(known_row, 12)).id();
     w.entity_mut(known).remove::<Hidden>();
     w.get_mut::<Trap>(known).unwrap().revealed = true;
     const OUT_FOR: u32 = 4;
@@ -485,15 +489,17 @@ fn traps_and_snares_survive_a_save_and_reload() {
 
     let mut names: Vec<&str> = w2.query::<&Trap>().iter(&w2).map(|t| t.row.name).collect();
     names.sort();
-    assert_eq!(names, vec!["arrow trap", "teleport trap"]);
+    let mut want = vec![hidden_row.name, known_row.name];
+    want.sort();
+    assert_eq!(names, want);
 
     let revealed = w2
         .query::<(&Trap, Option<&Hidden>)>()
         .iter(&w2)
-        .find(|(t, _)| t.row.name == TrapDef::lookup("arrow trap").unwrap().name)
+        .find(|(t, _)| t.row.name == known_row.name)
         .map(|(t, h)| (t.revealed, h.is_some()))
         .unwrap();
-    assert_eq!(revealed, (true, false), "the known arrow trap stays known");
+    assert_eq!(revealed, (true, false), "the known trap stays known");
 
     let reloaded = w2.query_filtered::<Entity, With<Player>>().single(&w2);
     assert!(w2.get::<Asleep>(reloaded).is_some(), "woke up on load");

@@ -4,33 +4,7 @@
 
 use bevy_ecs::prelude::*;
 use models::constants::loot::{AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN};
-use models::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 use models::*;
-
-fn test_world(seed: u64) -> World {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
-    w.insert_resource(RngSeed(seed));
-    w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    initialize_world(&mut w);
-    w
-}
-
-fn descend(w: &mut World) {
-    let down = w
-        .resource::<Map>()
-        .tiles
-        .iter()
-        .position(|&t| t == TileType::Downstairs)
-        .unwrap();
-    let p = w.query_filtered::<Entity, With<Player>>().single(w);
-    w.get_mut::<Position>(p).unwrap().x = (down % MAP_WIDTH as usize) as u16;
-    w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
-    assert!(change_level(w, true));
-}
 
 #[derive(Default, Debug)]
 struct Tally {
@@ -170,49 +144,4 @@ fn rolled_loot_follows_the_rogue_drop_table() {
         (min..=max).contains(&per_bundle),
         "a bundle averaged {per_bundle:.1} arrows, outside {min}..={max} (tally: {t:?})"
     );
-}
-
-/// Every loose item on the current floor by name, on the same terms as
-/// [`floor_item_count`].
-fn floor_item_names(w: &mut World) -> Vec<String> {
-    let carried: std::collections::HashSet<Entity> = w
-        .query_filtered::<&Backpack, With<Player>>()
-        .single(w)
-        .items
-        .iter()
-        .copied()
-        .collect();
-    w.query_filtered::<(Entity, &Name, Option<&Equipped>), (With<Item>, With<Position>)>()
-        .iter(w)
-        .filter(|(e, _, eq)| !carried.contains(e) && !eq.is_some_and(|eq| eq.by.is_some()))
-        .map(|(_, name, _)| name.what.clone())
-        .collect()
-}
-
-#[test]
-fn every_floor_is_stocked_with_its_guaranteed_finds() {
-    for seed in 0..20u64 {
-        let mut w = test_world(seed);
-        while w.resource::<Depth>().what <= *DIFFICULTY_TIER_LAST_DEPTH.last().unwrap() {
-            let depth = w.resource::<Depth>().what;
-            let names = floor_item_names(&mut w);
-            let parity = match depth % 2 {
-                1 => "blue coin",
-                _ => "red coin",
-            };
-            assert!(
-                names.iter().any(|n| n == parity),
-                "seed {seed}, depth {depth}: no {parity}"
-            );
-            if DIFFICULTY_TIER_LAST_DEPTH.contains(&depth) {
-                assert!(
-                    names
-                        .iter()
-                        .any(|n| PROGRESSION_ITEMS.contains(&n.as_str())),
-                    "seed {seed}, depth {depth}: nothing from the progression pool"
-                );
-            }
-            descend(&mut w);
-        }
-    }
 }

@@ -1,7 +1,7 @@
 //! What lives in the dungeon: bodies, the bestiary, and the parts that make one
 //! creature act differently from another.
 //!
-//! * `monsters` — the bestiary table (`BESTIARY`, `SUMMONS`) and how a row spawns.
+//! * `monsters` — the bestiary table (`BESTIARY`) and how a row spawns.
 //! * `body` — the playable bodies (`-b`, `-am`).
 //! * `abilities` — the effects that act on their own, one table row each.
 //! * `conditions` — what a creature is afflicted with, and lifting it.

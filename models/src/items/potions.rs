@@ -33,7 +33,7 @@ use crate::particles::BlastPalette;
 
 /// Potion of healing: refills HP and raises max HP for good, so one drunk at
 /// full health is not wasted.
-pub(crate) fn healing(world: &mut World, user: Entity) -> bool {
+pub fn healing(world: &mut World, user: Entity) -> bool {
     heal_fully(
         world,
         user,
@@ -43,7 +43,7 @@ pub(crate) fn healing(world: &mut World, user: Entity) -> bool {
 }
 
 /// Potion of extra healing: the same, raising max HP by more.
-pub(crate) fn extra_healing(world: &mut World, user: Entity) -> bool {
+pub fn extra_healing(world: &mut World, user: Entity) -> bool {
     heal_fully(
         world,
         user,
@@ -53,7 +53,7 @@ pub(crate) fn extra_healing(world: &mut World, user: Entity) -> bool {
 }
 
 /// Potion of confusion ([`confuse`]).
-pub(crate) fn confusion(world: &mut World, user: Entity) -> bool {
+pub fn confusion(world: &mut World, user: Entity) -> bool {
     confuse(
         world,
         user,
@@ -65,18 +65,18 @@ pub(crate) fn confusion(world: &mut World, user: Entity) -> bool {
 
 /// Potion of fruit juice: nothing happens, and it reports nothing, so a thrown
 /// one never gives itself away.
-pub(crate) fn fruit_juice(world: &mut World, user: Entity) -> bool {
+pub fn fruit_juice(world: &mut World, user: Entity) -> bool {
     flavour(world, user, strings::potion_fruit_juice())
 }
 
 /// Plain water, what a wand of cancellation leaves of a potion. Reports
 /// nothing, like [`fruit_juice`].
-pub(crate) fn water(world: &mut World, user: Entity) -> bool {
+pub fn water(world: &mut World, user: Entity) -> bool {
     flavour(world, user, strings::potion_water())
 }
 
 /// Potion of polymorph: the wand of polymorph, drunk.
-pub(crate) fn polymorph(world: &mut World, user: Entity) -> bool {
+pub fn polymorph(world: &mut World, user: Entity) -> bool {
     super::wands::polymorph_entity(world, user);
     true
 }
@@ -84,7 +84,7 @@ pub(crate) fn polymorph(world: &mut World, user: Entity) -> bool {
 /// Resets the drinker's [`Alignment`] to the middle point — the one way back
 /// down from a pole that isn't starting a new run. Player-only, like
 /// [`raise_level`]: a monster that swallows this has nothing to adjust.
-pub(crate) fn adjustment(world: &mut World, user: Entity) -> bool {
+pub fn adjustment(world: &mut World, user: Entity) -> bool {
     if world.get::<Player>(user).is_none() {
         return false;
     }
@@ -108,7 +108,7 @@ pub(crate) fn adjustment(world: &mut World, user: Entity) -> bool {
 ///
 /// `false` if `potion` was already gone or carried no [`Position`] — nothing
 /// left to break.
-pub(crate) fn detonate_potion(world: &mut World, potion: Entity, shooter: Option<Entity>) -> bool {
+pub fn detonate_potion(world: &mut World, potion: Entity, shooter: Option<Entity>) -> bool {
     let Some(row) = world.get::<Potion>(potion).map(|p| p.row) else {
         return false;
     };
@@ -164,7 +164,7 @@ fn heal_fully(world: &mut World, user: Entity, max_hp_gain: i32, player_line: &s
 /// Potion of gain strength: a point of attack die, floor and ceiling both, so a
 /// later potion of restore strength restores the *new* peak rather than the old
 /// one.
-pub(crate) fn gain_strength(world: &mut World, user: Entity) -> bool {
+pub fn gain_strength(world: &mut World, user: Entity) -> bool {
     let Some(mut fighter) = world.get_mut::<Fighter>(user) else {
         return false;
     };
@@ -183,7 +183,7 @@ pub(crate) fn gain_strength(world: &mut World, user: Entity) -> bool {
 /// Potion of magic: the pool back to full and a point of ceiling with it, the
 /// same bargain gain strength offers the arm. Only the player carries
 /// [`Magic`], so a monster that swallows one has swallowed nothing.
-pub(crate) fn gain_magic(world: &mut World, user: Entity) -> bool {
+pub fn gain_magic(world: &mut World, user: Entity) -> bool {
     let Some(mut magic) = world.get_mut::<Magic>(user) else {
         return false;
     };
@@ -202,7 +202,7 @@ pub(crate) fn gain_magic(world: &mut World, user: Entity) -> bool {
 /// Potion of poison: takes the strength back out of the drinker's arm and does
 /// not give it back. [`POISON_POWER_FLOOR`] keeps them armed, barely; a potion
 /// of restore strength is the only cure.
-pub(crate) fn poison(world: &mut World, user: Entity) -> bool {
+pub fn poison(world: &mut World, user: Entity) -> bool {
     let Some(mut fighter) = world.get_mut::<Fighter>(user) else {
         return false;
     };
@@ -221,7 +221,7 @@ pub(crate) fn poison(world: &mut World, user: Entity) -> bool {
 
 /// Potion of restore strength: back up to [`Fighter::max_power`], undoing every
 /// poisoned dart and every potion of poison at once.
-pub(crate) fn restore_strength(world: &mut World, user: Entity) -> bool {
+pub fn restore_strength(world: &mut World, user: Entity) -> bool {
     let Some(mut fighter) = world.get_mut::<Fighter>(user) else {
         return false;
     };
@@ -256,7 +256,7 @@ pub(crate) fn restore_strength(world: &mut World, user: Entity) -> bool {
 /// only ([`crate::effects::Lifetime::Floor`]). Like the ring it is retroactive —
 /// the phantom stalking you and the invisible stash two rooms over both turn up
 /// the moment the visibility system next runs.
-pub(crate) fn see_invisible(world: &mut World, user: Entity) -> bool {
+pub fn see_invisible(world: &mut World, user: Entity) -> bool {
     let already = world.get::<SeesInvisible>(user).is_some();
     grant_for_floor(world, user, Grant::of::<SeesInvisible>());
     if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
@@ -283,7 +283,7 @@ pub(crate) fn see_invisible(world: &mut World, user: Entity) -> bool {
 /// drawn dimly wherever it stands until the player leaves the floor. They are
 /// sensed, not watched: the glyphs mark positions at the moment of drinking and
 /// no sighting is announced.
-pub(crate) fn detect_monsters(world: &mut World, user: Entity) -> bool {
+pub fn detect_monsters(world: &mut World, user: Entity) -> bool {
     if world.get::<Player>(user).is_none() {
         return false;
     }
@@ -307,7 +307,7 @@ pub(crate) fn detect_monsters(world: &mut World, user: Entity) -> bool {
 /// with a type-key — potion, scroll, wand, ring — qualifies; a weapon or a suit
 /// of armour only registers once there is something magic about it, which is
 /// the thing worth knowing in advance ([`worth_detecting`]).
-pub(crate) fn detect_magic(world: &mut World, user: Entity) -> bool {
+pub fn detect_magic(world: &mut World, user: Entity) -> bool {
     if world.get::<Player>(user).is_none() {
         return false;
     }
@@ -340,7 +340,7 @@ pub(crate) fn detect_magic(world: &mut World, user: Entity) -> bool {
 /// detection turns up precisely what this rejects (see
 /// `super::scrolls::detect_mundane_items`), so between them they find
 /// everything on the floor exactly once.
-pub(super) fn worth_detecting(world: &World, item: Entity) -> bool {
+pub fn worth_detecting(world: &World, item: Entity) -> bool {
     let keyed = world.get::<Potion>(item).is_some()
         || world.get::<Scroll>(item).is_some()
         || world.get::<Wand>(item).is_some()
@@ -361,7 +361,7 @@ pub(super) fn worth_detecting(world: &World, item: Entity) -> bool {
 /// the moment the player walked into the room. A ring of perception already
 /// turns a stash up for good ([`crate::visibility`]); a sense that reached the
 /// whole floor doing less than that would be the strange one.
-pub(super) fn detect_item(world: &mut World, item: Entity) {
+pub fn detect_item(world: &mut World, item: Entity) {
     crate::effects::lend(world, item, Grant::of::<Detected>(), Lifetime::Floor);
     world.entity_mut(item).remove::<Hidden>();
     world.entity_mut(item).remove::<Invisible>();
@@ -370,7 +370,7 @@ pub(super) fn detect_item(world: &mut World, item: Entity) {
 /// Whether `item` is the Element of Yoord. The one thing in the dungeon that
 /// both detections find: it is the run, and no sense that reaches across a
 /// floor is going to miss it on a technicality about what counts as magic.
-pub(super) fn is_the_relic(world: &World, item: Entity) -> bool {
+pub fn is_the_relic(world: &World, item: Entity) -> bool {
     world.get::<Amulet>(item).is_some()
 }
 
@@ -387,7 +387,7 @@ pub(super) fn is_the_relic(world: &World, item: Entity) -> bool {
 /// alternate victory, and the reason a potion of raise level is worth hoarding
 /// rather than drinking to find out what it is. Without it there is nothing up
 /// there to rise *to*, and the dungeon finds that funny.
-pub(crate) fn raise_level(world: &mut World, user: Entity) -> bool {
+pub fn raise_level(world: &mut World, user: Entity) -> bool {
     if world.get::<Player>(user).is_none() {
         return false;
     }

@@ -1,6 +1,7 @@
 //! The pack's Info row: what an item tells you about itself, and what it must
 //! not tell you before you have earned it.
 
+use crate::common::fixtures::spawn_named;
 use bevy_ecs::prelude::*;
 use models::*;
 

@@ -32,6 +32,7 @@
 //! row to bud from. The tests that need a split take a name off the table at
 //! runtime instead of inventing one.
 
+use crate::common::fixtures::spell_row;
 use bevy_ecs::prelude::*;
 use fixedbitset::FixedBitSet;
 use models::*;

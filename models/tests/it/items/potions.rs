@@ -4,6 +4,7 @@
 
 use crate::common::monster;
 
+use crate::common::fixtures::{potion_row, spawn_armor, spawn_named, spawn_weapon};
 use bevy_ecs::prelude::*;
 use models::*;
 

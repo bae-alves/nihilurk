@@ -111,7 +111,7 @@ Every other category's share shrinks in proportion to pay for the new one. No ot
 Step 5: make it do something
 ----------------------------
 
-Using an item goes through `item_system` in `models/src/items/mod.rs`. `plan_use` reads the row off each component that holds one (`Potion`, `Wand`, `Scroll`, a `Deck`'s top card) into a `UsePlan`, and `resolve_use` calls that row's handler. Add yours the same way: a `food` field on `UsePlan`, set from `Food` in `plan_use`, and one line in `resolve_use` that calls `(row.eat)(world, item_use.user)`. `Consume` on the entity already makes the use spend it. The pack's menus pick it up too: `PackMode::Browse` and `PackMode::Use` admit everything.
+Using an item goes through `item_system` in `models/src/items/mod.rs`. `plan_use` reads the row off each component that holds one (`Potion`, `Wand`, `Scroll`, a `Deck`'s top effect) into a `UsePlan`, and `resolve_use` calls that row's handler. Add yours the same way: a `food` field on `UsePlan`, set from `Food` in `plan_use`, and one line in `resolve_use` that calls `(row.eat)(world, item_use.user)`. `Consume` on the entity already makes the use spend it. The pack's menus pick it up too: `PackMode::Browse` and `PackMode::Use` admit everything.
 
 
 Step 6: teach the save file

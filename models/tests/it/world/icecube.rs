@@ -3,6 +3,7 @@
 
 use crate::common::monster;
 
+use crate::common::fixtures::{spawn_named, spell_row};
 use bevy_ecs::prelude::*;
 use models::constants::traps::{TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES};
 use models::*;

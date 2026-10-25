@@ -1,6 +1,7 @@
 //! MEGACURSED gear: a small share of cursed drops that no scroll, demon or
 //! card can lift or destroy. Only a suit taking the killing blow still goes.
 
+use crate::common::fixtures::{ring_row, spawn_armor, spawn_named, spawn_weapon};
 use bevy_ecs::prelude::*;
 use models::constants::loot::{MEGACURSED_BONUS_MAX, MEGACURSED_BONUS_MIN};
 use models::constants::rings::{

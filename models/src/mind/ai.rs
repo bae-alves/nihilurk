@@ -51,14 +51,6 @@ use crate::constants::rings::STEALTH_RANGE;
 /// merely unprocessed yet — the disguise gate this loop reads for
 /// `MovementType::Ambush` depends on that being settled first.
 pub fn ai(world: &mut World) {
-    if world
-        .query_filtered::<(), (With<Player>, With<crate::effects::TimeStopped>)>()
-        .iter(world)
-        .next()
-        .is_some()
-    {
-        return;
-    }
     #[allow(clippy::type_complexity)]
     let Some((player_entity, player_pos, visible_tiles, player_blind, player_faction)) = ({
         let mut q = world

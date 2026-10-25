@@ -185,23 +185,6 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     }
 }
 
-/// Saves the run to `path` the moment time stops or starts again, and only
-/// then: `stopped` is whether it was stopped last time this was asked. No save
-/// is written while THE WORLD holds, so quitting inside it loses those turns
-/// (see [`answer_quit_prompt`]). A failed save says so in the log.
-pub(crate) fn save_on_time_edge(world: &mut World, stopped: &mut bool, path: &std::path::Path) {
-    let now = models::time_stopped(world);
-    if now == *stopped {
-        return;
-    }
-    *stopped = now;
-    if let Err(e) = models::save_game(world, path) {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::failed_to_save_game(&e.to_string()));
-    }
-}
-
 /// Everything [`process_input_and_update`] does once it is holding a key:
 /// Ctrl+C, the rule that no other Ctrl key does anything (Ctrl+Alt is how
 /// Windows reports AltGr, so it passes), the `--MORE--` gate, the universal
@@ -320,7 +303,6 @@ fn close_all_modals(world: &mut World) -> bool {
     let mut quit = world.resource_mut::<QuitPrompt>();
     if quit.open {
         quit.open = false;
-        quit.warned = false;
         closed = true;
     }
     let mut help = world.resource_mut::<HelpMenu>();
@@ -341,23 +323,14 @@ fn close_all_modals(world: &mut World) -> bool {
 /// back to the dungeon, and anything else is ignored rather than guessed at.
 /// Never spends a turn. (`x` and `X` also cancel, via `close_all_modals`
 /// upstream — the prompt is a modal like any other.)
-///
-/// With time stopped the first `y` only warns: nothing has been saved since
-/// THE WORLD began ([`save_on_time_edge`]), and quitting now loses those
-/// turns. A second `y` quits.
 fn answer_quit_prompt(world: &mut World, key: KeyEvent) -> bool {
     match key.code {
         KeyCode::Char(c) if [strings::quit_yes_key(), 'y'].contains(&c.to_ascii_lowercase()) => {
-            let warn = !world.resource::<QuitPrompt>().warned && models::time_stopped(world);
-            let mut quit = world.resource_mut::<QuitPrompt>();
-            quit.warned = warn;
-            quit.open = warn;
-            world.resource_mut::<GameState>().is_running = warn;
+            world.resource_mut::<QuitPrompt>().open = false;
+            world.resource_mut::<GameState>().is_running = false;
         }
         KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-            let mut quit = world.resource_mut::<QuitPrompt>();
-            quit.open = false;
-            quit.warned = false;
+            world.resource_mut::<QuitPrompt>().open = false;
         }
         _ => {}
     }
@@ -1998,6 +1971,8 @@ fn fast_move_done(world: &mut World, target: Option<(u16, u16)>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::fixtures::{spawn_named, spawn_weapon, spell_row};
+
     /// Plans a step, then lets the schedule's first step apply it, the way
     /// a real turn does.
     fn step(w: &mut World, dx: i16, dy: i16) -> bool {
@@ -2106,75 +2081,6 @@ mod tests {
                 "swims = {swims}: the step into the water went the wrong way"
             );
         }
-    }
-
-    /// Tab-fire was the one aiming path that never checked its reach: the
-    /// cursor UI clamps every other one. The floor's own monsters are cleared
-    /// out first, because `auto_fight_target` picks the lowest-HP foe in sight
-    /// and any of them would outrank a planted dummy — leaving the dummy the
-    /// provable target rather than a seed's good luck.
-    #[test]
-    fn tab_with_a_launcher_refuses_targets_outside_throw_range() {
-        let mut w = test_world(2100);
-        let player = player_entity(&mut w);
-        let bow = spawn_launcher(&mut w, "short bow", Position { x: 0, y: 0 });
-        let arrow = spawn_ammo(&mut w, "arrow", Position { x: 0, y: 0 });
-        {
-            let mut backpack = w.get_mut::<Backpack>(player).unwrap();
-            backpack.items.push(arrow);
-        }
-        toggle_equipped(&mut w, player, bow);
-
-        let floor_mobs: Vec<Entity> = w
-            .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
-            .iter(&w)
-            .collect();
-        for mob in floor_mobs {
-            w.despawn(mob);
-        }
-
-        let start = player_pos(&mut w);
-        let dummy = w
-            .spawn((
-                Name {
-                    what: "dummy".into(),
-                },
-                Mob {
-                    movement_type: MovementType::Static,
-                },
-                Position {
-                    x: (start.x as i32 + LAUNCHER_RANGE + 1) as u16,
-                    y: start.y,
-                },
-                Fighter {
-                    hp: 5,
-                    max_hp: 5,
-                    armor: 0,
-                    power: 1,
-                    max_power: 1,
-                    armor_bonus: 0,
-                    power_bonus: 0,
-                },
-                Faction::Monster,
-                Blood,
-            ))
-            .id();
-        assert_eq!(
-            models::autofight::auto_fight_target(&mut w),
-            Some(dummy),
-            "the fixture is not aiming at the dummy it planted"
-        );
-
-        w.resource_mut::<GameLog>().unread.clear();
-        let turn = ranged_auto_fight(&mut w, player);
-        assert!(!turn, "out-of-range auto-fire still spent a turn");
-        assert!(
-            w.resource::<GameLog>()
-                .unread
-                .iter()
-                .any(|line| line == "Out of range."),
-            "auto-fire did not reject an out-of-range target"
-        );
     }
 
     /// A wielded boomerang, with nothing else on the floor to fight.
@@ -2389,47 +2295,6 @@ mod tests {
     // -----------------------------------------------------------------------
     // The x / X escape hatch
     // -----------------------------------------------------------------------
-
-    fn esc() -> KeyEvent {
-        KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)
-    }
-
-    fn stop_time(w: &mut World) {
-        let player = player_entity(w);
-        lend(w, player, Grant::of::<TimeStopped>(), Lifetime::Floor);
-    }
-
-    #[test]
-    fn a_no_to_the_time_stopped_warning_starts_the_ask_over() {
-        let mut w = modal_world(11);
-        stop_time(&mut w);
-        for key in [esc(), press('y'), press('n'), esc(), press('y')] {
-            dispatch_key(&mut w, key).unwrap();
-        }
-        assert!(w.resource::<GameState>().is_running);
-        assert!(w.resource::<QuitPrompt>().warned);
-    }
-
-    #[test]
-    fn the_run_saves_as_time_stops_and_as_it_starts_again_and_never_between() {
-        let mut w = modal_world(13);
-        let path = std::env::temp_dir().join(format!("nihilurk-wrld-{}.sav", std::process::id()));
-        let mut stopped = false;
-        let saved = |w: &mut World, stopped: &mut bool| {
-            let _ = std::fs::remove_file(&path);
-            save_on_time_edge(w, stopped, &path);
-            std::fs::remove_file(&path).is_ok()
-        };
-
-        assert!(!saved(&mut w, &mut stopped), "time running: no save");
-        stop_time(&mut w);
-        assert!(saved(&mut w, &mut stopped), "THE WORLD drawn: save");
-        assert!(!saved(&mut w, &mut stopped), "time stopped: no save");
-        let player = player_entity(&mut w);
-        revoke(&mut w, player, Grant::of::<TimeStopped>());
-        assert!(saved(&mut w, &mut stopped), "THE WORLD over: save");
-        assert!(!saved(&mut w, &mut stopped));
-    }
 
     #[test]
     fn lowercase_x_on_the_bare_map_reaches_the_swap() {
@@ -2724,7 +2589,7 @@ mod tests {
             y: here.y,
         };
         mob_at(&mut w, far);
-        models::spawn_named(&mut w, "dagger", near).unwrap();
+        spawn_named(&mut w, "dagger", near).unwrap();
         begin_look(&mut w).unwrap();
         let ts = w.resource::<TargetingState>();
         assert_eq!((ts.cursor_x, ts.cursor_y), (near.x as i16, near.y as i16));
@@ -2785,7 +2650,7 @@ mod tests {
         near_grant: Option<Grant>,
     ) -> (World, Position, Position) {
         let (mut w, player, near, far) = two_orcs(near_grant);
-        let wand = models::spawn_named(&mut w, name, Position { x: 0, y: 0 }).unwrap();
+        let wand = spawn_named(&mut w, name, Position { x: 0, y: 0 }).unwrap();
         w.entity_mut(wand).remove::<Position>();
         open_reticle(&mut w, player, wand, false);
         (w, near, far)
@@ -2863,7 +2728,7 @@ mod tests {
         assert!(!w.resource::<ItemInfo>().open, "bare floor opened info");
 
         for name in ["dagger", "dagger"] {
-            models::spawn_named(&mut w, name, beside).unwrap();
+            spawn_named(&mut w, name, beside).unwrap();
         }
         dispatch_key(&mut w, question).unwrap();
         let info = w.resource::<ItemInfo>();
@@ -2893,34 +2758,7 @@ mod tests {
     }
 
     fn mob_at(w: &mut World, at: Position) -> Entity {
-        models::spawn_named(w, "kestral", at).unwrap()
-    }
-
-    /// A creature, an item and a trap on one tile read in that order, one
-    /// block each, split by a blank line.
-    #[test]
-    fn a_crowded_tile_reads_creature_then_item_then_trap() {
-        let (mut w, at) = info_world();
-        w.spawn((
-            models::Trap {
-                row: models::TrapDef::lookup("bear trap").unwrap(),
-                reveal: models::TrapReveal::Sight,
-                revealed: true,
-            },
-            Name {
-                what: "bear trap".into(),
-            },
-            at,
-        ));
-        models::spawn_named(&mut w, "dagger", at).unwrap();
-        mob_at(&mut w, at);
-
-        let lines = info_at(&mut w, at);
-        let blocks: Vec<&[String]> = lines.split(|l| l.is_empty()).collect();
-        assert_eq!(blocks.len(), 3, "{lines:?}");
-        assert!(blocks[0][0].contains("kestral"), "{lines:?}");
-        assert!(blocks[1][0].contains("dagger"), "{lines:?}");
-        assert!(blocks[2][0].contains("bear trap"), "{lines:?}");
+        spawn_named(w, "kestral", at).unwrap()
     }
 
     /// What a creature has on rides in the same popup, its Info lines under
@@ -2929,7 +2767,7 @@ mod tests {
     fn a_creature_s_gear_is_in_its_popup() {
         let (mut w, at) = info_world();
         let mob = mob_at(&mut w, at);
-        let hammer = models::spawn_named(&mut w, "war hammer", at).unwrap();
+        let hammer = spawn_named(&mut w, "war hammer", at).unwrap();
         w.entity_mut(hammer)
             .remove::<Position>()
             .insert(models::Equipped {
@@ -2945,7 +2783,7 @@ mod tests {
         let health_row = lines.iter().position(|l| l.starts_with("Health:")).unwrap();
         assert!(health_row < hammer_row, "{lines:?}");
         assert!(
-            lines[hammer_row..].iter().any(|l| l.starts_with("Melee:")),
+            lines[hammer_row..].iter().any(|l| l.starts_with("Power:")),
             "{lines:?}"
         );
     }
@@ -2986,24 +2824,6 @@ mod tests {
             lines[1],
             strings::beware(&["fire doesn't harm them", "flying"])
         );
-    }
-
-    /// The sighting line leaves gear out, so look is where it gets read.
-    #[test]
-    fn look_names_what_a_creature_has_on() {
-        let mut w = modal_world(5);
-        let player = player_entity(&mut w);
-        let here = *w.get::<Position>(player).unwrap();
-        let beside = Position {
-            x: here.x + 1,
-            y: here.y,
-        };
-        let mob = mob_at(&mut w, beside);
-        let bow = models::spawn_launcher(&mut w, "short bow", beside);
-        assert!(models::equip_silently(&mut w, mob, bow));
-
-        let lines = describe_target(&mut w, beside);
-        assert!(lines[0].contains("(w. a short bow)"), "{lines:?}");
     }
 
     /// A fresh world with the floor's own monsters swept off, and a Helper
@@ -3116,7 +2936,7 @@ mod tests {
     fn using_a_snack_says_it_is_for_throwing_and_costs_nothing() {
         let mut w = modal_world(3);
         let player = player_entity(&mut w);
-        let snack = models::spawn_named(&mut w, "snack", Position { x: 0, y: 0 }).unwrap();
+        let snack = spawn_named(&mut w, "snack", Position { x: 0, y: 0 }).unwrap();
         w.entity_mut(snack).remove::<Position>();
         w.get_mut::<Backpack>(player)
             .unwrap()
@@ -3359,8 +3179,7 @@ mod tests {
             .collect();
 
         let aimed_at = *w.get::<Position>(mob).unwrap();
-        let wand =
-            models::spawn_named(&mut w, "wand of slow monster", Position { x: 0, y: 0 }).unwrap();
+        let wand = spawn_named(&mut w, "wand of slow monster", Position { x: 0, y: 0 }).unwrap();
         w.entity_mut(wand).remove::<Position>();
         w.resource_mut::<UseQueue>().uses.push(WantsToUse {
             user: player,
@@ -3375,83 +3194,6 @@ mod tests {
             w.get::<Speed>(mob).unwrap().kind,
             SpeedKind::Slow,
             "the zap found the target on the tile it was aimed at"
-        );
-    }
-
-    /// A throw comes down on the floor as it was when the player let go, not
-    /// as the monsters have since rearranged it.
-    ///
-    /// Aimed at the empty tile *in front of* an approaching orc: with
-    /// `throw_system` after `ai`, the orc had already stepped onto that tile
-    /// by the time the dagger arrived and caught one it was never thrown at.
-    #[test]
-    fn a_throw_lands_where_the_floor_was_when_the_player_let_go() {
-        let mut w = modal_world(5);
-        let player = player_entity(&mut w);
-        let here = *w.get::<Position>(player).unwrap();
-        let row: Vec<u16> = {
-            let map = w.resource::<Map>();
-            (1..=4)
-                .map(|d| here.x + d)
-                .take_while(|&x| !map.blocks(x, here.y))
-                .collect()
-        };
-        assert!(row.len() >= 3, "need open floor beside the player");
-
-        let mob = w
-            .spawn((
-                Name { what: "orc".into() },
-                Mob {
-                    movement_type: MovementType::Chase,
-                },
-                Position {
-                    x: row[2],
-                    y: here.y,
-                },
-                Fighter {
-                    hp: 20,
-                    max_hp: 20,
-                    armor: 0,
-                    power: 1,
-                    max_power: 1,
-                    armor_bonus: 0,
-                    power_bonus: 0,
-                },
-                Faction::Monster,
-                Blood,
-                Speed::new(SpeedKind::Normal),
-            ))
-            .id();
-        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = row
-            .iter()
-            .map(|&x| (x, here.y))
-            .chain([(here.x, here.y)])
-            .collect();
-
-        let empty_tile = Position {
-            x: row[1],
-            y: here.y,
-        };
-        let dagger = models::spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
-        w.entity_mut(dagger).remove::<Position>();
-        w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
-            thrower: player,
-            item: dagger,
-            target: empty_tile,
-            slot_idx: None,
-        });
-
-        crate::turn_schedule().run(&mut w);
-
-        assert_eq!(
-            w.get::<Position>(mob).unwrap().x,
-            empty_tile.x,
-            "the orc did walk onto the aimed tile this turn"
-        );
-        assert_eq!(
-            w.get::<Fighter>(mob).unwrap().hp,
-            20,
-            "but the dagger was already on the floor by then"
         );
     }
 }

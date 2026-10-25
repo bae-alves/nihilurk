@@ -25,9 +25,10 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 use rand::seq::SliceRandom;
 
+use crate::Color;
 use crate::components::*;
 use crate::constants::spells::{PROMISE_CAP, SPELLSET_CAP};
-use crate::equipment::Slot;
+use crate::equipment::{Slot, equipped_items, sync_equipment_effects};
 use crate::identify::display_name;
 use crate::map::{GameRng, Map, SpecialRoom};
 use crate::score::award;
@@ -83,7 +84,7 @@ fn take_item(world: &mut World, taker: Entity, item: Entity) -> Option<String> {
 ///
 /// Nothing the player does can put it there — it can be neither dropped nor
 /// thrown — so this is the rule's answer for anything that ever manages to.
-pub(crate) fn element_surfaces(world: &mut World, player: Entity, element: Entity) {
+pub fn element_surfaces(world: &mut World, player: Entity, element: Entity) {
     let pack = world
         .get::<Backpack>(player)
         .map(|b| b.items.clone())
@@ -174,75 +175,43 @@ fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String
     Some(strings::pick_up_pickup(&name, &line))
 }
 
-/// The coin somebody *shot* instead of stepping on: its effect reaches the
-/// shooter across the room, and its score with it.
-///
-/// Called by [`crate::traps::detonate_pickup`] before the burst, so a red coin
-/// heals you a beat before your own blast decides what it thinks of you. There
-/// is no `helps` gate here: stepping over a coin you cannot use is
-/// leaving it for later, but shooting one is a decision, and a decision is
-/// allowed to be a waste. A wasted one says nothing, though: a red coin shot at
-/// full health is spent without a line in the log.
-///
-/// The coin must still exist — this reads its row off the entity — and the
-/// caller destroys it afterwards.
-///
-/// So must the shooter. A chain reaction runs on past the blast that started
-/// it, and the author of a shot is as catchable as anyone else: a monster that
-/// zaps a wand into its own feet is gone by the time the third link reaches a
-/// platinum coin, and a promise attached to a despawned entity is a panic, not
-/// a promise.
-pub(crate) fn claim_from_afar(world: &mut World, shooter: Entity, coin: Entity) {
-    if world.get_entity(shooter).is_none() {
-        return;
-    }
-    let Some(row) = world.get::<Pickup>(coin).map(|p| p.row) else {
-        return;
-    };
-    let name = display_name(world, coin);
-    let helps = (row.helps)(world, shooter);
-    pay_out_value(world, coin);
-    let line = (row.apply)(world, shooter, row.amount);
-    if !helps || world.get::<Player>(shooter).is_none() {
-        return;
-    }
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::coin_gives_itself_up(&name, &line));
-}
-
 /// A treasure coin's line: the score itself is its row's `amount`, paid as a
 /// [`Value`] when it is taken.
-pub(crate) fn ledger(_: &mut World, _: Entity, _: i32) -> String {
+pub fn ledger(_: &mut World, _: Entity, _: i32) -> String {
     strings::coin_ledger().to_string()
 }
 
-pub(crate) fn hurt(world: &World, taker: Entity) -> bool {
+/// A coin that heals is owed while the taker is hurt.
+pub fn hurt(world: &World, taker: Entity) -> bool {
     world.get::<Fighter>(taker).is_some_and(|f| f.hp < f.max_hp)
 }
 
-pub(crate) fn drained(world: &World, taker: Entity) -> bool {
+/// A coin that refills magic is owed while the taker's pool is short.
+pub fn drained(world: &World, taker: Entity) -> bool {
     world
         .get::<Magic>(taker)
         .is_some_and(|m| m.points < m.max_points)
 }
 
-pub(crate) fn weakened(world: &World, taker: Entity) -> bool {
+/// A coin that restores strength is owed while the taker's power is down.
+pub fn weakened(world: &World, taker: Entity) -> bool {
     world
         .get::<Fighter>(taker)
         .is_some_and(|f| f.power < f.max_power)
 }
 
 /// Promises help until the stairs owe you `PROMISE_CAP` of that kind.
-pub(crate) fn owed_platinum(world: &World, taker: Entity) -> bool {
+pub fn owed_platinum(world: &World, taker: Entity) -> bool {
     Promise::Platinum.held(world, taker) < PROMISE_CAP
 }
 
-pub(crate) fn owed_forge(world: &World, taker: Entity) -> bool {
+/// A forge coin is owed while the taker holds fewer promises than the cap.
+pub fn owed_forge(world: &World, taker: Entity) -> bool {
     Promise::Forge.held(world, taker) < PROMISE_CAP
 }
 
-pub(crate) fn can_learn_spell(world: &World, taker: Entity) -> bool {
+/// A spell coin is owed while the taker has a spell slot to fill.
+pub fn can_learn_spell(world: &World, taker: Entity) -> bool {
     world
         .get::<Spellset>(taker)
         .is_some_and(|m| m.slots.len() < SPELLSET_CAP)
@@ -252,7 +221,8 @@ pub(crate) fn can_learn_spell(world: &World, taker: Entity) -> bool {
 // The coins that give you something back
 // ---------------------------------------------------------------------------
 
-pub(crate) fn heal(world: &mut World, taker: Entity, amount: i32) -> String {
+/// A coin's heal: `amount` hit points back.
+pub fn heal(world: &mut World, taker: Entity, amount: i32) -> String {
     let Some(mut f) = world.get_mut::<Fighter>(taker) else {
         return String::new();
     };
@@ -261,7 +231,8 @@ pub(crate) fn heal(world: &mut World, taker: Entity, amount: i32) -> String {
     strings::heal_line(healed)
 }
 
-pub(crate) fn refill_magic(world: &mut World, taker: Entity, amount: i32) -> String {
+/// A coin's refill: `amount` points of magic back.
+pub fn refill_magic(world: &mut World, taker: Entity, amount: i32) -> String {
     let Some(mut m) = world.get_mut::<Magic>(taker) else {
         return String::new();
     };
@@ -273,7 +244,7 @@ pub(crate) fn refill_magic(world: &mut World, taker: Entity, amount: i32) -> Str
 /// The rosé coin: lifts up to `amount` afflictions, worst first, and says how
 /// many it got. It stops when there is nothing left to lift, so a player with
 /// one condition spends the same coin on one condition.
-pub(crate) fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
+pub fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
     let lifted = (0..amount)
         .take_while(|_| crate::conditions::cure_one_condition(world, taker))
         .count();
@@ -291,10 +262,9 @@ pub(crate) fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
 ///
 /// The [`SPELLSET_CAP`] is checked *here* rather than left to [`can_learn_spell`].
 /// Stepping on a coin is not the only way to reach this: a hero coin that is
-/// **shot** goes through [`claim_from_afar`], which has no `helps` gate
-/// at all — and a coin that is allowed to be a waste is not allowed to be a
-/// fifth spell slot.
-pub(crate) fn learn_spell(world: &mut World, taker: Entity, _: i32) -> String {
+/// **shot** pays the shooter nothing, but the cap stays here all the same:
+/// no path to this function is allowed to be a fifth spell slot.
+pub fn learn_spell(world: &mut World, taker: Entity, _: i32) -> String {
     if world
         .get::<Spellset>(taker)
         .is_none_or(|m| m.slots.len() >= SPELLSET_CAP)
@@ -326,7 +296,8 @@ pub(crate) fn learn_spell(world: &mut World, taker: Entity, _: i32) -> String {
     strings::learn_spell_line(name)
 }
 
-pub(crate) fn restore_strength(world: &mut World, taker: Entity, amount: i32) -> String {
+/// A coin's restore: `amount` points of power back.
+pub fn restore_strength(world: &mut World, taker: Entity, amount: i32) -> String {
     let Some(mut f) = world.get_mut::<Fighter>(taker) else {
         return String::new();
     };
@@ -402,11 +373,13 @@ fn promise(world: &mut World, taker: Entity, which: Promise) -> String {
     which.offer().to_string()
 }
 
-pub(crate) fn platinum(world: &mut World, taker: Entity, _: i32) -> String {
+/// A platinum coin's promise.
+pub fn platinum(world: &mut World, taker: Entity, _: i32) -> String {
     promise(world, taker, Promise::Platinum)
 }
 
-pub(crate) fn forge(world: &mut World, taker: Entity, _: i32) -> String {
+/// A forge coin's promise.
+pub fn forge(world: &mut World, taker: Entity, _: i32) -> String {
     promise(world, taker, Promise::Forge)
 }
 
@@ -478,7 +451,7 @@ fn pay_forge(world: &mut World, player: Entity) {
     for slot in order {
         let landed = match slot {
             Some(slot) => crate::items::enchant_equipped(world, player, slot),
-            None => crate::items::decks::enchant_worn_ring(world, player),
+            None => enchant_worn_ring(world, player),
         };
         if landed {
             return;
@@ -487,4 +460,48 @@ fn pay_forge(world: &mut World, player: Entity) {
     world
         .resource_mut::<GameLog>()
         .add(strings::pay_forge_nothing_worth());
+}
+
+/// A point onto a random worn ring that has a number to it (a ring of
+/// protection, strength, increase damage, sharpshooting). Returns whether there
+/// was one; the forge coin lands here.
+fn enchant_worn_ring(world: &mut World, user: Entity) -> bool {
+    use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
+    let numeric: Vec<Entity> = equipped_items(world, user)
+        .into_iter()
+        .filter(|&e| world.get::<Ring>(e).is_some_and(|r| r.row.is_numeric()))
+        .collect();
+    let Some(&ring) = numeric.choose(&mut world.resource_mut::<GameRng>().0) else {
+        return false;
+    };
+    let def = world
+        .get::<Ring>(ring)
+        .map(|r| r.row)
+        .expect("filtered to rings");
+    let (power, armor, throw, hp) = def.bonuses();
+    let mut e = world.entity_mut(ring);
+    if power != 0 {
+        let base = e.get::<PowerBonus>().map_or(0, |b| b.0);
+        e.insert(PowerBonus(base + 1));
+    }
+    if armor != 0 {
+        let base = e.get::<ArmorBonus>().map_or(0, |b| b.0);
+        e.insert(ArmorBonus(base + 1));
+    }
+    if throw != 0 {
+        let base = e.get::<ThrowBonus>().map_or(0, |b| b.0);
+        e.insert(ThrowBonus(base + 1));
+    }
+    if hp != 0 {
+        let base = e.get::<MaxHpBonus>().map_or(0, |b| b.0);
+        e.insert(MaxHpBonus(base + 1));
+    }
+    sync_equipment_effects(world, user);
+    world.entity_mut(ring).insert(KnownQuality);
+    let name = display_name(world, ring);
+    crate::helpers::spark_burst_at(world, user, Color::DarkYellow);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::enchant_sparks(&name));
+    true
 }

@@ -131,7 +131,7 @@ pub fn spell_system(world: &mut World) {
 }
 
 /// `spell` cast by `user` at `target`, cost already settled.
-pub(crate) fn cast_spell(
+pub fn cast_spell(
     world: &mut World,
     spell: &'static SpellDef,
     user: Entity,
@@ -184,7 +184,7 @@ fn fly_arrow(world: &mut World, from: Position, to: Position, glyph: char, color
 /// ([`crate::traps::trap_damage_tier`]). A green dart, because the trap's own
 /// needle is cyan and this one means it personally. Whatever lay on the
 /// target tile goes off after.
-pub(crate) fn sting(world: &mut World, cast: SpellCast) {
+pub fn sting(world: &mut World, cast: SpellCast) {
     bite(world, cast.user, cast.target, cast.power_mult);
     chain_at(world, cast.user, [(cast.target.x, cast.target.y)]);
 }
@@ -227,7 +227,7 @@ fn bite(world: &mut World, user: Entity, target: Position, power_mult: i32) {
 /// target's limbs up on top of it. A yellow double bolt, because one arrow's
 /// worth of thunder never seemed like enough. Whatever lay on the target
 /// tile goes off after.
-pub(crate) fn thunderbolt(world: &mut World, cast: SpellCast) {
+pub fn thunderbolt(world: &mut World, cast: SpellCast) {
     bolt(world, cast.user, cast.target, cast.power_mult);
     chain_at(world, cast.user, [(cast.target.x, cast.target.y)]);
 }
@@ -269,7 +269,7 @@ fn bolt(world: &mut World, user: Entity, target: Position, power_mult: i32) {
 
 /// Cure: lifts the caster's single worst affliction — [`cure_one_condition`],
 /// the exact mechanic a rosé coin spends on you.
-pub(crate) fn cure_self(world: &mut World, cast: SpellCast) {
+pub fn cure_self(world: &mut World, cast: SpellCast) {
     let user = cast.user;
     spark_burst_at(world, user, Color::Green);
     if !cure_one_condition(world, user) {
@@ -282,7 +282,7 @@ pub(crate) fn cure_self(world: &mut World, cast: SpellCast) {
 /// Bide: does nothing to the world and everything to the next swing — see
 /// [`Bided`], folded into the very next attack roll
 /// [`crate::combat::resolve_attack`] makes for its bearer.
-pub(crate) fn bide(world: &mut World, cast: SpellCast) {
+pub fn bide(world: &mut World, cast: SpellCast) {
     let user = cast.user;
     if !crate::effects::lend(world, user, Grant::of::<Bided>(), Lifetime::NextAction) {
         return;
@@ -312,7 +312,7 @@ pub(crate) fn bide(world: &mut World, cast: SpellCast) {
 /// `power_mult` is a staff's [`TurboMagic`] multiplying the damage
 /// ([`TURBO_MAGIC_POWER_MULT`]) on top of the cost — 1 for anyone casting
 /// bare-handed.
-pub(crate) fn breathe_fire(world: &mut World, cast: SpellCast) {
+pub fn breathe_fire(world: &mut World, cast: SpellCast) {
     let SpellCast {
         user,
         target,
@@ -353,7 +353,7 @@ pub(crate) fn breathe_fire(world: &mut World, cast: SpellCast) {
 /// Force Lance: a line of `FORCE_LANCE_DAMAGE_DICE`d`FORCE_LANCE_DAMAGE_SIDES`
 /// armour-ignoring damage — a wand of striking's own bolt, cast rather than
 /// zapped.
-pub(crate) fn force_lance(world: &mut World, cast: SpellCast) {
+pub fn force_lance(world: &mut World, cast: SpellCast) {
     let SpellCast {
         user,
         target,
@@ -414,7 +414,7 @@ pub(crate) fn force_lance(world: &mut World, cast: SpellCast) {
 /// grenade a thrown attack wand bursts as (see
 /// `super::throwing::resolve_wand_throw`), except this one blinds too. No
 /// battery to read a charge count off, so [`LUX_CHARGES`] stands in for one.
-pub(crate) fn lux(world: &mut World, cast: SpellCast) {
+pub fn lux(world: &mut World, cast: SpellCast) {
     let SpellCast {
         user,
         target,
@@ -446,7 +446,7 @@ pub(crate) fn lux(world: &mut World, cast: SpellCast) {
 /// armour-ignoring drain, rolled once per hostile in view and handed straight
 /// back to the caster as HP. Unnecessary flames, and everything they touch
 /// turns grey.
-pub(crate) fn circle_of_death(world: &mut World, cast: SpellCast) {
+pub fn circle_of_death(world: &mut World, cast: SpellCast) {
     let SpellCast {
         user, power_mult, ..
     } = cast;
@@ -495,7 +495,7 @@ pub(crate) fn circle_of_death(world: &mut World, cast: SpellCast) {
 
 /// Heal: refills the caster's HP to their current ceiling — a potion of
 /// healing's dose, minus the ceiling raise a potion leaves behind.
-pub(crate) fn heal_self(world: &mut World, cast: SpellCast) {
+pub fn heal_self(world: &mut World, cast: SpellCast) {
     let user = cast.user;
     let Some(mut fighter) = world.get_mut::<Fighter>(user) else {
         return;
@@ -523,7 +523,7 @@ pub(crate) fn heal_self(world: &mut World, cast: SpellCast) {
 /// somewhere within [`METEOR_STRIKE_CHAIN_SPREAD`] tiles of the last one —
 /// possibly forever, though the odds of it going more than a handful of times
 /// running are the odds of flipping a very long streak of heads.
-pub(crate) fn meteor_strike(world: &mut World, cast: SpellCast) {
+pub fn meteor_strike(world: &mut World, cast: SpellCast) {
     let SpellCast {
         user,
         target,
@@ -579,7 +579,7 @@ pub(crate) fn meteor_strike(world: &mut World, cast: SpellCast) {
 /// Frost Nova: [`FROST_NOVA_DAMAGE_DICE`]d[`FROST_NOVA_DAMAGE_SIDES`]
 /// armour-ignoring cold damage to everything in view, paralysed on top of it
 /// if it survives. Glam rock, cyan, and entirely too much of both.
-pub(crate) fn frost_nova(world: &mut World, cast: SpellCast) {
+pub fn frost_nova(world: &mut World, cast: SpellCast) {
     let SpellCast {
         user, power_mult, ..
     } = cast;
@@ -627,7 +627,7 @@ pub(crate) fn frost_nova(world: &mut World, cast: SpellCast) {
 /// Haste Self: not merely quick. Not merely fast. THE FAST — a rainbow of
 /// fireworks around the caster and every ounce of ceremony a plain potion of
 /// haste never got.
-pub(crate) fn haste_self(world: &mut World, cast: SpellCast) {
+pub fn haste_self(world: &mut World, cast: SpellCast) {
     let user = cast.user;
     let Some(pos) = world.get::<Position>(user).copied() else {
         return;
@@ -659,21 +659,21 @@ pub(crate) fn haste_self(world: &mut World, cast: SpellCast) {
 // ---------------------------------------------------------------------------
 
 /// Identify: the scroll of identify, on demand.
-pub(crate) fn identify(world: &mut World, cast: SpellCast) {
+pub fn identify(world: &mut World, cast: SpellCast) {
     super::scrolls::identify_everything_hidden(world, cast.user);
 }
 
 /// Magic Mapping: the scroll of magic mapping, on demand.
-pub(crate) fn magic_mapping(world: &mut World, cast: SpellCast) {
+pub fn magic_mapping(world: &mut World, cast: SpellCast) {
     super::scrolls::map_the_floor(world, cast.user);
 }
 
 /// Polymorph Self: the wand of polymorph, turned on the caster.
-pub(crate) fn polymorph_self(world: &mut World, cast: SpellCast) {
+pub fn polymorph_self(world: &mut World, cast: SpellCast) {
     super::wands::polymorph_entity(world, cast.user);
 }
 
 /// Polymorph Other: the wand of polymorph, on the creature on the aimed tile.
-pub(crate) fn polymorph_other(world: &mut World, cast: SpellCast) {
+pub fn polymorph_other(world: &mut World, cast: SpellCast) {
     super::wands::polymorph_target(world, cast.target);
 }

@@ -111,23 +111,62 @@ pub struct Scroll {
     pub row: &'static ScrollDef,
 }
 
-/// A deck of cards: five faces stacked when the deck was rolled, read one at a
-/// time off the top. Mechanic: the `decks` submodule of `crate::items`. The top
-/// card is the *last* one, so a draw is a `pop`.
+/// A deck: a stack of potion and scroll effects, stacked when the deck was
+/// rolled, read one at a time off the top. Mechanic: the `decks` submodule of
+/// `crate::items`. The top effect is the *last* one, so a read is a `pop`.
 #[derive(Component, Clone, Debug, Default)]
 pub struct Deck {
     /// What is left, bottom first.
-    pub cards: Vec<Card>,
+    pub effects: Vec<DeckEffect>,
 }
 
-/// One card in a [`Deck`]: what it is, and whether it lies reversed (which
-/// plays its other effect).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Card {
-    /// Which card.
-    pub row: &'static crate::catalog::CardDef,
-    /// Upside down: plays the card's reversed effect.
-    pub reversed: bool,
+/// One effect in a [`Deck`]: a potion's or a scroll's row, played on the reader
+/// the way drinking or reading it would.
+#[derive(Clone, Copy)]
+pub enum DeckEffect {
+    /// Plays the potion row's `apply`.
+    Potion(&'static crate::catalog::PotionDef),
+    /// Plays the scroll row's `apply`.
+    Scroll(&'static crate::catalog::ScrollDef),
+}
+
+impl PartialEq for DeckEffect {
+    fn eq(&self, other: &Self) -> bool {
+        self.name() == other.name()
+    }
+}
+
+impl Eq for DeckEffect {}
+
+impl std::fmt::Debug for DeckEffect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+impl DeckEffect {
+    /// The row's name: the save stores it.
+    pub fn name(&self) -> &'static str {
+        match self {
+            DeckEffect::Potion(row) => row.name,
+            DeckEffect::Scroll(row) => row.name,
+        }
+    }
+
+    /// How often the dungeon drops the row; `0` is never.
+    pub fn weight(&self) -> u32 {
+        match self {
+            DeckEffect::Potion(row) => row.weight,
+            DeckEffect::Scroll(row) => row.weight,
+        }
+    }
+
+    /// The potion or scroll row called `name`, for a save to find it by.
+    pub fn named(name: &str) -> Option<Self> {
+        crate::catalog::potion_row(name)
+            .map(DeckEffect::Potion)
+            .or_else(|| crate::catalog::scroll_row(name).map(DeckEffect::Scroll))
+    }
 }
 
 /// Type-key for a wand. Mechanic: the `wands` submodule of `crate::items`

@@ -7,6 +7,7 @@
 
 use crate::common::monster;
 
+use crate::common::fixtures::spawn_named;
 use bevy_ecs::prelude::*;
 use models::*;
 

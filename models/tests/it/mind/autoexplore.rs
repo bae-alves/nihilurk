@@ -5,6 +5,7 @@
 
 use std::collections::{HashSet, VecDeque};
 
+use crate::common::fixtures::{spawn_named, trap_row};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
@@ -166,7 +167,7 @@ fn travel_step_wont_walk_onto_a_known_trap() {
             y: target.1,
         },
         Trap {
-            row: TrapDef::lookup("dart trap").unwrap(),
+            row: trap_row("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },
@@ -225,7 +226,7 @@ fn explore_step_wont_walk_onto_a_known_trap() {
     w.spawn((
         Position { x: 3, y: 5 },
         Trap {
-            row: TrapDef::lookup("dart trap").unwrap(),
+            row: trap_row("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },

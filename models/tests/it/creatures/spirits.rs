@@ -1,6 +1,7 @@
 //! `Faction::Spirits`: peaceful until crossed, either by an `Alignment` pole
 //! or a direct hit. See `models::spirits`.
 
+use crate::common::fixtures::spell_row;
 use bevy_ecs::prelude::*;
 use models::Color;
 use models::constants::spirits::RED_DEMON_GEAR_PRICE;

@@ -57,8 +57,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::catalog::{
-    card_row, coin_row, content_id_of, potion_row, restore_from_catalog, ring_row, scroll_row,
-    spell_row, wand_row,
+    coin_row, content_id_of, potion_row, restore_from_catalog, ring_row, scroll_row, spell_row,
+    wand_row,
 };
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
@@ -290,10 +290,10 @@ struct EntitySave<'a> {
     /// [`Alignment`].
     #[serde(default)]
     alignment: Option<i8>,
-    /// A deck's remaining cards, bottom first, as (row name, reversed). See
-    /// [`Deck`]. The loader finds each row again by name ([`card_row`]).
+    /// A deck's remaining effects, bottom first, as row names. See [`Deck`].
+    /// The loader finds each row again by name ([`DeckEffect::named`]).
     #[serde(default)]
-    deck: Option<Vec<(String, bool)>>,
+    deck: Option<Vec<String>>,
     /// The id of the catalog row this entity was made from (see
     /// [`content_id_of`]). The loader reads the row back by it, and rebuilds
     /// [`Name`] from it, so nothing depends on what a row is called in the
@@ -316,7 +316,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 20;
+pub const SAVE_VERSION: u16 = 21;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -574,7 +574,6 @@ fn dug_tiles(world: &World) -> Vec<u32> {
 /// # std::fs::remove_file(path).unwrap();
 /// ```
 pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<()> {
-    crate::items::thaw_into_pack(world);
     let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
     let index_map: HashMap<Entity, u32> = ents
@@ -661,12 +660,9 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             ice_cube: er.contains::<crate::ice::IceCube>(),
             aggravated: er.get::<Aggravated>().map(|a| (a.tx, a.ty)),
             alignment: er.get::<Alignment>().map(|a| a.0),
-            deck: er.get::<Deck>().map(|d| {
-                d.cards
-                    .iter()
-                    .map(|c| (c.row.name.to_string(), c.reversed))
-                    .collect()
-            }),
+            deck: er
+                .get::<Deck>()
+                .map(|d| d.effects.iter().map(|e| e.name().to_string()).collect()),
             mimic: er.contains::<Mimic>(),
             content: match (er.contains::<Player>(), er.contains::<Mimic>()) {
                 (true, _) => None,
@@ -936,7 +932,7 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .deck
                 .iter()
                 .flatten()
-                .all(|(name, _)| card_row(name).is_some())
+                .all(|name| DeckEffect::named(name).is_some())
             && es
                 .spellset
                 .iter()
@@ -1184,17 +1180,9 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if let Some(a) = es.alignment {
             em.insert(Alignment(a));
         }
-        if let Some(cards) = es.deck {
-            let cards = cards
-                .iter()
-                .filter_map(|(name, reversed)| {
-                    card_row(name).map(|row| Card {
-                        row,
-                        reversed: *reversed,
-                    })
-                })
-                .collect();
-            em.insert(Deck { cards });
+        if let Some(names) = es.deck {
+            let effects = names.iter().filter_map(|n| DeckEffect::named(n)).collect();
+            em.insert(Deck { effects });
         }
     }
 
@@ -1598,12 +1586,12 @@ mod tests {
             mob: Some(MovementType::Ambush),
             item: true,
             value: Some(300),
-            potion: Some("potion of polymorph".to_string()),
+            potion: Some("a potion row".to_string()),
             battery: Some(-3),
-            wand: Some("wand of swapping".to_string()),
+            wand: Some("a wand row".to_string()),
             ranged: Some(300),
-            scroll: Some("scroll of atonement".to_string()),
-            ring: Some("ring of polymorph".to_string()),
+            scroll: Some("a scroll row".to_string()),
+            ring: Some("a ring row".to_string()),
             equipped: Some(Slot::Finger),
             power_die: Some(300),
             power_bonus: Some(-300),
@@ -1629,8 +1617,8 @@ mod tests {
                 },
             ],
             speed: Some(SpeedKind::Quick),
-            trap: Some(("dart trap".to_string(), TrapReveal::Triggered, true)),
-            pickup: Some("hero coin".to_string()),
+            trap: Some(("a trap row".to_string(), TrapReveal::Triggered, true)),
+            pickup: Some("a coin row".to_string()),
             plated: 1,
             forged: 1,
             spellset: Some(vec!["Gate Down".to_string()]),
@@ -1640,8 +1628,8 @@ mod tests {
             ice_cube: true,
             aggravated: Some((700, 701)),
             alignment: Some(-100),
-            deck: Some(vec![("XXIII GOLDEN WIND".to_string(), true)]),
-            content: Some(Cow::Borrowed("arrow")),
+            deck: Some(vec!["an effect row".to_string()]),
+            content: Some(Cow::Borrowed("a content row")),
         }
     }
 

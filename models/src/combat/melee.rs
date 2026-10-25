@@ -172,10 +172,6 @@ pub(super) struct Matchup {
     /// Two rules apply only to the hero's own swing: the excellent hit and the
     /// chip-damage floor. Carried here so the three stages below each ask once.
     pub(super) attacker_is_player: bool,
-    /// Every blow in this exchange is excellent, whoever swings: the attacker
-    /// holds [`crate::effects::Crit`] or the target holds
-    /// [`crate::effects::Oof`] (a deck's Chariot, either way up).
-    pub(super) always_excellent: bool,
 }
 
 /// A blow that has already happened: who swung at whom, what the dice said,
@@ -244,24 +240,11 @@ pub(super) fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> M
                 BIDE_ATTACK_BONUS
             } else {
                 0
-            }
-            + if world.get::<crate::effects::Bala>(attacker).is_some() {
-                BALA_POWER
-            } else {
-                0
             },
         armor: armor + targets.armor_die,
-        armor_bonus: armor_bonus
-            + targets.armor_bonus
-            + if world.get::<crate::effects::Bole>(target).is_some() {
-                BOLE_ARMOR
-            } else {
-                0
-            },
+        armor_bonus: armor_bonus + targets.armor_bonus,
         melee_cap: attackers.melee_cap,
         attacker_is_player: world.get::<Player>(attacker).is_some(),
-        always_excellent: world.get::<crate::effects::Crit>(attacker).is_some()
-            || world.get::<crate::effects::Oof>(target).is_some(),
     }
 }
 
@@ -295,10 +278,9 @@ pub fn mean_blow(world: &World, attacker: Entity, target: Entity) -> f64 {
     let armor = dice_spread(m.armor, BELL_CURVE_DICE as u32, true);
     let normal = dice_spread(m.power, BELL_CURVE_DICE as u32, true);
     let excellent = dice_spread(m.power, EXCELLENT_HIT_DICE as u32, false);
-    let (p_excellent, normal_share) = match (m.always_excellent, m.attacker_is_player) {
-        (true, _) => (1.0, 0.0),
-        (false, true) => (EXCELLENT_HIT_CHANCE, 1.0 - EXCELLENT_HIT_CHANCE),
-        (false, false) => (0.0, 1.0),
+    let (p_excellent, normal_share) = match m.attacker_is_player {
+        true => (EXCELLENT_HIT_CHANCE, 1.0 - EXCELLENT_HIT_CHANCE),
+        false => (0.0, 1.0),
     };
     let blow = |attack: i32, defence: i32, is_excellent: bool| {
         let net = attack + m.power_bonus - defence - m.armor_bonus;
@@ -337,8 +319,7 @@ pub fn mean_blow(world: &World, attacker: Entity, target: Entity) -> f64 {
 /// [`clamp_swing`].
 pub(super) fn roll_swing(world: &mut World, matchup: &Matchup) -> Swing {
     let mut rng = world.resource_mut::<GameRng>();
-    let excellent = matchup.always_excellent
-        || (matchup.attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE));
+    let excellent = matchup.attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE);
     let attack_total: i32 = if excellent {
         (0..EXCELLENT_HIT_DICE)
             .map(|_| roll_die(&mut rng.0, matchup.power))

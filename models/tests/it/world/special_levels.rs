@@ -5,6 +5,7 @@
 //! [`world_at`] walks a real run down to a floor, population and arrival
 //! lines included, only where a test needs to see what stands on it.
 
+use crate::common::fixtures::spawn_weapon;
 use bevy_ecs::prelude::*;
 use models::constants::map::SPECIAL_LEVEL_MIN_DEPTH;
 use models::constants::population::START_CLEARING_RADIUS;

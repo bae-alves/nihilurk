@@ -62,7 +62,7 @@ fn is_charmed(world: &World, e: Entity) -> bool {
 /// take: the player threw it, `victim` is a monster or an already-charmed
 /// ally, and the treat is the right kind for it — a fancy of peace for a
 /// creature with hands, a snack for one without. Anything else bounces off.
-pub(crate) fn fits(world: &World, thrower: Entity, victim: Entity, treat: Treat) -> bool {
+pub fn fits(world: &World, thrower: Entity, victim: Entity, treat: Treat) -> bool {
     world.get::<Player>(thrower).is_some()
         && world.get::<Mob>(victim).is_some()
         && (is_foe(world, victim) || is_charmed(world, victim))
@@ -70,19 +70,19 @@ pub(crate) fn fits(world: &World, thrower: Entity, victim: Entity, treat: Treat)
 }
 
 /// Whether `e` has hands: who takes a fancy of peace.
-pub(crate) fn has_hands(world: &World, e: Entity) -> bool {
+pub fn has_hands(world: &World, e: Entity) -> bool {
     world.get::<ItemUser>(e).is_some()
 }
 
 /// Whether `e` has no hands: who takes a snack.
-pub(crate) fn has_no_hands(world: &World, e: Entity) -> bool {
+pub fn has_no_hands(world: &World, e: Entity) -> bool {
     !has_hands(world, e)
 }
 
 /// `victim` eats `item` and becomes the player's Helper. The treat is gone
 /// either way: a hostile monster only takes it on an [`ACCEPT_CHANCE`] roll,
 /// but a plain ally already trusts you and always takes.
-pub(crate) fn offer(world: &mut World, victim: Entity, item: Entity, treat_name: &str) {
+pub fn offer(world: &mut World, victim: Entity, item: Entity, treat_name: &str) {
     world.entity_mut(item).despawn();
     if is_charmed(world, victim)
         || world.get::<AlwaysTamed>(victim).is_some()
@@ -137,7 +137,7 @@ pub fn recruit(world: &mut World, mob: Entity) {
 /// too when `helper` (it then also walks through terrain). Silent, so a
 /// shapeshift can hand the same side to a new body without a second "becomes
 /// your helper".
-pub(crate) fn stand_with_the_player(world: &mut World, mob: Entity, helper: bool) {
+pub fn stand_with_the_player(world: &mut World, mob: Entity, helper: bool) {
     world.entity_mut(mob).insert(Faction::Ally);
     if helper {
         world.entity_mut(mob).insert(Helper);
@@ -186,7 +186,7 @@ fn explode(world: &mut World, old: Entity) {
 /// a heart over the body. The death burst itself already runs in slow motion
 /// for a Helper (`death_burst`). Called by both death funnels in
 /// `crate::combat`, which also skip paying for the corpse.
-pub(crate) fn mourn(world: &mut World, helper: Entity) {
+pub fn mourn(world: &mut World, helper: Entity) {
     let name = item_label(world, helper);
     world
         .resource_mut::<GameLog>()
@@ -208,7 +208,7 @@ pub(crate) fn mourn(world: &mut World, helper: Entity) {
 ///
 /// Called after the new floor is populated, so nothing spawned there can land
 /// on the Helper's tile.
-pub(crate) fn follow_downstairs(world: &mut World, helper: Entity, beside: Position) {
+pub fn follow_downstairs(world: &mut World, helper: Entity, beside: Position) {
     let Some((x, y)) = free_adjacent_tile(world, beside) else {
         let name = item_label(world, helper);
         world

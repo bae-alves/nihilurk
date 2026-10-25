@@ -4,6 +4,8 @@
 //! — everything else the turn touches lives in `models`.
 
 mod constants;
+#[cfg(test)]
+mod fixtures;
 mod input;
 mod morgue;
 mod ready;
@@ -767,7 +769,6 @@ fn main() -> std::io::Result<()> {
         load_path.unwrap_or_else(|| (save_path_in(&data_dir, &name), name));
     let shown_path = save_path.display().to_string();
 
-    let mut time_stopped = models::time_stopped(&mut world);
     while world.resource::<models::GameState>().is_running {
         let fast_moving = world.resource::<FastMove>().active;
         if fast_moving {
@@ -779,10 +780,6 @@ fn main() -> std::io::Result<()> {
             if turn_taken {
                 schedule.run(&mut world);
             }
-        }
-
-        if !no_save {
-            update::save_on_time_edge(&mut world, &mut time_stopped, &save_path);
         }
 
         view::play_particles(&mut world, &mut term, &mut screen)?;
@@ -838,11 +835,6 @@ fn main() -> std::io::Result<()> {
     if no_save {
         drop(guard);
         println!("{}", strings::game_not_saved());
-        return Ok(());
-    }
-    if models::time_stopped(&mut world) {
-        drop(guard);
-        println!("{}", strings::time_stopped_not_saved().join(" "));
         return Ok(());
     }
     let save_result = models::save_game(&mut world, &save_path);

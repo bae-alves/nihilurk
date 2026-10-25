@@ -6,6 +6,10 @@
 use crate::common;
 use crate::common::monster;
 
+use crate::common::fixtures::{
+    potion_row, scroll_row, spawn_armor, spawn_launcher, spawn_named, spawn_weapon, spell_row,
+    wand_row,
+};
 use bevy_ecs::prelude::*;
 use models::constants::wands::{GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS};
 use models::*;
@@ -449,6 +453,9 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
     assert!(w.get_entity(potion).is_none(), "the bottle broke");
 }
 
+/// A scroll that does nothing: this test is about who reads it, not what it says.
+static NOOP_SCROLL: ScrollDef = ScrollDef::new("blank test scroll", |_, _| {});
+
 #[test]
 fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
     let mut w = test_world(9);
@@ -456,17 +463,13 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
     let spot = east_of_player(&mut w, 1);
     let bat = monster(&mut w, "bat", spot);
     w.get_mut::<Fighter>(bat).unwrap().hp = 20;
-    let scroll = stash(&mut w, p, |w| {
-        spawn_named(w, "scroll of food detection", NOWHERE).unwrap()
-    });
+    let scroll = stash(&mut w, p, |w| (&NOOP_SCROLL).spawn(w, NOWHERE));
 
     throw(&mut w, p, scroll, spot);
 
     assert_eq!(pos_of(&w, scroll), (spot.x, spot.y));
 
-    let scroll = stash(&mut w, p, |w| {
-        spawn_named(w, "scroll of food detection", NOWHERE).unwrap()
-    });
+    let scroll = stash(&mut w, p, |w| (&NOOP_SCROLL).spawn(w, NOWHERE));
     w.despawn(bat);
     let orc = monster::monster(&mut w, "test monster", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 20;
@@ -531,8 +534,9 @@ fn a_slain_catcher_leaves_its_gear_or_takes_it_with_it() {
 fn a_weapon_keeps_its_thrown_damage_across_a_save() {
     let mut w = test_world(2);
     let p = player(&mut w);
-    let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    let thrown = w.get::<ThrownDamage>(sword).expect("a sword throws").0;
+    let row = &WEAPONS[0];
+    let sword = stash(&mut w, p, |w| row.spawn(w, NOWHERE));
+    let thrown = w.get::<ThrownDamage>(sword).expect("a weapon throws").0;
 
     let save = common::SaveFile::new("thrown-damage");
     save_game(&mut w, save.path()).unwrap();
@@ -541,7 +545,7 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
 
     let dice: Vec<i32> = loaded
         .iter_entities()
-        .filter(|e| e.get::<Name>().is_some_and(|n| n.what == "long sword"))
+        .filter(|e| e.get::<Name>().is_some_and(|n| n.what == row.name))
         .filter_map(|e| e.get::<ThrownDamage>().map(|t| t.0))
         .collect();
     assert_eq!(dice, vec![thrown]);

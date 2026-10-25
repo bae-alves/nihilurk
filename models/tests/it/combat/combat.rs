@@ -275,7 +275,7 @@ fn killing_the_biter_frees_the_victim_it_clamped() {
 
 use crate::common::monster;
 
-/// The hero at (5,5) with every blow excellent, an orc at (6,5) in a suit of
+/// The hero at (5,5), an orc at (6,5) in a suit of
 /// armour (cursed when asked), and three bystanders inside the splinters'
 /// reach: another monster, an ally, and the hero.
 struct Armoured {
@@ -289,7 +289,7 @@ struct Armoured {
 fn armoured_orc(w: &mut World, cursed: bool) -> Armoured {
     let hero = spawn_attacker(w, 1);
     w.entity_mut(hero)
-        .insert((Crit, Position { x: 5, y: 5 }, Faction::Player));
+        .insert((Position { x: 5, y: 5 }, Faction::Player));
     let orc = monster::monster(w, "orc", Position { x: 6, y: 5 });
     let armour = w
         .spawn((
@@ -326,12 +326,15 @@ fn hp(w: &World, e: Entity) -> i32 {
 
 #[test]
 fn shattered_cursed_armour_splinters_into_monsters_but_spares_the_hero_and_allies() {
-    let mut w = combat_world(1);
-    let a = armoured_orc(&mut w, true);
+    let (w, a) = (0..200)
+        .find_map(|seed| {
+            let mut w = combat_world(seed);
+            let a = armoured_orc(&mut w, true);
+            resolve_attack(&mut w, a.hero, a.orc);
+            (!w.entities().contains(a.armour)).then_some((w, a))
+        })
+        .expect("no seed in 200 landed an excellent hit");
 
-    resolve_attack(&mut w, a.hero, a.orc);
-
-    assert!(!w.entities().contains(a.armour), "cursed armour survived");
     assert!(hp(&w, a.bystander) < 100, "the splinters missed the kobold");
     let taken = 100 - hp(&w, a.bystander);
     let line = format!("kobold for {taken} damage");

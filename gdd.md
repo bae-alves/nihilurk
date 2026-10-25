@@ -20,7 +20,7 @@ From a limited corpus of terminal roguelikes I've played, these are where nihilu
 
 Almost everything on the floor that can go off can be set off from across the room. Put a missile on it and it goes kablooey:
 - A trap. A trap only bites whoever is standing on it. Shot, it has nobody to bite, so the whole mechanism goes at once over the tiles around it, armor-proof, and then works its own effect on everyone caught.
-- A coin. Coins are never carried, you step on them. Shoot one instead and it bursts like a trap, and its effect reaches you from wherever you are standing.
+- A coin. Coins are never carried, you step on them. Shoot one instead and it bursts like a trap. Nobody gets its effect.
 - A potion lying on the floor. It shatters over the tiles around it.
 - Bursts chain. Anything a burst covers that a shot could have set off goes off with it, including traps nobody has found.
 
@@ -33,7 +33,7 @@ The shot is the skill, and the game works to keep it one:
 **Also different.**
 - Wand grenades. Thrown, a wand spends every charge at once and bursts where it lands.
 - Coins are pickups. You never carry one: you step on it and it acts, or you shoot it.
-- A thrown deck of cards plays as a poker hand. The decks themselves work similarly to DCSS/Crawl's.
+- A thrown deck bursts like a wand of light. The decks themselves work similarly to DCSS/Crawl's.
 - You can play as any monster just by adding an arg (`-am dragon`) or naming yourself its species.
 - The bodies are the classes: nihil, lurk, or any monster. There are no experience levels.
 - Stairs are the only recovery that is not magic. You cannot rest, search or pass a turn, and nothing heals you as you walk.
@@ -93,7 +93,7 @@ Drops follow Rogue's own category odds, with coins and treats standing in for fo
 - Wands, about 5%. Wands have many different effects. Attack wands deal 2d4. Every wand has 6 charges, and the range is per wand.
 - Rings, about 5%. Worn, always on.
 - Treats, about 5%. Thrown, never used: Use just tells you so. Throw the right treat at a monster and it eats it; half the time it becomes your boon companion, your Helper. A Helper chases and fights whatever monster you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. Walk into it and you trade places; it can't do that to you. It has its own background color. You only get one.
-- Decks of cards, as common as rings. A deck comes with 5 cards, decided and stacked when the deck is rolled, and a few of them reversed. Reading the deck plays the top card, and every card plays on whoever drew it. The poker hand is everything left in the deck, and it plays on the thrower. Every card that took part in the hand pays 5,000 points; cards that other cards play along the way pay nothing. Five of a kind does something surprising.
+- Decks, as common as rings. A deck comes with 5 random potion and scroll effects, decided and stacked when the deck is rolled. Reading the deck plays the top effect on the reader. Thrown, the deck bursts like a wand of light with a charge for each effect left, and the effects are lost.
 
 The item system is one table per kind and a row per item, and a row is nothing but a name, a glyph and the components the thing carries into the world. A ring that guards you is not a special case anywhere, it is an item holding ArmorBonus(2), which combat already folds in for a suit of armor. A bow does not know arrows exist, it grants FireArrow, and an arrow is a thing that answers to FireArrow. Adding an item is one row and no other edit. This is the part I am smug about.
 

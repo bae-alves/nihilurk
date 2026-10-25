@@ -35,9 +35,8 @@ use crate::components::{
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{
-    Asleep, Bided, Blind, Clamped, Confused, Effects, Grant, Lifetime, Paralyzed,
-    Petrified, Pinned, Polymorphed, Rooted, SeesInvisible, Stealthy, SustainsStrength,
-    clear_floor_grants,
+    Asleep, Bided, Blind, Clamped, Confused, Effects, Grant, Lifetime, Paralyzed, Petrified,
+    Pinned, Polymorphed, Rooted, SeesInvisible, Stealthy, SustainsStrength, clear_floor_grants,
 };
 use crate::helpers::item_label;
 use crate::map::GameRng;
@@ -261,9 +260,8 @@ pub const AFFLICTIONS: &[Affliction] = &[
 /// Held until a staircase, but nothing a cure can lift — a boon, not
 /// an affliction, and a rosé coin should not offer to take it off you. A
 /// polymorph is the same kind of thing: a loan, not a malady.
-const FLOOR_BOONS: &[(Grant, &str)] = &[
-    (Grant::of::<Polymorphed>(), strings::adjective_polymorphed()),
-];
+const FLOOR_BOONS: &[(Grant, &str)] =
+    &[(Grant::of::<Polymorphed>(), strings::adjective_polymorphed())];
 
 // ---------------------------------------------------------------------------
 // Lifting one of them, and mending what they left

@@ -10,7 +10,7 @@ How to add an item
                    identified; every other kind is always shown by its
                    true name.
 
-One category per `DROPS` row. Most are a single row. Potions, scrolls and wands are a row plus the handler it names, and a deck's cards are a table of their own. Find your category below and follow that recipe only.
+One category per `DROPS` row. Most are a single row. Potions, scrolls and wands are a row plus the handler it names, and a deck stacks potion and scroll effects, so it has no rows to add. Find your category below and follow that recipe only.
 
 
 At a glance
@@ -28,7 +28,7 @@ At a glance
 | Potion    | `POTIONS`   | no         | a handler in `items/potions.rs`, named by the row |
 | Scroll    | `SCROLLS`   | no         | a handler in `items/scrolls.rs`, named by the row |
 | Wand      | `WANDS`     | no         | a zap handler in `items/wands.rs`, named by the row |
-| Deck      | `DECKS`     | yes        | a new card: a `CARDS` row and its `play` handler in `items/decks.rs` |
+| Deck      | `DECKS`     | yes        | nothing: a new potion or scroll row that drops joins `deck_pool` on its own |
 
 Every table is in `models/src/items/catalog.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `rings.rs`, `decks.rs`, `pickups.rs`, `throwing.rs` (`models/src/items/mod.rs` itself is `item_system`, which plans a use and hands it to the row's handler).
 

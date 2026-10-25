@@ -43,9 +43,6 @@ pub struct SpellsMenu {
 pub struct QuitPrompt {
     /// Whether the prompt is up.
     pub open: bool,
-    /// Whether the first yes came with time stopped, so the prompt now warns
-    /// that nothing was saved since THE WORLD began and wants a second yes.
-    pub warned: bool,
 }
 
 /// The F1 key list: whether it is up. Any key closes it and does nothing else,

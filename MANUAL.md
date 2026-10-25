@@ -151,7 +151,7 @@ The map uses these symbols:
 | `%`    | A corpse, or a treat |
 | `^`    | A discovered trap |
 | `$`    | A coin or other pickup |
-| `! ? / =` | Potion, scroll (or a magenta deck of cards), wand, or ring |
+| `! ? / =` | Potion, scroll (or a magenta deck), wand, or ring |
 | `) ] }` | Weapon, armour, or launcher |
 | `"`    | The Element of Yoord |
 
@@ -228,13 +228,13 @@ Throwing, firing, and most wands open an aiming cursor. Move it with the directi
 
 Your pack has nine slots. Ammunition shares a slot with matching ammunition, and treats with matching treats, but other items take their own place. Coins are not carried: stepping on one spends it immediately. If a coin cannot help you yet, the dungeon leaves it where it is.
 
-**Trick shots.** A trap has nobody to bite when nobody is standing on it, so a missile that lands on one sets the whole mechanism off at once, over every square around it. A coin shot the same way bursts just as far and gives its effect to you from across the room. A potion lying on the floor shatters over everything around it. You can only do this to a trap you have already found. A creature standing on a trap you know about, on a coin, or on the Element of Yoord is drawn on a magenta square: hit it and you set off what it is standing on. One burst sets off anything it covers, including traps nobody has found, so a good shot can run a long way. None of this is on your side. Stand too close to your own trick shot and it will catch you as readily as anything else.
+**Trick shots.** A trap has nobody to bite when nobody is standing on it, so a missile that lands on one sets the whole mechanism off at once, over every square around it. A coin shot the same way bursts just as far, and nobody gets its effect. A potion lying on the floor shatters over everything around it. You can only do this to a trap you have already found. A creature standing on a trap you know about, on a coin, or on the Element of Yoord is drawn on a magenta square: hit it and you set off what it is standing on. One burst sets off anything it covers, including traps nobody has found, so a good shot can run a long way. None of this is on your side. Stand too close to your own trick shot and it will catch you as readily as anything else.
 
 
-Decks of cards
---------------
+Decks
+-----
 
-A deck of cards is as rare as a ring. It holds five cards, stacked when the deck turns up, and one or two of them lie reversed. Read it (`r`) and you play the top card; a reversed card plays its darker side. Some cards play other cards. Throw the deck instead and all that is left plays at once as a poker hand, never reversed, on you. Every card that makes up the hand pays 5,000 points, and a FOOL counts as any card. Five of a kind plays its card five times, then sets everything you wear to +5 and burns off its curses.
+A deck is as rare as a ring. It holds five potion and scroll effects, stacked when the deck turns up. Read it (`r`) and the top effect plays on you, as if you had drunk the potion or read the scroll. Throw the deck instead and it bursts where it lands like a wand of light, one charge for each effect left. The effects are lost.
 
 Helpers
 -------
@@ -341,7 +341,7 @@ Useful commands
 | `Esc` | Back out of a menu; on the bare map, quit after confirmation |
 | `Ctrl+C` | Quit immediately. No other Ctrl key does anything |
 
-`x` takes the next weapon in your pack, wrapping round, but only across the divide: a melee weapon gives way to a launcher and a launcher to a melee weapon. It skips weapons whose quality you have not learned yet and weapons you know are cursed, and a cursed weapon in hand blocks it. Quitting saves the current expedition unless saving has been disabled. While time is stopped nothing is saved: the game saves as time stops and again as it starts. Quitting in between warns you in red and asks a second time, and those turns are lost.
+`x` takes the next weapon in your pack, wrapping round, but only across the divide: a melee weapon gives way to a launcher and a launcher to a melee weapon. It skips weapons whose quality you have not learned yet and weapons you know are cursed, and a cursed weapon in hand blocks it. Quitting saves the current expedition unless saving has been disabled.
 
 The map can be centred, screen shake can be disabled, and blood can be hidden with command-line options. For the complete list, see `docs/reference/cli-and-env.md`.
 

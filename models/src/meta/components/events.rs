@@ -48,9 +48,8 @@ pub struct WantsToThrow {
     /// The tile it is thrown at.
     pub target: Position,
     /// The pack row the item sits in; [`crate::items::throw_system`] lifts it
-    /// from there. A [`Returns`] item lands in that row again, and so does a
-    /// throw time stopped that a save or a floor change thaws. `None` when it
-    /// is not in a pack.
+    /// from there. A [`Returns`] item lands in that row again. `None` when it is
+    /// not in a pack.
     pub slot_idx: Option<usize>,
 }
 

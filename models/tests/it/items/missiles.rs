@@ -15,6 +15,7 @@
 use crate::common;
 use crate::common::monster;
 
+use crate::common::fixtures::{spawn_ammo, spawn_launcher, spawn_named, spawn_ring, spawn_weapon};
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -335,58 +336,6 @@ fn a_boomerang_hits_the_first_creature_only_and_comes_back_to_the_pack() {
     assert!(logged(&w, "boomerang returns"));
 }
 
-/// The player's pack, as it stands.
-fn pack(w: &World, p: Entity) -> Vec<Entity> {
-    w.get::<Backpack>(p).unwrap().items.clone()
-}
-
-/// Throws `items` one after another with time stopped, then thaws them back the
-/// way a save or a floor change does.
-fn throw_frozen_and_thaw(w: &mut World, p: Entity, items: &[Entity]) {
-    let spot = open_run(w, 2)[1];
-    lend(w, p, Grant::of::<TimeStopped>(), Lifetime::Floor);
-    for &item in items {
-        throw(w, p, item, spot);
-    }
-    thaw_into_pack(w);
-    revoke(w, p, Grant::of::<TimeStopped>());
-}
-
-#[test]
-fn the_world_does_not_hold_a_returning_weapon() {
-    let mut w = test_world(49);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let bat = tough(&mut w, "bat", spot);
-    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    lend(&mut w, p, Grant::of::<TimeStopped>(), Lifetime::Floor);
-
-    throw(&mut w, p, boomerang, spot);
-
-    assert!(hp(&w, bat) < 500, "it struck with time stopped");
-    assert_eq!(pack_count(&w, p, boomerang), 1, "and came home");
-    assert!(!logged(&w, "stops in the air"));
-
-    let before = hp(&w, bat);
-    throw(&mut w, p, dagger, spot);
-    assert_eq!(hp(&w, bat), before, "a dagger still hangs");
-}
-
-#[test]
-fn a_frozen_arrow_thaws_back_into_its_quiver() {
-    let mut w = test_world(47);
-    let p = player(&mut w);
-    let arrows = quiver(&mut w, p, "arrow", 5);
-    stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
-    let before = pack(&w, p);
-
-    throw_frozen_and_thaw(&mut w, p, &[arrows]);
-
-    assert_eq!(pack(&w, p), before, "no new row for the one arrow");
-    assert_eq!(w.get::<Stack>(arrows).unwrap().count, 5);
-}
-
 #[test]
 fn a_wielded_boomerang_is_wielded_again_when_it_comes_back() {
     let mut w = test_world(42);
@@ -485,10 +434,14 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     let mut w = test_world(19);
     let p = player(&mut w);
     empty_pack(&mut w, p);
-    let arrows = quiver(&mut w, p, "arrow", 13);
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
+    let ammo_row = &AMMO[0];
+    let arrows = stash(&mut w, p, |w| ammo_row.spawn(w, NOWHERE));
+    w.get_mut::<Stack>(arrows).unwrap().count = 13;
+    let bow = stash(&mut w, p, |w| LAUNCHERS[0].spawn(w, NOWHERE));
     w.entity_mut(bow).insert(ThrowBonus(2));
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    let weapon_row = &WEAPONS[0];
+    let dagger = stash(&mut w, p, |w| weapon_row.spawn(w, NOWHERE));
+    let was_piercing = w.get::<Piercing>(dagger).is_some();
     let arrow_damage = *w.get::<ThrownDamage>(arrows).unwrap();
     let arrow_row = w.get::<Ammo>(arrows).unwrap().row;
     let dagger_damage = *w.get::<ThrownDamage>(dagger).unwrap();
@@ -529,14 +482,18 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
 
     let dagger = *packed
         .iter()
-        .find(|&&e| loaded.get::<Piercing>(e).is_some() && loaded.get::<Projectile>(e).is_some())
+        .find(|&&e| {
+            loaded
+                .get::<Name>(e)
+                .is_some_and(|n| n.what == weapon_row.name)
+        })
         .expect("the dagger survived the save");
     assert_eq!(loaded.get::<ThrownDamage>(dagger), Some(&dagger_damage));
-    assert!(loaded.get::<Piercing>(dagger).is_some());
+    assert_eq!(loaded.get::<Piercing>(dagger).is_some(), was_piercing);
     assert!(loaded.get::<Projectile>(dagger).is_some());
 
     toggle_equipped(&mut loaded, hero, bow);
-    assert!(loaded.get::<FireArrow>(hero).is_some());
+    assert!(ammo_row.launched_by.probe(&loaded, hero));
 }
 
 // ---------------------------------------------------------------------------
@@ -711,4 +668,41 @@ fn a_monsters_moon_blade_finds_its_own_enemies() {
         .count();
     assert_eq!(strikes, 3, "an ally, an ally, then the player");
     assert_eq!(pack_count(&w, thrower, blade), 1);
+}
+
+/// A stack gives up one unit of its own kind, whatever the kind is called: the
+/// row rides on the stack, so no table has to know the name.
+#[test]
+fn a_quiver_gives_up_one_of_its_own_kind_whatever_it_is_called() {
+    static BOLT: AmmoDef = AmmoDef {
+        name: "a bolt no table lists",
+        color: Color::Grey,
+        die: 2,
+        launched_die: 4,
+        launched_by: Grant::of::<FireArrow>(),
+        on_blood: |_, _| {},
+    };
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+    let quiver = stash(&mut w, p, |w| (&BOLT).spawn(w, NOWHERE));
+    w.get_mut::<Stack>(quiver).unwrap().count = 5;
+
+    let slot = w
+        .get::<Backpack>(p)
+        .unwrap()
+        .items
+        .iter()
+        .position(|&e| e == quiver);
+    w.get_mut::<Backpack>(p)
+        .unwrap()
+        .items
+        .retain(|&e| e != quiver);
+    let one = draw_one(&mut w, p, quiver, slot);
+
+    assert_ne!(one, quiver, "one unit left the stack, not the whole stack");
+    assert_eq!(w.get::<Ammo>(one).unwrap().row.name, BOLT.name);
+    assert_eq!(w.get::<Stack>(one).unwrap().count, 1);
+    assert_eq!(w.get::<Stack>(quiver).unwrap().count, 4);
+    assert!(w.get::<Backpack>(p).unwrap().items.contains(&quiver));
 }

@@ -1,6 +1,7 @@
 //! NetHack-style fast movement: the planner that decides between a straight run
 //! and a beeline to a feature, plus the straight-run stop conditions.
 
+use crate::common::fixtures::trap_row;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
@@ -146,7 +147,7 @@ fn straight_step_stops_before_a_known_trap() {
     w.spawn((
         Position { x: 18, y: 9 },
         Trap {
-            row: TrapDef::lookup("dart trap").unwrap(),
+            row: trap_row("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },
@@ -168,7 +169,7 @@ fn fast_move_plan_is_blocked_by_a_known_trap_dead_ahead() {
     w.spawn((
         Position { x: 18, y: 9 },
         Trap {
-            row: TrapDef::lookup("dart trap").unwrap(),
+            row: trap_row("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },

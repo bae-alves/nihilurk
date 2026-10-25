@@ -47,7 +47,6 @@ const RAW_READS: &[(&str, usize, &str)] = &[
     ),
     ("world/traps.rs", 1, "a guard in front of `item_label`"),
     ("meta/saveload.rs", 1, "writing the name to disk"),
-    ("items/catalog.rs", 1, "an item's name"),
 ];
 
 fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {

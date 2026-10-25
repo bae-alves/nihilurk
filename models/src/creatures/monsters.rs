@@ -16,7 +16,6 @@ use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::{ItemDef, SPELLS, SpellDef};
 use crate::components::*;
-use crate::constants::decks::CARD_CASTER_CASTS;
 use crate::constants::spirits::{BARTER_STOCK_MAX, BARTER_STOCK_MIN};
 use crate::effects::{
     AlwaysHelper, AlwaysTamed, Batty, Binds, ColdImmune, FaerieOnDeath, FireImmune, Flies,
@@ -46,7 +45,6 @@ use crate::catalog::index_of;
 
 const FIREBALL: usize = index_of!(SPELLS, "Fireball");
 const THUNDERBOLT: usize = index_of!(SPELLS, "Thunderbolt");
-const FORCE_LANCE: usize = index_of!(SPELLS, "Force Lance");
 const SHORT_BOW: usize = index_of!(crate::catalog::LAUNCHERS, "short bow");
 const XEROC: usize = index_of!(BESTIARY, "xeroc");
 
@@ -265,7 +263,7 @@ impl MonsterDef {
 
     /// Look up a species by name, or `None` if the bestiary has no such row.
     pub fn lookup(name: &str) -> Option<&'static MonsterDef> {
-        BESTIARY.iter().chain(SUMMONS).find(|m| m.name == name)
+        BESTIARY.iter().find(|m| m.name == name)
     }
 
     /// What the player sees this species called, in whatever language this
@@ -411,7 +409,6 @@ pub const MIRROR_HOUND_GRANTS: &[Grant] = &[
 /// const cannot borrow a fresh slice of static rows.
 static BREATHES_FIRE: [&SpellDef; 1] = [SPELLS[FIREBALL]];
 static CASTS_THUNDERBOLT: [&SpellDef; 1] = [SPELLS[THUNDERBOLT]];
-static CASTS_FORCE_LANCE: [&SpellDef; 1] = [SPELLS[FORCE_LANCE]];
 
 /// The whole bestiary: Rogue's 26 lettered creatures and the few nihilurk
 /// added, in one table. Effects that pick a
@@ -1050,41 +1047,6 @@ pub const BESTIARY: &[MonsterDef] = &[
 	.spirit(SpiritKind::Eudaemon, SpiritEvent(gnome_event)),
 ];
 
-/// The creatures no floor rolls: the two only a deck of cards brings, THE
-/// SKULL KING! and THE BLACK MAGE. Not in [`BESTIARY`], so
-/// no floor, conjuring or polymorph ever rolls one; [`MonsterDef::lookup`]
-/// still finds them, so a save, `NIHILURK_SPAWN` and `-am` do.
-#[rustfmt::skip]
-pub const SUMMONS: &[MonsterDef] = &[
-	//              name          glyph  colour          move   hp  pow  pb  ar  ab  dep
-	MonsterDef::row(
-		"skull king",
-		'S',
-		Color::Magenta,
-		Chase,
-		14,
-		6,
-		0,
-		6,
-		0,
-		1,
-	)
-	.casts(CARD_CASTER_CASTS, &CASTS_THUNDERBOLT),
-	MonsterDef::row(
-		"black mage",
-		'&',
-		Color::Magenta,
-		Chase,
-		14,
-		5,
-		0,
-		8,
-		0,
-		1,
-	)
-	.casts(CARD_CASTER_CASTS, &CASTS_FORCE_LANCE),
-];
-
 /// Every component a monster is spawned with, built wholesale from a
 /// [`MonsterDef`] — including a record of the magic it was born with and a
 /// `Normal` [`Speed`], so the entity is complete the moment it lands in the
@@ -1627,7 +1589,6 @@ pub(crate) fn species_of(world: &World, who: Entity) -> Option<&'static MonsterD
     let name = &world.get::<Name>(who)?.what;
     BESTIARY
         .iter()
-        .chain(SUMMONS)
         .find(|m| m.spirit_kind.is_none() && m.display_name() == name)
 }
 

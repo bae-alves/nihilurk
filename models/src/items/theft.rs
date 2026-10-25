@@ -11,7 +11,7 @@ use crate::helpers::{item_label, leave_smoke};
 
 /// The thief's on-hit: strip one piece of equipped gear and disappear the
 /// instant it does — no immediate use, no theatre, just gone with it.
-pub(crate) fn theft(world: &mut World, attacker: Entity, target: Entity) {
+pub fn theft(world: &mut World, attacker: Entity, target: Entity) {
     let Some(item) = steal_equipped_item(world, target) else {
         return;
     };

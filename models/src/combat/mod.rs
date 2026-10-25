@@ -64,7 +64,6 @@ use crate::constants::combat::{
     BELL_CURVE_DICE, BIDE_ATTACK_BONUS, CHIP_DAMAGE, CURSED_SPLINTER_DIE, CURSED_SPLINTER_RADIUS,
     EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE, GEAR_SURVIVES_DEATH, VULN_DAMAGE_PERCENT,
 };
-use crate::constants::decks::{BALA_POWER, BOLE_ARMOR};
 
 /// Rolls `1dN`. A non-positive number of sides means "no die", which rolls 0 so
 /// an unarmoured/unarmed entity simply contributes nothing to the opposed roll.

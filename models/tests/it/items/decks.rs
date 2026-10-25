@@ -1,17 +1,17 @@
-//! Decks of cards: reading one card off the top, every card either way up, a
-//! thrown deck played as a poker hand, and THE WORLD's stopped time.
+//! Decks: an ordered stack of potion and scroll effects. Reading one plays the
+//! top effect on the reader; throwing it bursts like a wand of light.
 //!
 //! Every test builds its deck by hand and stands the player in a bare room, so
 //! nothing the floor rolled can get in the way.
 
 use crate::common;
-use crate::common::monster;
+use crate::common::fixtures::{potion_row, scroll_row};
+use crate::common::monster::monster;
 
 use bevy_ecs::prelude::*;
 use fixedbitset::FixedBitSet;
-use models::constants::decks::{
-    CARD_CHAIN_CAP, CARD_POINTS, DECK_SIZE, FIVE_FLUSH_PLUS, REVERSED_MAX, REVERSED_MIN,
-};
+use models::constants::decks::DECK_SIZE;
+use models::constants::potions::GAIN_STRENGTH_POWER;
 use models::*;
 
 const UP: (u16, u16) = (11, 6);
@@ -71,25 +71,19 @@ fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
 }
 
-fn up(name: &str) -> Card {
-    Card {
-        row: card_row(name).expect(name),
-        reversed: false,
-    }
+/// The effect a row name stands for.
+fn fx(name: &str) -> DeckEffect {
+    potion_row(name)
+        .map(DeckEffect::Potion)
+        .or_else(|| scroll_row(name).map(DeckEffect::Scroll))
+        .expect(name)
 }
 
-fn down(name: &str) -> Card {
-    Card {
-        row: card_row(name).expect(name),
-        reversed: true,
-    }
-}
-
-/// A deck in the player's pack holding `cards`, bottom first.
-fn deck_in_pack(w: &mut World, cards: &[Card]) -> Entity {
-    let deck = spawn_named(w, "deck of cards", HERE).unwrap();
+/// A deck in the player's pack holding `effects`, bottom first.
+fn deck_in_pack(w: &mut World, effects: &[DeckEffect]) -> Entity {
+    let deck = DECKS[0].spawn(w, HERE);
     w.entity_mut(deck).remove::<Position>().insert(Deck {
-        cards: cards.to_vec(),
+        effects: effects.to_vec(),
     });
     let p = player(w);
     w.get_mut::<Backpack>(p).unwrap().items.push(deck);
@@ -110,12 +104,6 @@ fn use_item(w: &mut World, item: Entity) {
     item_system(w);
 }
 
-/// Reads a one-card deck.
-fn read(w: &mut World, card: Card) {
-    let deck = deck_in_pack(w, &[card]);
-    use_item(w, deck);
-}
-
 /// The engine's "Throw": out of the pack, at `target`.
 fn throw(w: &mut World, item: Entity, target: Position) {
     let p = player(w);
@@ -132,251 +120,98 @@ fn throw(w: &mut World, item: Entity, target: Position) {
     throw_system(w);
 }
 
-fn throw_hand(w: &mut World, cards: &[Card]) {
-    let deck = deck_in_pack(w, cards);
-    throw(w, deck, Position { x: 25, y: 10 });
-}
-
 fn in_pack(w: &mut World, item: Entity) -> bool {
     let p = player(w);
     w.get::<Backpack>(p).unwrap().items.contains(&item)
 }
 
-fn log_has(w: &World, line: &str) -> bool {
-    w.resource::<GameLog>().history.iter().any(|l| l == line)
-}
-
-fn draws(w: &World) -> usize {
-    w.resource::<GameLog>()
-        .history
-        .iter()
-        .filter(|l| l.starts_with("You draw "))
-        .count()
-}
-
-fn wielded(w: &mut World) -> Entity {
+fn power(w: &mut World) -> i32 {
     let p = player(w);
-    w.get::<Backpack>(p)
+    w.get::<Fighter>(p).unwrap().power
+}
+
+#[test]
+fn reading_plays_only_the_top_effect() {
+    let mut w = test_world(1);
+    let before = power(&mut w);
+    let deck = deck_in_pack(
+        &mut w,
+        &[fx("potion of gain strength"), fx("potion of fruit juice")],
+    );
+    use_item(&mut w, deck);
+    assert!(in_pack(&mut w, deck));
+    assert_eq!(
+        w.get::<Deck>(deck).unwrap().effects,
+        vec![fx("potion of gain strength")]
+    );
+    assert_eq!(power(&mut w), before, "the strength is still underneath");
+}
+
+#[test]
+fn the_effect_plays_on_the_reader_and_the_last_one_spends_the_deck() {
+    let mut w = test_world(2);
+    let before = power(&mut w);
+    let deck = deck_in_pack(&mut w, &[fx("potion of gain strength")]);
+    use_item(&mut w, deck);
+    assert_eq!(power(&mut w), before + GAIN_STRENGTH_POWER);
+    assert!(w.get_entity(deck).is_none(), "an empty deck is gone");
+    assert!(!in_pack(&mut w, deck));
+}
+
+#[test]
+fn a_scroll_effect_plays_like_the_scroll() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let weapon = w
+        .get::<Backpack>(p)
         .unwrap()
         .items
         .iter()
         .copied()
-        .find(|&e| {
-            w.get::<Equipped>(e)
-                .is_some_and(|q| q.slot == Slot::Hand && q.by == Some(p))
-        })
-        .unwrap()
-}
-
-fn plus(w: &World, item: Entity) -> i32 {
-    w.get::<PowerBonus>(item).map_or(0, |b| b.0)
-        + w.get::<ArmorBonus>(item).map_or(0, |b| b.0)
-        + w.get::<ThrowBonus>(item).map_or(0, |b| b.0)
-}
-
-// ---------------------------------------------------------------------------
-// The deck itself
-// ---------------------------------------------------------------------------
-
-#[test]
-fn reading_plays_only_the_top_card() {
-    let mut w = test_world(1);
-    let deck = deck_in_pack(&mut w, &[up("The Eyes Never Lie"), up("FOOL")]);
+        .find(|&e| w.get::<Equipped>(e).is_some_and(|q| q.slot == Slot::Hand))
+        .unwrap();
+    let bonus = |w: &World| w.get::<PowerBonus>(weapon).map_or(0, |b| b.0);
+    let before = bonus(&w);
+    let deck = deck_in_pack(&mut w, &[fx("scroll of enchant weapon")]);
     use_item(&mut w, deck);
-    assert!(in_pack(&mut w, deck));
-    assert_eq!(
-        w.get::<Deck>(deck).unwrap().cards,
-        vec![up("The Eyes Never Lie")]
-    );
-    assert_eq!(draws(&w), 1);
+    assert_eq!(bonus(&w), before + 1);
 }
 
 #[test]
-fn a_rolled_deck_is_full_with_one_or_two_reversed() {
-    for seed in 0..50 {
-        let deck = roll_deck(&mut ChaCha12Rng::seed_from_u64(seed));
-        assert_eq!(deck.cards.len(), DECK_SIZE);
-        let flipped = deck.cards.iter().filter(|c| c.reversed).count();
-        assert!(
-            (REVERSED_MIN..=REVERSED_MAX).contains(&flipped),
-            "{flipped}"
-        );
+fn a_rolled_deck_holds_deck_size_effects_that_drop() {
+    let mut rng = ChaCha12Rng::seed_from_u64(7);
+    for _ in 0..50 {
+        let deck = roll_deck(&mut rng);
+        assert_eq!(deck.effects.len(), DECK_SIZE);
+        assert!(deck.effects.iter().all(|e| e.weight() > 0));
     }
 }
 
-// ---------------------------------------------------------------------------
-// The cards
-// ---------------------------------------------------------------------------
-
 #[test]
-fn the_prince_enchants_the_weapon_and_reversed_dulls_it() {
-    let mut w = test_world(1);
-    let mace = wielded(&mut w);
-    let before = plus(&w, mace);
-    read(&mut w, up("Prince of Swords"));
-    assert!(plus(&w, mace) > before);
-    let enchanted = plus(&w, mace);
-    read(&mut w, down("Prince of Swords"));
-    assert_eq!(plus(&w, mace), enchanted - 1);
-}
+fn a_thrown_deck_bursts_like_a_wand_of_light_and_plays_nothing() {
+    let mut w = test_world(6);
+    let before = power(&mut w);
+    let orc = monster(&mut w, "orc", Position { x: 21, y: 10 });
+    w.get_mut::<Fighter>(orc).unwrap().hp = 40;
+    let deck = deck_in_pack(&mut w, &[fx("potion of gain strength"); DECK_SIZE]);
+    throw(&mut w, deck, Position { x: 21, y: 10 });
 
-#[test]
-fn the_reversed_king_empties_wands_and_an_empty_wand_crumbles_unfired() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let wand = spawn_named(&mut w, "wand of striking", HERE).unwrap();
-    w.entity_mut(wand).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
-    read(&mut w, down("King of Clubs"));
-    assert_eq!(w.get::<Battery>(wand).unwrap().charges, 0);
-
-    let foe = monster::plain_monster(&mut w, "dummy", Position { x: 21, y: 10 });
-    w.get_mut::<Backpack>(p)
-        .unwrap()
-        .items
-        .retain(|&e| e != wand);
-    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
-        user: p,
-        item: wand,
-        target: Some(Position { x: 21, y: 10 }),
-        slot_idx: None,
-    });
-    item_system(&mut w);
-    assert!(w.get_entity(wand).is_none());
-    assert_eq!(w.get::<Fighter>(foe).unwrap().hp, 100);
-
-    let wand = spawn_named(&mut w, "wand of striking", HERE).unwrap();
-    w.entity_mut(wand).remove::<Position>();
-    w.get_mut::<Battery>(wand).unwrap().charges = 1;
-    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
-    read(&mut w, up("King of Clubs"));
-    assert!(w.get::<Battery>(wand).unwrap().charges > 1);
-}
-
-#[test]
-fn the_child_and_the_crone_lead_to_the_stairs() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let at = |w: &World| {
-        let pos = w.get::<Position>(p).unwrap();
-        (pos.x, pos.y)
-    };
-    read(&mut w, up("The Child"));
-    assert_eq!(at(&w), UP);
-    read(&mut w, up("The Crone"));
-    assert_eq!(at(&w), DOWN);
-    read(&mut w, down("The Crone"));
-    assert_eq!(at(&w), UP);
-    read(&mut w, down("The Child"));
-    assert_eq!(at(&w), DOWN);
-}
-
-#[test]
-fn the_excuse_confuses_foes_and_spares_allies() {
-    let mut w = test_world(1);
-    let foe = monster::plain_monster(&mut w, "foe", Position { x: 25, y: 10 });
-    let friend = monster::plain_monster(&mut w, "friend", Position { x: 25, y: 12 });
-    charm(&mut w, friend);
-    read(&mut w, up("THE EXCUSE"));
-    let reeling = |w: &World, e: Entity| {
-        matches!(
-            w.get::<Mob>(e).unwrap().movement_type,
-            MovementType::Confused
-        )
-    };
-    assert!(reeling(&w, foe));
-    assert!(!reeling(&w, friend));
-
-    read(&mut w, down("THE EXCUSE"));
-    let p = player(&mut w);
-    assert!(w.get::<Confused>(p).is_some());
-}
-
-#[test]
-fn the_eyes_show_whats_left_top_first() {
-    let mut w = test_world(1);
-    let deck = deck_in_pack(
-        &mut w,
-        &[down("The Bole"), up("FOOL"), up("The Eyes Never Lie")],
-    );
-    use_item(&mut w, deck);
-    assert!(log_has(
-        &w,
-        "The deck holds, top first: FOOL, The Bole (reversed)."
+    assert!(w.get_entity(deck).is_none(), "the deck is spent");
+    assert!(w.get::<Fighter>(orc).unwrap().hp < 40, "the flash burns");
+    assert!(matches!(
+        w.get::<Mob>(orc).unwrap().movement_type,
+        MovementType::Confused
     ));
+    assert_eq!(power(&mut w), before, "the stacked effects are lost");
 }
 
 #[test]
-fn the_balance_raises_the_swing() {
-    let swing = |bala: bool| {
-        let mut total = 0;
-        for seed in 0..40 {
-            let mut w = test_world(seed);
-            let p = player(&mut w);
-            if bala {
-                read(&mut w, up("The Balance"));
-            }
-            let foe = monster::plain_monster(&mut w, "dummy", Position { x: 21, y: 10 });
-            w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
-            resolve_attack(&mut w, p, foe);
-            total += 100 - w.get::<Fighter>(foe).unwrap().hp;
-        }
-        total
-    };
-    assert!(swing(true) > swing(false));
-}
-
-#[test]
-fn the_bole_raises_the_guard() {
-    let taken = |bole: bool| {
-        let mut total = 0;
-        for seed in 0..40 {
-            let mut w = test_world(seed);
-            let p = player(&mut w);
-            if bole {
-                read(&mut w, up("The Bole"));
-            }
-            let foe = monster::plain_monster(&mut w, "brute", Position { x: 21, y: 10 });
-            w.get_mut::<Fighter>(foe).unwrap().power = 12;
-            w.get_mut::<Fighter>(p).unwrap().hp = 1000;
-            w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
-            resolve_attack(&mut w, foe, p);
-            total += 1000 - w.get::<Fighter>(p).unwrap().hp;
-        }
-        total
-    };
-    assert!(taken(true) < taken(false));
-}
-
-#[test]
-fn the_chariot_makes_every_blow_excellent_either_way_up() {
-    for seed in 0..10 {
-        let mut w = test_world(seed);
-        let p = player(&mut w);
-        read(&mut w, up("VII THE CHARIOT"));
-        let foe = monster::plain_monster(&mut w, "dummy", Position { x: 21, y: 10 });
-        resolve_attack(&mut w, p, foe);
-        let last = w.resource::<GameLog>().history.last().unwrap().clone();
-        assert!(last.contains("excellent"), "{last}");
-    }
-    for seed in 0..10 {
-        let mut w = test_world(seed);
-        let p = player(&mut w);
-        let foe = monster::plain_monster(&mut w, "dummy", Position { x: 21, y: 10 });
-        lend(&mut w, foe, Grant::of::<Oof>(), Lifetime::Floor);
-        resolve_attack(&mut w, p, foe);
-        let last = w.resource::<GameLog>().history.last().unwrap().clone();
-        assert!(last.contains("excellent"), "{last}");
-    }
-}
-
-#[test]
-fn the_ledgers_survive_a_save() {
+fn a_deck_survives_a_save() {
     let mut w = test_world(4);
-    for face in ["The Balance", "The Bole", "VII THE CHARIOT"] {
-        read(&mut w, up(face));
-    }
-    let save = common::SaveFile::new("ledgers");
+    let pool = deck_pool();
+    let effects = [pool[0], pool[pool.len() - 1]];
+    let deck = deck_in_pack(&mut w, &effects);
+    let save = common::SaveFile::new("deck");
     save_game(&mut w, save.path()).unwrap();
     let mut w2 = World::new();
     w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
@@ -384,320 +219,11 @@ fn the_ledgers_survive_a_save() {
     w2.init_resource::<GameLog>();
     w2.insert_resource(PlayerName { what: "X".into() });
     load_game(&mut w2, save.path()).unwrap();
-    let p = player(&mut w2);
-    assert!(w2.get::<Bala>(p).is_some());
-    assert!(w2.get::<Bole>(p).is_some());
-    assert!(w2.get::<Crit>(p).is_some());
-}
-
-/// A worn ring of protection, or of stealth: one with a number, one without.
-fn worn_ring(w: &mut World, name: &str) -> Entity {
-    let p = player(w);
-    let ring = spawn_named(w, name, HERE).unwrap();
-    w.entity_mut(ring).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
-    assert!(equip_silently(w, p, ring));
-    ring
-}
-
-#[test]
-fn the_princess_enchants_a_numeric_ring() {
-    let mut w = test_world(1);
-    let ring = worn_ring(&mut w, "ring of protection");
-    let before = plus(&w, ring);
-    read(&mut w, up("Princess of Diamonds"));
-    assert_eq!(plus(&w, ring), before + 1);
-    read(&mut w, down("Princess of Diamonds"));
-    assert_eq!(plus(&w, ring), before);
-}
-
-#[test]
-fn the_princess_moves_a_worn_ring_of_healths_hit_points_at_once() {
-    let mut w = test_world(1);
-    worn_ring(&mut w, "ring of health");
-    let p = player(&mut w);
-    let hp = |w: &World| {
-        let f = w.get::<Fighter>(p).unwrap();
-        (f.hp, f.max_hp)
-    };
-    let (cur, max) = hp(&w);
-    read(&mut w, up("Princess of Diamonds"));
-    assert_eq!(hp(&w), (cur + 1, max + 1));
-    read(&mut w, down("Princess of Diamonds"));
-    assert_eq!(hp(&w).1, max);
-}
-
-#[test]
-fn the_reversed_princess_breaks_a_ring_at_zero() {
-    let mut w = test_world(1);
-    let ring = worn_ring(&mut w, "ring of protection");
-    w.entity_mut(ring).insert(ArmorBonus(0));
-    read(&mut w, down("Princess of Diamonds"));
-    assert!(w.get_entity(ring).is_none());
-    assert!(!in_pack(&mut w, ring));
-}
-
-// ---------------------------------------------------------------------------
-// Summons and the golden wind
-// ---------------------------------------------------------------------------
-
-fn summoned(w: &mut World, name: &str) -> Entity {
-    let found: Vec<Entity> = w
-        .query::<(Entity, &Name)>()
-        .iter(w)
-        .filter(|(_, n)| n.what == name)
-        .map(|(e, _)| e)
+    let _ = deck;
+    let loaded: Vec<Vec<DeckEffect>> = w2
+        .query::<&Deck>()
+        .iter(&w2)
+        .map(|d| d.effects.clone())
         .collect();
-    assert_eq!(found.len(), 1, "{name}");
-    found[0]
-}
-
-#[test]
-fn reversed_they_come_as_foes() {
-    let mut w = test_world(1);
-    read(&mut w, down("THE SKULL KING!"));
-    read(&mut w, down("THE BLACK MAGE"));
-    let king = summoned(&mut w, "skull king");
-    let mage = summoned(&mut w, "black mage");
-    assert_eq!(*w.get::<Faction>(king).unwrap(), Faction::Monster);
-    assert_eq!(*w.get::<Faction>(mage).unwrap(), Faction::Monster);
-}
-
-#[test]
-fn the_golden_wind_wakes_the_floor_and_leaves_the_element() {
-    let mut w = test_world(1);
-    let dagger = spawn_named(&mut w, "dagger", Position { x: 30, y: 8 }).unwrap();
-    let trap = spawn_named(&mut w, "bear trap", Position { x: 32, y: 12 }).unwrap();
-    let element = spawn_named(&mut w, "Element of Yoord", Position { x: 34, y: 8 })
-        .or_else(|| Some(spawn_element_of_yoord(&mut w, Position { x: 34, y: 8 })))
-        .unwrap();
-    read(&mut w, up("XXIII GOLDEN WIND"));
-    assert!(w.get_entity(dagger).is_none());
-    assert!(w.get_entity(trap).is_none());
-    assert!(w.get_entity(element).is_some());
-    let allies: Vec<Position> = w
-        .query::<(&Position, &Faction, &Mob)>()
-        .iter(&w)
-        .filter(|(_, f, _)| **f == Faction::Ally)
-        .map(|(p, _, _)| *p)
-        .collect();
-    assert!(allies.contains(&Position { x: 30, y: 8 }));
-    assert!(allies.contains(&Position { x: 32, y: 12 }));
-}
-
-// ---------------------------------------------------------------------------
-// Hands
-// ---------------------------------------------------------------------------
-
-fn hand(faces: &[&str]) -> Option<Hand> {
-    let cards: Vec<Card> = faces.iter().map(|&f| up(f)).collect();
-    score_hand(&cards)
-}
-
-#[test]
-fn hands_score_like_poker_with_the_fool_wild() {
-    const JOKER: &str = "The Joker";
-    const BOLE: &str = "The Bole";
-    const BALANCE: &str = "The Balance";
-    const EYES: &str = "The Eyes Never Lie";
-    const CHILD: &str = "The Child";
-    const FOOL: &str = "FOOL";
-    let rank = |faces: &[&str]| hand(faces).unwrap().rank;
-    assert_eq!(rank(&[JOKER, BOLE, BALANCE, EYES, CHILD]), Rank::AntiFlush);
-    assert_eq!(rank(&[BOLE, BOLE, BALANCE, EYES, CHILD]), Rank::Pair);
-    assert_eq!(rank(&[BOLE, BOLE, EYES, EYES, CHILD]), Rank::TwoPair);
-    assert_eq!(rank(&[BOLE, BOLE, BOLE, EYES, CHILD]), Rank::ThreeOfAKind);
-    assert_eq!(rank(&[BOLE, BOLE, BOLE, EYES, EYES]), Rank::FullHouse);
-    assert_eq!(rank(&[BOLE, BOLE, BOLE, BOLE, EYES]), Rank::FourOfAKind);
-    assert_eq!(rank(&[BOLE, BOLE, BOLE, BOLE, BOLE]), Rank::FiveFlush);
-    assert_eq!(rank(&[FOOL, BOLE, BALANCE, EYES, CHILD]), Rank::Pair);
-    assert_eq!(rank(&[FOOL, BOLE, BOLE, EYES, EYES]), Rank::FullHouse);
-    assert_eq!(rank(&[FOOL, FOOL, BOLE, EYES, CHILD]), Rank::ThreeOfAKind);
-    assert_eq!(rank(&[FOOL, FOOL, FOOL, FOOL, FOOL]), Rank::FiveFlush);
-    assert_eq!(rank(&[FOOL, FOOL, FOOL, FOOL, EYES]), Rank::FiveFlush);
-    assert_eq!(rank(&[BOLE]), Rank::AntiFlush);
-    assert_eq!(rank(&[BOLE, FOOL]), Rank::Pair);
-    assert!(hand(&[]).is_none());
-    assert_eq!(
-        hand(&[EYES, BOLE, BOLE, EYES, CHILD]).unwrap().plays,
-        vec![(card_row(EYES).unwrap(), 2), (card_row(BOLE).unwrap(), 2)]
-    );
-}
-
-#[test]
-fn a_hand_pays_for_each_card_that_took_part_in_it() {
-    const JOKER: &str = "The Joker";
-    const BOLE: &str = "The Bole";
-    const BALANCE: &str = "The Balance";
-    const EYES: &str = "The Eyes Never Lie";
-    const CHILD: &str = "The Child";
-    const FOOL: &str = "FOOL";
-    let cards_paid = |faces: &[&str]| hand(faces).unwrap().points() / CARD_POINTS;
-    assert_eq!(cards_paid(&[JOKER, BOLE, BALANCE, EYES, CHILD]), 1);
-    assert_eq!(cards_paid(&[BOLE, BOLE, BALANCE, EYES, CHILD]), 2);
-    assert_eq!(cards_paid(&[BOLE, BOLE, EYES, EYES, CHILD]), 4);
-    assert_eq!(cards_paid(&[BOLE, BOLE, BOLE, EYES, CHILD]), 3);
-    assert_eq!(cards_paid(&[BOLE, BOLE, BOLE, EYES, EYES]), 5);
-    assert_eq!(cards_paid(&[BOLE, BOLE, BOLE, BOLE, EYES]), 4);
-    assert_eq!(cards_paid(&[BOLE, BOLE, BOLE, BOLE, BOLE]), 5);
-    assert_eq!(cards_paid(&[FOOL, BOLE, BALANCE, EYES, CHILD]), 2);
-    assert_eq!(cards_paid(&[FOOL, FOOL, FOOL, FOOL, EYES]), 5);
-    assert_eq!(cards_paid(&[BOLE]), 1);
-}
-
-fn worn_in(w: &mut World, slot: Slot) -> Entity {
-    let p = player(w);
-    w.get::<Backpack>(p)
-        .unwrap()
-        .items
-        .iter()
-        .copied()
-        .find(|&e| {
-            w.get::<Equipped>(e)
-                .is_some_and(|q| q.slot == slot && q.by == Some(p))
-        })
-        .unwrap()
-}
-
-fn unworn_launcher(w: &mut World) -> Entity {
-    let p = player(w);
-    w.get::<Backpack>(p)
-        .unwrap()
-        .items
-        .iter()
-        .copied()
-        .find(|&e| w.get::<Launcher>(e).is_some())
-        .unwrap()
-}
-
-#[test]
-fn a_five_flush_sets_worn_gear_to_plus_five_and_lifts_its_curse() {
-    let mut w = test_world(1);
-    let mace = wielded(&mut w);
-    w.entity_mut(mace).insert((PowerBonus(-3), Curse));
-    let armor = worn_in(&mut w, Slot::Body);
-    let ring = worn_ring(&mut w, "ring of protection");
-    let bow = unworn_launcher(&mut w);
-    let bow_before = plus(&w, bow);
-
-    throw_hand(&mut w, &[up("FOOL"); 5]);
-
-    for item in [mace, armor, ring] {
-        assert_eq!(plus(&w, item), FIVE_FLUSH_PLUS);
-        assert!(w.get::<Curse>(item).is_none());
-    }
-    assert_eq!(plus(&w, bow), bow_before);
-    assert!(!holding_element_of_yoord(&mut w));
-}
-
-#[test]
-fn a_jester_in_a_hand_finds_nothing_to_play() {
-    let mut w = test_world(1);
-    throw_hand(
-        &mut w,
-        &[
-            up("JESTER"),
-            up("JESTER"),
-            up("JESTER"),
-            up("The Eyes Never Lie"),
-            up("The Child"),
-        ],
-    );
-    assert!(log_has(
-        &w,
-        &format!("Three of a Kind ({} points)", 3 * CARD_POINTS)
-    ));
-}
-
-#[test]
-fn a_read_jester_plays_the_rest_of_the_deck_as_a_hand() {
-    let mut w = test_world(1);
-    let deck = deck_in_pack(&mut w, &[up("FOOL"), up("FOOL"), up("JESTER")]);
-    use_item(&mut w, deck);
-    assert!(w.get_entity(deck).is_none());
-    assert!(log_has(&w, &format!("A Pair ({} points)", 2 * CARD_POINTS)));
-}
-
-#[test]
-fn the_joker_never_plays_itself_and_chains_stop_at_the_cap() {
-    for seed in 0..30 {
-        let mut w = test_world(seed);
-        read(&mut w, up("The Joker"));
-        let lines = w.resource::<GameLog>().history.clone();
-        let drawn: Vec<&String> = lines
-            .iter()
-            .filter(|l| l.starts_with("You draw "))
-            .collect();
-        assert!(drawn.len() >= 2);
-        assert!(!drawn[1].contains("Joker"));
-
-        let mut w = test_world(seed);
-        read(&mut w, up("The +4"));
-        assert!(draws(&w) <= CARD_CHAIN_CAP as usize);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// THE WORLD
-// ---------------------------------------------------------------------------
-
-fn turn(w: &mut World) {
-    tick_effects(w);
-    item_system(w);
-    throw_system(w);
-    ai(w);
-}
-
-#[test]
-fn a_throw_in_stopped_time_flies_from_where_it_left_the_hand() {
-    let mut w = test_world(1);
-    let foe = monster::plain_monster(&mut w, "foe", Position { x: 23, y: 10 });
-    w.get_mut::<Fighter>(foe).unwrap().armor = 0;
-    read(&mut w, up("XXII THE WORLD"));
-    let p = player(&mut w);
-    let dagger = spawn_named(&mut w, "dagger", HERE).unwrap();
-    w.entity_mut(dagger).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(dagger);
-    throw(&mut w, dagger, Position { x: 23, y: 10 });
-    assert!(w.get::<Position>(dagger).is_none());
-    assert_eq!(w.get::<Fighter>(foe).unwrap().hp, 100);
-
-    *w.get_mut::<Position>(p).unwrap() = Position { x: 20, y: 14 };
-    for _ in 0..=models::constants::decks::WORLD_TURNS {
-        turn(&mut w);
-    }
-    assert!(w.get::<Fighter>(foe).unwrap().hp < 100);
-}
-
-#[test]
-fn the_world_reversed_paralyses_the_reader() {
-    let mut w = test_world(1);
-    read(&mut w, down("XXII THE WORLD"));
-    let p = player(&mut w);
-    assert!(w.get::<Paralyzed>(p).is_some());
-}
-
-fn say_how_it_lay(w: &mut World, deal: &mut Deal, card: Card) {
-    let who = deal.user();
-    w.resource_mut::<GameLog>()
-        .add(format!("{:?} drew it reversed: {}", who, card.reversed));
-}
-
-static TELLTALE: CardDef = CardDef {
-    name: "The Telltale",
-    play: say_how_it_lay,
-};
-
-#[test]
-fn a_card_row_plays_its_own_handler_on_the_reader() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    read(
-        &mut w,
-        Card {
-            row: &TELLTALE,
-            reversed: true,
-        },
-    );
-    assert!(log_has(&w, &format!("{p:?} drew it reversed: true")));
+    assert!(loaded.contains(&effects.to_vec()));
 }

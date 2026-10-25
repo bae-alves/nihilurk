@@ -7,6 +7,7 @@
 //! time: titles, verbs, and what a mode admits from an entity with no marks
 //! at all.
 
+use crate::common::fixtures::{spawn_armor, spawn_named, spawn_ring, spawn_weapon};
 use bevy_ecs::prelude::*;
 use models::*;
 
