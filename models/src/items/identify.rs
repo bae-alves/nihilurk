@@ -71,13 +71,13 @@ fn annotate_quality(world: &World, item: Entity, base: String) -> String {
     }
 }
 
-/// The lines the pack's Info row shows for `item`: its name, its [`Blurb`],
-/// the numbers its components carry, and — only once [`known_quality`] says
-/// so — its enchantment plus and what a curse means. Everything but the last two is always visible, so nothing here can
-/// give away what [`known_quality`] is still hiding.
+/// The lines the pack's Info row shows for `item`: its name, the numbers its
+/// components carry, and — only once [`known_quality`] says so — its
+/// enchantment plus and what a curse means, then its [`Blurb`] last. The
+/// quality lines aside, everything is always visible, so nothing here can give
+/// away what [`known_quality`] is still hiding.
 pub fn item_info(world: &World, item: Entity) -> Vec<String> {
     let mut lines = vec![display_name(world, item)];
-    lines.extend(blurb(world, item));
     if let Some(d) = world.get::<PowerDie>(item) {
         lines.push(strings::info_melee(d.0));
     }
@@ -104,26 +104,26 @@ pub fn item_info(world: &World, item: Entity) -> Vec<String> {
             lines.push(strings::cursed_explained().to_string());
         }
     }
+    lines.extend(blurb(world, item));
     lines
 }
 
 /// The lines `?` on the look reticle (and a look click) add under the sighting
 /// line for `entity`: the pack's Info lines for an item (minus its name, the
-/// sighting already gave that), a creature's [`Blurb`] and numbers, or a
-/// trap's [`Blurb`] and what it does.
-/// Empty for anything else. A trap not yet [`Trap::revealed`] is the caller's
-/// to pass over, as for every other purpose.
+/// sighting already gave that), a creature's numbers, or what a trap does,
+/// each closed by its [`Blurb`]. Empty for anything else. A trap not yet
+/// [`Trap::revealed`] is the caller's to pass over, as for every other
+/// purpose.
 pub fn tile_info(world: &World, entity: Entity) -> Vec<String> {
     if world.get::<Item>(entity).is_some() {
         return item_info(world, entity).split_off(1);
     }
     if let Some(f) = world.get::<Fighter>(entity) {
-        let mut lines: Vec<String> = blurb(world, entity).into_iter().collect();
-        lines.extend([
+        let mut lines = vec![
             strings::info_health(f.hp, f.max_hp),
             strings::info_attack(f.power, f.power_bonus),
             strings::info_defence(f.armor, f.armor_bonus),
-        ]);
+        ];
         if let Some(s) = world.get::<Speed>(entity) {
             lines.push(strings::info_speed(match s.kind {
                 SpeedKind::Slow => strings::speed_slow(),
@@ -135,12 +135,13 @@ pub fn tile_info(world: &World, entity: Entity) -> Vec<String> {
         if world.get::<Mob>(entity).is_some() {
             lines.extend(odds_against_player(world, entity));
         }
+        lines.extend(blurb(world, entity));
         return lines;
     }
     match world.get::<Trap>(entity) {
-        Some(t) => blurb(world, entity)
+        Some(t) => [strings::trap_explained(t.row.name, t.row.snare_turns)]
             .into_iter()
-            .chain([strings::trap_explained(t.row.name, t.row.snare_turns)])
+            .chain(blurb(world, entity))
             .collect(),
         None => Vec::new(),
     }

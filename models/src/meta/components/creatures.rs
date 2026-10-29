@@ -272,7 +272,7 @@ pub struct Hidden;
 pub struct Invisible;
 
 /// A xeroc still wearing its disguise: its [`Name`] and [`Renderable`] read as
-/// an ordinary item, and it is excluded from every "a monster is nearby"
+/// an ordinary item, it carries no [`Blurb`], and it is excluded from every "a monster is nearby"
 /// check ([`crate::autoexplore::monster_in_sight`],
 /// `crate::autofight::visible_enemies`) so auto-explore and auto-fight are
 /// fooled right along with the player. [`crate::monsters::reveal_mimics`]

@@ -333,7 +333,7 @@ Useful commands
 |-----|--------|
 | `>` or `.` | Go down or walk to the down stairs |
 | `<` or `,` | Go up or walk to the up stairs |
-| `;` | Look around: move the cursor over any tile in view to have it described, including what a monster is dangerous for |
+| `;` | Look around: move the cursor over any tile in view to have it described |
 | `Z` | Open the spells menu |
 | `Alt`+`Q` `W` `E` `R` | Cast spell one to four directly |
 | `x` | Swap between a melee weapon and a launcher (one turn). With a menu or cursor open, close it instead |

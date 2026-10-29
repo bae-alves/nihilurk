@@ -75,9 +75,10 @@ fn a_weaker_blow_takes_more_hits() {
     assert!(mean_blow(&w, player, mob) < before);
 }
 
-/// A thing's blurb shows in its Info lines; an empty one adds no line.
+/// A thing's blurb is the last of its Info lines, below its stats; an empty
+/// one adds no line.
 #[test]
-fn a_blurb_shows_and_an_empty_one_adds_nothing() {
+fn a_blurb_closes_the_info_and_an_empty_one_adds_nothing() {
     let mut w = world();
     for (_, name) in content_names() {
         let Some(e) = spawn_named(&mut w, name, Position { x: 0, y: 0 }) else {
@@ -86,7 +87,7 @@ fn a_blurb_shows_and_an_empty_one_adds_nothing() {
         let lines = tile_info(&w, e);
         assert!(!lines.iter().any(String::is_empty), "{name}: {lines:?}");
         if let Some(blurb) = strings::blurb(name).filter(|b| !b.is_empty()) {
-            assert!(lines.iter().any(|l| l == blurb), "{name}: {lines:?}");
+            assert_eq!(lines.last().map(String::as_str), Some(blurb), "{name}");
         }
     }
 }
