@@ -107,15 +107,6 @@ pub struct Effect {
     /// Written in the second person: only the player is told, because only
     /// the player is reading.
     pub ends: Option<&'static str>,
-    /// What `Look` warns about when the reticle lands on a creature carrying
-    /// this — named plainly ("venomous bite") rather than as whichever marker
-    /// arms it. `None` for anything the player has no business being warned
-    /// about: an immunity, and every trick that is theirs alone.
-    ///
-    /// This lives on the row because it is what the *marker* means to somebody
-    /// looking at it, which is true whether or not the marker has an ability
-    /// row anywhere.
-    pub beware: Option<&'static str>,
     /// What the player is told at the start of a run as a creature born with
     /// this (`-am`): "You feel venomous." `None` for everything no bestiary
     /// row is born with — and for anything the HUD already shows as a tag.
@@ -135,7 +126,7 @@ impl Effect {
 /// The id and the type sit on the same line so the two cannot drift apart,
 /// the same reason `modifiers!` generates its struct and its fold together.
 macro_rules! effects {
-    ($($id:literal => $ty:ty $(, ends $ends:expr)? $(, beware $beware:expr)? $(, feel $feel:expr)? ;)*) => {
+    ($($id:literal => $ty:ty $(, ends $ends:expr)? $(, feel $feel:expr)? ;)*) => {
         /// Every marker effect in the game.
         ///
         /// Each row pairs a **stable string id** with the component it attaches. The
@@ -161,8 +152,6 @@ macro_rules! effects {
                 #[allow(unused_mut, unused_assignments)]
                 ends: { let mut e = None; $(e = Some($ends);)? e },
                 #[allow(unused_mut, unused_assignments)]
-                beware: { let mut b = None; $(b = Some($beware);)? b },
-                #[allow(unused_mut, unused_assignments)]
                 feel: { let mut f = None; $(f = Some($feel);)? f },
             },)*
         ];
@@ -172,33 +161,33 @@ macro_rules! effects {
 // The table itself. Its rules are documented on `EFFECTS` below, which is
 // what a reader reaches for.
 effects! {
-    "fire_immune" => FireImmune, beware strings::beware_fireproof(), feel strings::feel_fireproof();
-    "cold_immune" => ColdImmune, beware strings::beware_frostproof(), feel strings::feel_frostproof();
+    "fire_immune" => FireImmune, feel strings::feel_fireproof();
+    "cold_immune" => ColdImmune, feel strings::feel_frostproof();
     "undead" => Undead, feel strings::feel_undead();
     "vorpal_target" => VorpalTarget, feel strings::feel_vorpal_target();
     "sees_invisible" => SeesInvisible;
     "sustains_strength" => SustainsStrength;
-    "aggravates_monsters" => AggravatesMonsters, beware strings::beware_aggravating_shriek();
+    "aggravates_monsters" => AggravatesMonsters;
     "item_user" => ItemUser, feel strings::feel_item_user();
     "fire_arrow" => FireArrow;
     "fire_quarrel" => FireQuarrel;
     "fire_dart" => FireDart;
     "sustains_armor" => SustainsArmor;
-    "rusts_armor" => RustsArmor, beware strings::beware_corrosive_touch(), feel strings::feel_rusts_armor();
+    "rusts_armor" => RustsArmor, feel strings::feel_rusts_armor();
     "stealthy" => Stealthy;
-    "regenerates" => Regenerates, beware strings::beware_regeneration(), feel strings::feel_regenerates();
+    "regenerates" => Regenerates, feel strings::feel_regenerates();
     "teleportitis" => Teleportitis;
-    "flies" => Flies, beware strings::beware_flying(), feel strings::feel_flies();
-    "batty" => Batty, beware strings::beware_erratic_strikes(), feel strings::feel_batty();
-    "binds" => Binds, beware strings::beware_binding_bite(), feel strings::feel_binds();
-    "gorgon" => Gorgon, beware strings::beware_petrifying_gaze(), feel strings::feel_gorgon();
-    "vampiric" => Vampiric, beware strings::beware_draining_touch(), feel strings::feel_vampiric();
-    "venomous" => Venomous, beware strings::beware_venomous_bite(), feel strings::feel_venomous();
+    "flies" => Flies, feel strings::feel_flies();
+    "batty" => Batty, feel strings::feel_batty();
+    "binds" => Binds, feel strings::feel_binds();
+    "gorgon" => Gorgon, feel strings::feel_gorgon();
+    "vampiric" => Vampiric, feel strings::feel_vampiric();
+    "venomous" => Venomous, feel strings::feel_venomous();
     "score_bounty" => ScoreBounty, feel strings::feel_score_bounty();
-    "splits" => Splits, beware strings::beware_splitting_flesh(), feel strings::feel_splits();
+    "splits" => Splits, feel strings::feel_splits();
     "green_blood" => GreenBlood, feel strings::feel_green_blood();
-    "freezing" => Freezing, beware strings::beware_paralysing_touch(), feel strings::feel_freezing();
-    "steals_and_vanishes" => StealsAndVanishes, beware strings::beware_thieving_touch(), feel strings::feel_steals_and_vanishes();
+    "freezing" => Freezing, feel strings::feel_freezing();
+    "steals_and_vanishes" => StealsAndVanishes, feel strings::feel_steals_and_vanishes();
     "always_tamed" => AlwaysTamed, feel strings::feel_always_tamed();
     "always_helper" => AlwaysHelper, feel strings::feel_always_helper();
     "priority_helper" => PriorityHelper, feel strings::feel_priority_helper();
@@ -206,7 +195,7 @@ effects! {
     "mirror_on_kill" => MirrorOnKill, feel strings::feel_mirror_on_kill();
     "faerie_on_death" => FaerieOnDeath, feel strings::feel_faerie_on_death();
     "swims" => Swims, feel strings::feel_swims();
-    "phasing" => Phasing, beware strings::beware_phasing();
+    "phasing" => Phasing;
     "cleaves" => Cleaves;
     "heavy_swing" => HeavySwing;
     "fencer" => Fencer;
@@ -219,7 +208,7 @@ effects! {
     "self_damage_on_hit" => SelfDamageOnHit;
     "builds_momentum" => BuildsMomentum;
     "shatters_stone" => ShattersStone;
-    "confusing_touch" => ConfusingTouch, beware strings::beware_confusing_touch();
+    "confusing_touch" => ConfusingTouch;
     "bided" => Bided;
     // The holds. Each ends on its own clock, so a creature can be both asleep
     // and pinned and come out of each when its own turns run out — where the

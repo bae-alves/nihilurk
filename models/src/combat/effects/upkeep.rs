@@ -1,6 +1,6 @@
 //! Effects over time: `tick_effects` ages the ledger each turn, `hold` pins a creature in
 //! place, `stone_chip` says how much of a blow a petrified creature takes, and
-//! `turns_left` and `dangers_of` read the ledger back.
+//! `turns_left` reads the ledger back.
 
 use super::*;
 
@@ -179,32 +179,4 @@ pub fn turns_left(world: &World, entity: Entity, grant: Grant) -> Option<u32> {
             (true, Lifetime::Turns(n)) => Some(n),
             _ => None,
         })
-}
-
-/// Every notable thing a creature carries, named plainly — what `Look` warns
-/// about when the reticle lands on it.
-///
-/// Derived from [`EFFECTS`] rather than listed separately, so a new marker
-/// cannot be left out of `Look`'s warnings.
-///
-/// A wielded launcher is the one entry that is not a marker — it is a question
-/// about gear, not a property of the creature — so it is asked separately and
-/// last.
-pub fn dangers_of(world: &World, entity: Entity) -> Vec<&'static str> {
-    let mut seen: Vec<&'static str> = EFFECTS
-        .iter()
-        .filter(|e| e.grant.probe(world, entity))
-        .filter_map(|e| e.beware)
-        .collect();
-    seen.dedup();
-    if crate::equipment::wielded_launcher(world, entity).is_some() {
-        seen.push(strings::beware_ranged_shots());
-    }
-    if world
-        .get::<crate::components::Spellset>(entity)
-        .is_some_and(|s| !s.slots.is_empty())
-    {
-        seen.push(strings::beware_spellcasting());
-    }
-    seen
 }

@@ -306,6 +306,10 @@ struct EntitySave<'a> {
     /// keeps the saved name. See [`Mimic`].
     #[serde(default)]
     mimic: bool,
+    /// The id of the row its [`Blurb`] reads, found again among
+    /// [`crate::spawn::content_names`] on load.
+    #[serde(default, borrow)]
+    blurb: Option<Cow<'a, str>>,
 }
 
 /// The version of the bytes [`save_game`] writes, stored as the file's first
@@ -316,7 +320,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 21;
+pub const SAVE_VERSION: u16 = 22;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -672,6 +676,7 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                     .map(|m| Cow::Borrowed(m.name)),
                 _ => name.and_then(content_id_of).map(Cow::Borrowed),
             },
+            blurb: er.get::<Blurb>().map(|b| Cow::Borrowed(b.0)),
         });
     }
 
@@ -1167,6 +1172,14 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if es.mimic {
             em.insert(Mimic);
         }
+        if let Some(id) = es.blurb.and_then(|b| {
+            crate::spawn::content_names()
+                .into_iter()
+                .map(|(_, n)| n)
+                .find(|n| *n == b)
+        }) {
+            em.insert(Blurb(id));
+        }
         if es.helper {
             em.insert(Helper);
         }
@@ -1383,6 +1396,7 @@ mod tests {
             equipped_by: None,
             helper: false,
             mimic: false,
+            blurb: None,
             ice_cube: false,
             aggravated: None,
             alignment: None,
@@ -1626,6 +1640,7 @@ mod tests {
             helper: true,
             mimic: true,
             ice_cube: true,
+            blurb: Some(Cow::Borrowed("a blurb row")),
             aggravated: Some((700, 701)),
             alignment: Some(-100),
             deck: Some(vec!["an effect row".to_string()]),

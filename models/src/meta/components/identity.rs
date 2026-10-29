@@ -26,6 +26,19 @@ impl Name {
     }
 }
 
+/// The content row whose line of flavour shows under this thing's name in the
+/// Info popup, by id: the text is [`strings::blurb`]'s for that id. Set beside
+/// [`Name`] wherever a content row spawns.
+#[derive(Component, Clone, Copy)]
+pub struct Blurb(pub &'static str);
+
+impl Blurb {
+    /// The row's blurb text. Empty while the row has none written.
+    pub fn text(&self) -> &'static str {
+        strings::blurb(self.0).unwrap_or("")
+    }
+}
+
 /// The one entity the keyboard drives and the camera follows. A marker: exactly
 /// one entity in a run has it.
 #[derive(Component)]

@@ -11,7 +11,6 @@
 use crate::Color;
 use bevy_ecs::prelude::*;
 use rand::Rng;
-use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::{ItemDef, SPELLS, SpellDef};
@@ -123,11 +122,6 @@ pub struct MonsterDef {
     /// attack. `None` is the generic "nothing happens" fallback. Only
     /// meaningful alongside `spirit_kind: Some(_)`.
     pub spirit_event: Option<SpiritEvent>,
-    /// A pool to draw `n` distinct random [`Grant`]s from at spawn time, on
-    /// top of the fixed `grants` list — every spirit's two boons (see
-    /// `MonsterDef::spirit`). `None` for every ordinary row: a species'
-    /// magic is the same magic every time.
-    pub random_grants: Option<(&'static [Grant], u8)>,
     /// Born with a pack of floor loot to trade away — the yellow demon's
     /// stock, [`BARTER_STOCK_MIN`] to [`BARTER_STOCK_MAX`] drops. See
     /// `roll_barter_stock`.
@@ -178,7 +172,6 @@ impl MonsterDef {
             mimics: false,
             spirit_kind: None,
             spirit_event: None,
-            random_grants: None,
             stocks_barter: false,
         }
     }
@@ -237,14 +230,12 @@ impl MonsterDef {
 
     /// Mark a bestiary row as a spirit ([`Faction::Spirits`] instead of
     /// [`Faction::Monster`]), and give it the melee event a peaceful
-    /// interaction fires. Every spirit gets [`SPIRIT_GRANTS`], plus
-    /// [`SPIRIT_BOON_COUNT`] drawn from [`SPIRIT_BOONS`]. See
+    /// interaction fires. Every spirit gets [`SPIRIT_GRANTS`]. See
     /// `crate::spirits`.
     const fn spirit(mut self, kind: SpiritKind, event: SpiritEvent) -> Self {
         self.spirit_kind = Some(kind);
         self.spirit_event = Some(event);
         self.grants = SPIRIT_GRANTS;
-        self.random_grants = Some((SPIRIT_BOONS, SPIRIT_BOON_COUNT));
         self
     }
 
@@ -331,29 +322,6 @@ const SPIRIT_GRANTS: &[Grant] = &[
     Grant::of::<Flies>(),
     Grant::of::<FireImmune>(),
     Grant::of::<ColdImmune>(),
-];
-
-/// How many boons every spirit draws from [`SPIRIT_BOONS`] at spawn.
-const SPIRIT_BOON_COUNT: u8 = 2;
-
-/// The spirits' boon pool: every passive grant one of Rogue's 26 lettered
-/// creatures carries, spells never, and nothing from [`SPIRIT_GRANTS`],
-/// which every spirit already has. No gorgon's gaze and no thieving: a
-/// spirit you aim at or deal with should never stone you or rob you. Drawn distinct, without replacement, at
-/// spawn ([`roll_random_grants`]).
-const SPIRIT_BOONS: &[Grant] = &[
-    Grant::of::<RustsArmor>(),   // A aquator
-    Grant::of::<Batty>(),        // B bat, P phantom
-    Grant::of::<ItemUser>(),     // C centaur and the rest with hands
-    Grant::of::<Binds>(),        // F venus flytrap, X xeroc
-    Grant::of::<Regenerates>(),  // G griffin, T troll
-    Grant::of::<Freezing>(),     // I ice monster
-    Grant::of::<VorpalTarget>(), // J jabberwock
-    Grant::of::<Undead>(),       // P phantom, W wraith, Z zombie
-    Grant::of::<Venomous>(),     // R rattlesnake
-    Grant::of::<Splits>(),       // S slime
-    Grant::of::<GreenBlood>(),   // S slime
-    Grant::of::<Vampiric>(),     // V vampire
 ];
 
 /// How often a bestiary row that carries [`EquipRoll`]s rolls each one, and what
@@ -1054,6 +1022,7 @@ pub const BESTIARY: &[MonsterDef] = &[
 #[derive(Bundle)]
 struct MonsterBundle {
     name: Name,
+    blurb: Blurb,
     mob: Mob,
     fighter: Fighter,
     glyph: Renderable,
@@ -1072,6 +1041,7 @@ impl MonsterBundle {
             name: Name {
                 what: def.display_name().to_string(),
             },
+            blurb: Blurb(def.name),
             mob: Mob {
                 movement_type: def.movement,
             },
@@ -1152,7 +1122,6 @@ pub fn spawn_monster(world: &mut World, def: &MonsterDef, pos: Position) -> Enti
         return e;
     };
     roll_spawn_gear(world, e, def, &mut rng);
-    roll_random_grants(world, e, def, &mut rng);
     roll_barter_stock(world, e, def, &mut rng);
     if def.mimics {
         disguise_as_item(world, e, &mut rng);
@@ -1177,7 +1146,6 @@ pub fn spawn_monster_with_rng(
 ) -> Entity {
     let e = base_spawn(world, def, pos);
     roll_spawn_gear(world, e, def, rng);
-    roll_random_grants(world, e, def, rng);
     roll_barter_stock(world, e, def, rng);
     if def.mimics {
         disguise_as_item(world, e, rng);
@@ -1188,23 +1156,6 @@ pub fn spawn_monster_with_rng(
 // ---------------------------------------------------------------------------
 // Gear rolled at spawn
 // ---------------------------------------------------------------------------
-
-/// Rolls a bestiary row's [`EquipRoll`]s: each fires independently, and a hit
-/// finds the gear and puts it on in silence ([`equip_silently`]), announced
-/// exactly the way any other freshly worn item is — but only when the player
-/// can actually see the spot, so a hobgoblin geared up on the far side of the
-/// floor doesn't spoil itself in the log before it's ever met.
-/// [`MonsterDef::random_grants`] paying off: `n` distinct grants off `pool`,
-/// lent the same way [`MonsterDef::grants`]'s fixed list is
-/// ([`grant_all`]). A no-op for every row that doesn't ask for one.
-fn roll_random_grants(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut ChaCha12Rng) {
-    let Some((pool, n)) = def.random_grants else {
-        return;
-    };
-    for &grant in pool.choose_multiple(rng, n as usize) {
-        crate::effects::lend(world, mob, grant, crate::effects::Lifetime::Permanent);
-    }
-}
 
 /// [`MonsterDef::stocks_barter`] paying off: floor drops for this depth
 /// ([`roll_item_except`], coins struck out), tucked straight into a fresh [`Backpack`] one entity
@@ -1227,6 +1178,11 @@ fn roll_barter_stock(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut
     world.entity_mut(mob).insert(Backpack { items });
 }
 
+/// Rolls a bestiary row's [`EquipRoll`]s: each fires independently, and a hit
+/// finds the gear and puts it on in silence ([`equip_silently`]), announced
+/// exactly the way any other freshly worn item is — but only when the player
+/// can actually see the spot, so a hobgoblin geared up on the far side of the
+/// floor doesn't spoil itself in the log before it's ever met.
 fn roll_spawn_gear(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut ChaCha12Rng) {
     if def.equip_rolls.is_empty() {
         return;
@@ -1401,7 +1357,7 @@ fn disguise_as_item(world: &mut World, mob: Entity, rng: &mut ChaCha12Rng) {
         r.glyph = glyph;
         r.color = color;
     }
-    world.entity_mut(mob).insert(Mimic);
+    world.entity_mut(mob).insert(Mimic).remove::<Blurb>();
 }
 
 /// Strips a xeroc's disguise the instant the player is standing next to it:
@@ -1441,7 +1397,10 @@ pub fn reveal_mimics(world: &mut World) {
             r.glyph = def.glyph;
             r.color = def.color;
         }
-        world.entity_mut(xeroc).remove::<Mimic>();
+        world
+            .entity_mut(xeroc)
+            .insert(Blurb(def.name))
+            .remove::<Mimic>();
         world.entity_mut(xeroc).remove::<Spotted>();
         world
             .resource_mut::<GameLog>()
@@ -1673,7 +1632,6 @@ pub fn wear_monster(world: &mut World, player: Entity, def: &'static MonsterDef)
     }
 
     if let Some(GameRng(mut rng)) = world.remove_resource::<GameRng>() {
-        roll_random_grants(world, player, def, &mut rng);
         give_starting_gear(world, player, def, &mut rng);
         world.insert_resource(GameRng(rng));
     }

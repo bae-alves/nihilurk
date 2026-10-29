@@ -59,13 +59,13 @@ Adding a marker effect
    bestiary row lives by. Rows may be reordered and retired freely,
    because nothing about a row's *position* means anything.
 
-   After the type a row may name three lines from `strings`, each
+   After the type a row may name two lines from `strings`, each
    optional and in this order: `ends`, what the player reads when the
-   effect runs out; `beware`, the phrase a look warns of; and `feel`, what
-   a player born with it (`-am`) is told at the start of the run.
+   effect runs out; and `feel`, what a player born with it (`-am`) is
+   told at the start of the run.
 
        "asleep" => Asleep, ends strings::ends_asleep();
-       "fire_immune" => FireImmune, beware strings::beware_fireproof(), feel strings::feel_fireproof();
+       "fire_immune" => FireImmune, feel strings::feel_fireproof();
 
 3. **Hand it out** from a row. Any of these, or all of them:
 

@@ -445,3 +445,33 @@ fn a_disguised_xeroc_keeps_its_disguise_and_species_across_a_save() {
     assert_eq!(n.what, name);
     assert_eq!(g.0.len(), grants);
 }
+
+/// Every blurb on a floor comes back from a save, on as many things.
+#[test]
+fn blurbs_survive_a_save() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(5)));
+    w.insert_resource(RngSeed(5));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName { what: "X".into() });
+    initialize_world(&mut w);
+    regenerate_map(&mut w, 5, 4);
+    let blurbs = |w: &mut World| {
+        let mut all: Vec<&str> = w.query::<&Blurb>().iter(w).map(|b| b.0).collect();
+        all.sort_unstable();
+        all
+    };
+    let before = blurbs(&mut w);
+    assert!(!before.is_empty());
+
+    let save = common::SaveFile::new("blurbs");
+    save_game(&mut w, save.path()).unwrap();
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(6)));
+    w2.insert_resource(RngSeed(6));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, save.path()).unwrap();
+
+    assert_eq!(blurbs(&mut w2), before);
+}

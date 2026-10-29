@@ -171,3 +171,19 @@ fn a_swimmer_is_only_drawn_for_the_water() {
         assert!(MonsterDef::pick_aquatic(&mut r).swims());
     }
 }
+
+// ---------------------------------------------------------------------------
+// Blurbs
+// ---------------------------------------------------------------------------
+
+/// Every row has a blurb slot in `strings::blurb`, empty or not, so a new row
+/// can't ship without one waiting to be written.
+#[test]
+fn every_content_name_has_a_blurb_slot() {
+    for (category, name) in content_names() {
+        assert!(
+            strings::blurb(name).is_some(),
+            "{name:?} ({category}) has no arm in strings::blurb"
+        );
+    }
+}

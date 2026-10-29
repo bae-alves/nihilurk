@@ -91,9 +91,7 @@ pub enum Moment {
 ///
 /// The `effect` is a [`Grant`] out of `EFFECTS`, so the ability never learns
 /// what granted it — a ring today, a cursed blade tomorrow, and the behaviour
-/// follows untouched. What the player is *warned* about is not here: that is
-/// the `beware` field on the effect's own row, because it is true of the
-/// marker whether or not the marker arms an ability.
+/// follows untouched.
 pub struct Ability {
     /// The marker that arms this. On the **attacker** for [`Moment::OnHit`],
     /// on the bearer for everything else.

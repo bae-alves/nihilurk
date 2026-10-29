@@ -633,3 +633,30 @@ fn a_spirit_killed_poofs_too() {
     assert!(w.get_entity(spirit).is_none(), "never landed the kill");
     assert_eq!(alignment(&w, player), -1);
 }
+
+/// A spirit row is the same spirit every time: no seed changes what it is
+/// born with.
+#[test]
+fn a_spirit_is_born_with_the_same_effects_whatever_the_seed() {
+    let def = BESTIARY
+        .iter()
+        .find(|d| d.spirit_kind.is_some())
+        .expect("a spirit row");
+    let born = |seed| {
+        let mut w = spirits_world(seed);
+        let e = spawn_monster(&mut w, def, Position { x: 2, y: 2 });
+        let mut ids: Vec<&str> = w
+            .get::<Effects>(e)
+            .unwrap()
+            .0
+            .iter()
+            .map(|h| h.id)
+            .collect();
+        ids.sort_unstable();
+        ids
+    };
+    let first = born(0);
+    for seed in 1..16 {
+        assert_eq!(born(seed), first, "seed {seed}");
+    }
+}

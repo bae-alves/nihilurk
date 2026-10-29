@@ -219,6 +219,7 @@ impl ItemDef for &'static PotionDef {
                 Name {
                     what: strings::content_name(self.name).to_string(),
                 },
+                Blurb(self.name),
                 Renderable {
                     glyph: '!',
                     color: self.color,
@@ -319,6 +320,7 @@ impl ItemDef for &'static ScrollDef {
                 Name {
                     what: strings::content_name(self.name).to_string(),
                 },
+                Blurb(self.name),
                 Renderable {
                     glyph: '?',
                     color: Color::White,
@@ -396,6 +398,7 @@ impl ItemDef for DeckDef {
                 Name {
                     what: strings::content_name(self.name).to_string(),
                 },
+                Blurb(self.name),
                 Renderable {
                     glyph: '?',
                     color: Color::Magenta,
@@ -658,6 +661,7 @@ impl ItemDef for &'static WandDef {
                 Name {
                     what: strings::content_name(self.name).to_string(),
                 },
+                Blurb(self.name),
                 Renderable {
                     glyph: '/',
                     color: self.color,
@@ -849,6 +853,7 @@ impl ItemDef for WeaponDef {
             Name {
                 what: strings::content_name(self.name).to_string(),
             },
+            Blurb(self.name),
             Renderable {
                 glyph: ')',
                 color: self.color,
@@ -993,6 +998,7 @@ impl ItemDef for &'static AmmoDef {
                 Name {
                     what: strings::content_name(self.name).to_string(),
                 },
+                Blurb(self.name),
                 Renderable {
                     glyph: ')',
                     color: self.color,
@@ -1082,6 +1088,7 @@ impl ItemDef for LauncherDef {
                 Name {
                     what: strings::content_name(self.name).to_string(),
                 },
+                Blurb(self.name),
                 Renderable {
                     glyph: '}',
                     color: self.color,
@@ -1159,6 +1166,7 @@ impl ItemDef for ArmorDef {
             Name {
                 what: strings::content_name(self.name).to_string(),
             },
+            Blurb(self.name),
             Renderable {
                 glyph: ']',
                 color: self.color,
@@ -1300,6 +1308,7 @@ impl ItemDef for &'static RingDef {
             Name {
                 what: strings::content_name(self.name).to_string(),
             },
+            Blurb(self.name),
             Renderable {
                 glyph: '=',
                 color: Color::Yellow,
@@ -1596,6 +1605,7 @@ impl ItemDef for &'static CoinDef {
             Name {
                 what: strings::content_name(self.name).to_string(),
             },
+            Blurb(self.name),
             Renderable {
                 glyph: '$',
                 color: self.color,
@@ -1665,6 +1675,7 @@ impl ItemDef for &'static TreatDef {
                 Name {
                     what: strings::content_name(self.name).to_string(),
                 },
+                Blurb(self.name),
                 Renderable {
                     glyph: '%',
                     color: self.color,
@@ -1719,6 +1730,7 @@ pub fn spawn_element_of_yoord(world: &mut World, pos: Position) -> Entity {
             Name {
                 what: strings::content_name(crate::spawn::ELEMENT_OF_YOORD).to_string(),
             },
+            Blurb(crate::spawn::ELEMENT_OF_YOORD),
             Renderable {
                 glyph: '\"',
                 color: Color::Magenta,

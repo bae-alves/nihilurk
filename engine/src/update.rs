@@ -552,7 +552,7 @@ fn announce_look(world: &mut World) -> bool {
         x: cx as u16,
         y: cy as u16,
     };
-    for line in describe_target(world, target) {
+    if let Some(line) = describe_target(world, target) {
         world.resource_mut::<GameLog>().add(line);
     }
     meet_its_eyes(world, target)
@@ -748,29 +748,16 @@ fn open_tile_info(world: &mut World, target: Position) {
 ///
 /// Whatever it is wearing rides along in the same line — `"You see a centaur
 /// (w. a short bow)."` ([`models::worn_tag`]). The sighting line leaves it out;
-/// look is where gear gets read.
-///
-/// A monster gets a line of its own after the sighting: every notable move,
-/// immunity or on-hit trick it carries, `"Beware: flying; spellcasting."`. Every creature in
-/// the dungeon is a they, whatever it is — a dungeon has no business guessing
-/// at what lives in it, and "its" for the ones without the wits to use items
-/// was a distinction the player never asked for.
-fn describe_target(world: &mut World, target: Position) -> Vec<String> {
-    let Some(seen) = things_at(world, target).first().copied() else {
-        return Vec::new();
-    };
-
-    let mut lines = vec![strings::you_see(
+/// look is where gear gets read. Every creature in the dungeon is a they,
+/// whatever it is — a dungeon has no business guessing at what lives in it,
+/// and "its" for the ones without the wits to use items was a distinction
+/// the player never asked for.
+fn describe_target(world: &mut World, target: Position) -> Option<String> {
+    let seen = things_at(world, target).first().copied()?;
+    Some(strings::you_see(
         &models::with_article(world, seen),
         &models::worn_tag(world, seen),
-    )];
-    if world.get::<Mob>(seen).is_some() {
-        let dangers = models::dangers_of(world, seen);
-        if !dangers.is_empty() {
-            lines.push(strings::beware(&dangers));
-        }
-    }
-    lines
+    ))
 }
 
 /// A keypress while the pack is open: routed to the action modal (Use / Drop /
@@ -1592,7 +1579,7 @@ pub(crate) fn dispatch_mouse(world: &mut World, m: MouseEvent) -> std::io::Resul
     {
         return Ok(false);
     }
-    for line in describe_target(world, Position { x, y }) {
+    if let Some(line) = describe_target(world, Position { x, y }) {
         world.resource_mut::<GameLog>().add(line);
     }
     open_tile_info(world, Position { x, y });
@@ -2785,44 +2772,6 @@ mod tests {
         assert!(
             lines[hammer_row..].iter().any(|l| l.starts_with("Power:")),
             "{lines:?}"
-        );
-    }
-
-    /// A creature's dangers share one line after the sighting, so a dragon
-    /// costs two log lines however much it carries.
-    #[test]
-    fn dangers_share_one_line() {
-        let mut w = modal_world(5);
-        let player = player_entity(&mut w);
-        let here = *w.get::<Position>(player).unwrap();
-        let beside = Position {
-            x: here.x + 1,
-            y: here.y,
-        };
-        let mob = w
-            .spawn((
-                Name {
-                    what: "kestrel".into(),
-                },
-                Mob {
-                    movement_type: MovementType::Static,
-                },
-                beside,
-                Faction::Monster,
-            ))
-            .id();
-        for g in [
-            models::Grant::of::<models::Flies>(),
-            models::Grant::of::<models::FireImmune>(),
-        ] {
-            models::lend(&mut w, mob, g, models::Lifetime::Permanent);
-        }
-
-        let lines = describe_target(&mut w, beside);
-        assert_eq!(lines.len(), 2, "{lines:?}");
-        assert_eq!(
-            lines[1],
-            strings::beware(&["fire doesn't harm them", "flying"])
         );
     }
 

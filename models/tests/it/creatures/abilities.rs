@@ -32,7 +32,6 @@
 //! row to bud from. The tests that need a split take a name off the table at
 //! runtime instead of inventing one.
 
-use crate::common::fixtures::spell_row;
 use bevy_ecs::prelude::*;
 use fixedbitset::FixedBitSet;
 use models::*;
@@ -888,52 +887,6 @@ fn a_staircase_leaves_an_affliction_a_worn_item_is_lending() {
         w.get::<Blind>(player_e).is_some(),
         "walking downstairs cured a blindness the ring is still causing"
     );
-}
-
-// ---------------------------------------------------------------------------
-// What Look warns about
-// ---------------------------------------------------------------------------
-
-/// And the other direction: `dangers_of` reports what a creature carries and
-/// nothing it does not.
-#[test]
-fn dangers_are_read_off_the_creature_not_guessed() {
-    let mut w = arena(1);
-    let plain = creature(&mut w, at(10, 10), 10, 4);
-    assert!(
-        dangers_of(&w, plain).is_empty(),
-        "a creature with no magic was reported as dangerous"
-    );
-
-    let nasty = creature(&mut w, at(11, 10), 10, 4);
-    lend(&mut w, nasty, Grant::of::<Venomous>(), Lifetime::Permanent);
-    lend(&mut w, nasty, Grant::of::<Gorgon>(), Lifetime::Permanent);
-    lend(
-        &mut w,
-        nasty,
-        Grant::of::<FireImmune>(),
-        Lifetime::Permanent,
-    );
-    lend(&mut w, nasty, Grant::of::<Flies>(), Lifetime::Permanent);
-    w.entity_mut(nasty).insert(Spellset {
-        slots: vec![spell_row("Fireball").unwrap()],
-    });
-
-    let warned = dangers_of(&w, nasty);
-    assert!(warned.contains(&"venomous bite"), "{warned:?}");
-    assert!(warned.contains(&"petrifying gaze"), "{warned:?}");
-    assert!(warned.contains(&"flying"), "{warned:?}");
-    assert!(warned.contains(&"fire doesn't harm them"), "{warned:?}");
-    assert!(warned.contains(&"spellcasting"), "{warned:?}");
-    assert_eq!(
-        warned.len(),
-        5,
-        "reported something it does not carry: {warned:?}"
-    );
-
-    let mute = creature(&mut w, at(12, 10), 10, 4);
-    w.entity_mut(mute).insert(Spellset::default());
-    assert!(dangers_of(&w, mute).is_empty());
 }
 
 // ---------------------------------------------------------------------------

@@ -102,7 +102,7 @@ Four consequences worth knowing before you pick a monster:
     dungeon breathe it too, from a small pool of their own that never
     refills.
   * **The log tells you what you were born with.** One "You feel..." line
-    per grant the body carries, a spirit's two random boons included:
+    per grant the body carries:
     "You feel venomous." Tags the HUD already shows are not repeated.
 **Try `-am dragon`.** You start on floor 1 with Fireball in your spell bar
 and claws that hold no sword.

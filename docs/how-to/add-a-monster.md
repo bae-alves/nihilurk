@@ -153,8 +153,9 @@ Appendix: quick check
 3. Chain extras only if you need them: `.grants(..)`, `.casts(..)`, `.invisible()`, `.weight(..)`.
 4. Pick a colour from the sixteen in the palette, and never write `Aggravated` as the movement.
 5. Never rename an existing row; saved monsters look their species up by id (the `name`).
-6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk` and look at it.
-7. Run `cargo test --test it content::`, then `cargo test`.
+6. Add the row's arm to `strings::blurb` (`strings/src/en.rs`), `""` until its blurb is written. `content::` fails without it.
+7. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk` and look at it.
+8. Run `cargo test --test it content::`, then `cargo test`.
 
 
 See also

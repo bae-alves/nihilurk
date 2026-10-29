@@ -261,6 +261,8 @@ pub fn player_incapacitated(world: &mut World) -> bool {
 pub struct TrapBundle {
     /// What the trap is called.
     pub name: Name,
+    /// The row's [`Blurb`].
+    pub blurb: Blurb,
     /// How it draws once revealed.
     pub glyph: Renderable,
     /// The tile it lies on.
@@ -279,6 +281,7 @@ impl TrapBundle {
             name: Name {
                 what: strings::content_name(def.name).to_string(),
             },
+            blurb: Blurb(def.name),
             glyph: Renderable {
                 glyph: def.glyph,
                 color: def.color,
@@ -1169,6 +1172,7 @@ fn arrow_effect(
                 Name {
                     what: strings::content_name("arrow").to_string(),
                 },
+                Blurb("arrow"),
                 Renderable {
                     glyph: '↑',
                     color: Color::Grey,

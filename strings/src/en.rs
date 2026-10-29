@@ -865,67 +865,12 @@ pub fn magicmap_explode() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/combat/effects/ - the EFFECTS table's `ends`/`beware` text.
+// models/src/combat/effects/ - the EFFECTS table's `ends` text.
 //
 // `const fn`, not `fn`: `EFFECTS` is a `const` (see the table's own doc
 // comment on why an id can never be reused as an index), so whatever fills
-// its `ends`/`beware` fields has to be const-evaluable too.
+// its `ends` field has to be const-evaluable too.
 // ---------------------------------------------------------------------------
-
-pub const fn beware_aggravating_shriek() -> &'static str {
-    "aggravating shriek"
-}
-pub const fn beware_corrosive_touch() -> &'static str {
-    "corrosive touch"
-}
-pub const fn beware_regeneration() -> &'static str {
-    "regeneration"
-}
-pub const fn beware_erratic_strikes() -> &'static str {
-    "erratic strikes"
-}
-pub const fn beware_binding_bite() -> &'static str {
-    "binding bite"
-}
-pub const fn beware_petrifying_gaze() -> &'static str {
-    "petrifying gaze"
-}
-pub const fn beware_draining_touch() -> &'static str {
-    "draining touch"
-}
-pub const fn beware_venomous_bite() -> &'static str {
-    "venomous bite"
-}
-pub const fn beware_splitting_flesh() -> &'static str {
-    "splitting flesh"
-}
-pub const fn beware_paralysing_touch() -> &'static str {
-    "paralysing touch"
-}
-pub const fn beware_thieving_touch() -> &'static str {
-    "thieving touch"
-}
-pub const fn beware_fireproof() -> &'static str {
-    "fire doesn't harm them"
-}
-pub const fn beware_frostproof() -> &'static str {
-    "cold doesn't harm them"
-}
-pub const fn beware_flying() -> &'static str {
-    "flying"
-}
-pub const fn beware_phasing() -> &'static str {
-    "walking through walls"
-}
-pub const fn beware_ranged_shots() -> &'static str {
-    "ranged shots"
-}
-pub const fn beware_spellcasting() -> &'static str {
-    "spellcasting"
-}
-pub const fn beware_confusing_touch() -> &'static str {
-    "confusing touch"
-}
 
 pub const fn ends_asleep() -> &'static str {
     "You shake off the drowsiness and come to."
@@ -976,7 +921,7 @@ pub fn paralysis_lost_turn() -> &'static str {
 }
 
 // Const: these three rows sit in `AFFLICTIONS`, a `const` table (see
-// `effects/`'s note on why `ends`/`beware` are `const fn` too).
+// `effects/`'s note on why `ends` is `const fn` too).
 pub const fn blind_cured_line() -> &'static str {
     "The darkness lifts from your eyes."
 }
@@ -2018,10 +1963,6 @@ pub fn you_see(phrase: &str, worn: &str) -> String {
     format!("You see {phrase}{worn}.")
 }
 
-pub fn beware(phrases: &[&str]) -> String {
-    format!("Beware: {}.", phrases.join("; "))
-}
-
 pub fn you_drop(name: &str) -> String {
     format!("You drop the {name}.")
 }
@@ -2498,12 +2439,195 @@ pub fn info_close_hint() -> &'static str {
     "Any key closes."
 }
 
-pub fn item_blurb(id: &str) -> Option<&'static str> {
+/// The line of flavour under a thing's name in the Info popup, one arm per
+/// row `content_names` lists. An empty arm shows nothing. `None` means the row
+/// has no arm yet, which a content test catches.
+pub fn blurb(id: &str) -> Option<&'static str> {
     Some(match id {
+        // monster
+        "apis" => "",
+        "aquator" => "",
+        "foxbat" => "",
+        "centaur" => "",
+        "ichthyotaur" => "",
+        "dog" => "",
+        "mirror hound" => "",
+        "dragon" => "",
+        "emu" => "",
+        "eel" => "",
+        "venus flytrap" => "",
+        "griffin" => "",
+        "hobgoblin" => "",
+        "ice monster" => "",
+        "jabberwock" => "",
+        "kestral" => "",
+        "leprechaun" => "",
+        "medusa" => "",
+        "orc" => "",
+        "phantom" => "",
+        "quagga" => "",
+        "rattlesnake" => "",
+        "slime" => "",
+        "troll" => "",
+        "ur-vile" => "",
+        "vampire" => "",
+        "wraith" => "",
+        "xeroc" => "",
+        "yeti" => "",
+        "zombie" => "",
+        "yellow demon" => "",
+        "red demon" => "",
+        "blue demon" => "",
+        "pink demon" => "",
+        "angel" => "",
+        "sphynx" => "",
+        "sylphid" => "",
+        "salamander" => "",
+        "undine" => "",
+        "gnome" => "",
+
+        // scroll
+        "scroll of monster confusion" => "",
+        "scroll of magic mapping" => "",
+        "scroll of hold monster" => "",
+        "scroll of sleep" => "",
+        "scroll of enchant armor" => "",
+        "scroll of identify" => "",
+        "scroll of scare monster" => "",
+        "scroll of mundane detection" => "",
+        "scroll of teleportation" => "",
+        "scroll of enchant weapon" => "",
+        "scroll of create monster" => "",
+        "scroll of remove curse" => "",
+        "scroll of aggravate monsters" => "",
+        "scroll of vorpalize weapon" => "",
+        "scroll of amnesia" => "",
+        "scroll of charming" => "",
+        "scroll of pitfall" => "",
+        "scroll of atonement" => "",
+        "scroll of recharging" => "",
+        "scroll of protection" => "",
+        "scroll of justice" => "",
+        "scroll of teleport to stairs" => "",
+        "scroll of blank paper" => "",
+
+        // potion
+        "potion of confusion" => "",
+        "potion of poison" => "",
+        "potion of gain strength" => "",
+        "potion of see invisible" => "",
+        "potion of healing" => "",
+        "potion of monster detection" => "",
+        "potion of magic detection" => "",
+        "potion of raise level" => "",
+        "potion of restore strength" => "",
+        "potion of blindness" => "",
+        "potion of magic" => "",
+        "potion of adjustment" => "",
+        "potion of polymorph" => "",
+        "potion of thirst quenching" => "",
+
+        // coin
+        "gold coin" => "",
+        "silver coin" => "",
+        "red coin" => "",
+        "blue coin" => "",
+        "rosé coin" => "",
+        "green coin" => "",
+        "platine coin" => "",
+        "forge coin" => "",
+        "hero coin" => "",
+
+        // armor
+        "leather armor" => "",
+        "ring mail" => "",
+        "chain mail" => "",
+        "splint mail" => "",
+        "plate mail" => "",
+        "spikemail" => "Whoever lands a blow on you is pricked for it.",
+
+        // wand
+        "wand of light" => "",
+        "wand of striking" => "",
+        "wand of lightning" => "",
+        "wand of fire" => "",
+        "wand of cold" => "",
+        "wand of polymorph" => "",
+        "wand of magic missile" => "",
+        "wand of haste monster" => "",
+        "wand of slow monster" => "",
+        "wand of drain life" => "",
+        "wand of teleport away" => "",
+        "wand of teleport to" => "",
+        "wand of cancellation" => "",
+        "wand of charming" => "",
+        "wand of digging" => "",
+        "wand of swapping" => "",
+        "wand of nothing" => "",
+
+        // ring
+        "ring of protection" => "",
+        "ring of strength" => "",
+        "ring of perception" => "",
+        "ring of aggravate monster" => "",
+        "ring of sharpshooting" => "",
+        "ring of adornment" => "",
+        "ring of increase damage" => "",
+        "ring of regeneration" => "",
+        "ring of teleportation" => "",
+        "ring of stealth" => "",
+        "ring of maintain armor" => "",
+        "ring of polymorph" => "",
+        "ring of sustain form" => "",
+        "ring of dualzap" => "",
+        "ring of health" => "",
+
+        // weapon
+        "dagger" => "",
+        "boomerang" => "",
+        "moon blade" => "",
+        "mace" => "",
+        "long sword" => "",
+        "two-handed sword" => "",
+        "battle axe" => "",
+        "greatclub" => "",
+        "bardiche" => "",
+        "whip" => "",
+        "estoc" => "",
+        "chain-sickle" => "",
+        "garrote" => "",
+        "wizard staff" => "",
+        "chaos blade" => "Every hit you land also lands a little on you.",
         "rapier" => "Every hit that lands makes the next one hit harder.",
         "war hammer" => "Stone turns steel aside. A hammer goes through it whole.",
-        "chaos blade" => "Every hit you land also lands a little on you.",
-        "spikemail" => "Whoever lands a blow on you is pricked for it.",
+
+        // ammo
+        "arrow" => "",
+        "quarrel" => "",
+        "blowdart" => "",
+
+        // launcher
+        "short bow" => "",
+        "crossbow" => "",
+        "blowgun" => "",
+
+        // treat
+        "snack" => "",
+        "fancy of peace" => "",
+
+        // deck
+        "deck of cards" => "",
+
+        // trap
+        "trapdoor" => "",
+        "bear trap" => "",
+        "sleeping gas trap" => "",
+        "teleport trap" => "",
+        "arrow trap" => "",
+        "dart trap" => "",
+
+        // relic
+        "The Element of Yoord" => "",
         _ => return None,
     })
 }

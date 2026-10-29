@@ -128,7 +128,7 @@ fn said(w: &World) -> Vec<String> {
 }
 
 /// Wearing a creature tells you what you were born with: one "you feel" line
-/// per grant, the random boons a spirit rolls included.
+/// per grant.
 #[test]
 fn a_worn_body_feels_every_grant_it_was_born_with() {
     for def in BESTIARY {

@@ -206,8 +206,9 @@ Appendix: quick check
 4. Potion, scroll: write the handler in `items/potions.rs` or `items/scrolls.rs` and add the row naming it. Wand: write the zap handler in `items/wands.rs` and add the row naming it.
 5. A wand with no reticle (it acts on the room or the zapper): `.unaimed()` on its row.
 6. Never rename a row; a save stores its name.
-7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.
-8. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test it content::`, then `cargo test`.
+7. Add the row's arm to `strings::blurb` (`strings/src/en.rs`), `""` until its blurb is written. `content::` fails without it.
+8. Run `cargo run -p nihilurk -- -content | grep '<name>'`.
+9. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test it content::`, then `cargo test`.
 
 
 See also

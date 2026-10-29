@@ -149,8 +149,9 @@ Appendix: quick check
 1. Write the mechanic in `models/src/world/traps.rs`; log through `seen` and `is_player`, and subtract `total_armor_plus` only.
 2. Write the flourish, or name `no_flourish` and do it in the mechanic.
 3. Add the `TrapDef` row to `TRAPS` naming both: `weight`, `min_depth`, `snare_turns` if it holds, `always_spent` if it bites once.
-4. Run `cargo build`, then `cargo test --test it content::`.
-5. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
+4. Add the row's arm to `strings::blurb` (`strings/src/en.rs`), `""` until its blurb is written. `content::` fails without it.
+5. Run `cargo build`, then `cargo test --test it content::`.
+6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
 
 
 See also
