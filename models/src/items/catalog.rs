@@ -246,7 +246,6 @@ pub static POTIONS: &[&PotionDef] = &[
     &PotionDef::new("potion of restore strength",  Color::Red,         potions::restore_strength),
     &PotionDef::new("potion of blindness",         Color::DarkGrey,    blind),
     &PotionDef::new("potion of magic",             Color::Blue,        potions::gain_magic),
-    &PotionDef::new("potion of adjustment",        Color::DarkCyan,    potions::adjustment),
     &PotionDef::new("potion of polymorph",         Color::DarkMagenta, potions::polymorph),
     &PotionDef::new("potion of thirst quenching",  Color::Blue,        potions::water).never_drops(),
 ];
@@ -334,7 +333,7 @@ impl ItemDef for &'static ScrollDef {
 
 /// Every scroll in the game, one row each. Identify and remove curse are the
 /// two every run needs, so they are `.common()`; recharging, protection and
-/// justice are `.rare()`.
+/// inner flame are `.rare()`.
 #[rustfmt::skip]
 pub static SCROLLS: &[&ScrollDef] = &[
     &ScrollDef::new("scroll of monster confusion",  scrolls::charm_hands),
@@ -357,7 +356,7 @@ pub static SCROLLS: &[&ScrollDef] = &[
     &ScrollDef::new("scroll of atonement",          scrolls::atonement).rare(),
     &ScrollDef::new("scroll of recharging",         scrolls::recharging).rare(),
     &ScrollDef::new("scroll of protection",         scrolls::protection).rare(),
-    &ScrollDef::new("scroll of justice",            scrolls::justice).rare(),
+    &ScrollDef::new("scroll of inner flame",        scrolls::inner_flame).rare(),
     &ScrollDef::new("scroll of teleport to stairs", scrolls::teleport_to_stairs).never_drops(),
     &ScrollDef::new("scroll of blank paper",        scrolls::blank_paper).never_drops(),
 ];
@@ -925,10 +924,9 @@ pub fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
 pub const WEAPONS: &[WeaponDef] = &[
     WeaponDef::new("dagger",           Color::Grey,       4).missile(8).piercing(),
     WeaponDef::new("boomerang",        Color::DarkYellow, 4).returning(),
-    WeaponDef::new("moon blade",       Color::Cyan,       3).returning().hits(3),
-    WeaponDef::new("mace",             Color::DarkGrey,   6),
-    WeaponDef::new("long sword",       Color::White,      8),
-    WeaponDef::new("two-handed sword", Color::Cyan,       10),
+    WeaponDef::new("moon blade",       Color::Cyan,       2).returning().hits(3),
+    WeaponDef::new("mace",             Color::DarkGrey,   6).grants(&[Grant::of::<ShattersStone>()]),
+    WeaponDef::new("sword",            Color::White,      9),
     WeaponDef::new("battle axe",       Color::DarkYellow, 7).grants(&[Grant::of::<Cleaves>()]),
     WeaponDef::new("greatclub",        Color::DarkRed,    12).grants(&[Grant::of::<HeavySwing>(), Grant::of::<ShattersStone>()]),
     WeaponDef::new("bardiche",         Color::Grey,       7).reach(2).reach_piercing(),
@@ -938,8 +936,7 @@ pub const WEAPONS: &[WeaponDef] = &[
     WeaponDef::new("garrote",          Color::DarkGrey,   1).grants(&[Grant::of::<VorpalOnCondition>()]),
     WeaponDef::new("wizard staff",     Color::Yellow,     5).grants(&[Grant::of::<TurboMagic>()]).on_wear(OnWear(announce_wizard)).on_doff(OnDoff(announce_not_wizard)),
     WeaponDef::new("chaos blade",      Color::Magenta,    12).grants(&[Grant::of::<SelfDamageOnHit>()]),
-    WeaponDef::new("rapier",           Color::Red,        3).grants(&[Grant::counted::<Fencer>(2), Grant::of::<BuildsMomentum>()]),
-    WeaponDef::new("war hammer",       Color::DarkGrey,   9).grants(&[Grant::of::<ShattersStone>()]),
+    WeaponDef::new("rapier",           Color::Red,        4).grants(&[Grant::counted::<Fencer>(2), Grant::of::<BuildsMomentum>()]),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1184,12 +1181,9 @@ impl ItemDef for ArmorDef {
 /// Every suit of armour in the game, one row each.
 #[rustfmt::skip]
 pub const ARMORS: &[ArmorDef] = &[
-    ArmorDef { name: "leather armor",          color: Color::DarkYellow, armor_die: 2, grants: &[] },
+    ArmorDef { name: "spike suit",             color: Color::DarkGrey,   armor_die: 2, grants: &[Grant::of::<Spiked>()] },
     ArmorDef { name: "ring mail",              color: Color::Grey,       armor_die: 3, grants: &[] },
-    ArmorDef { name: "chain mail",             color: Color::Grey,       armor_die: 4, grants: &[] },
-    ArmorDef { name: "splint mail",            color: Color::White,      armor_die: 5, grants: &[] },
-    ArmorDef { name: "plate mail",             color: Color::Cyan,       armor_die: 6, grants: &[] },
-    ArmorDef { name: "spikemail",              color: Color::DarkGrey,   armor_die: 4, grants: &[Grant::of::<Spiked>()] },
+    ArmorDef { name: "plate armor",            color: Color::Cyan,       armor_die: 6, grants: &[] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1343,20 +1337,12 @@ pub static RINGS: &[&RingDef] = &[
     &RingDef::new("ring of strength")
         .power_bonus(PLAIN_BONUS)
         .grants(&[Grant::of::<SustainsStrength>()]),
-    // Rogue's separate searching and see-invisible rings, merged.
     &RingDef::new("ring of perception")
         .grants(&[Grant::of::<SeesInvisible>()]),
-    &RingDef::new("ring of aggravate monster")
-        .grants(&[Grant::of::<AggravatesMonsters>()]),
-    // A steady hand: worth as much on a hurled dagger as on a loosed arrow.
     &RingDef::new("ring of sharpshooting")
         .throw_bonus(PLAIN_BONUS),
-    // Rogue's useless ring, made the most valuable thing in the dungeon: worn
-    // once, for one action, it doubles the run's score and is gone.
     &RingDef::new("ring of adornment")
         .on_wear(crate::items::rings::ADORNMENT),
-    // The ring of strength's plain twin: the same two points on the damage
-    // roll, without the arm behind it that a dart can't drain.
     &RingDef::new("ring of increase damage")
         .power_bonus(PLAIN_BONUS),
     &RingDef::new("ring of regeneration")
@@ -1365,19 +1351,14 @@ pub static RINGS: &[&RingDef] = &[
         .grants(&[Grant::of::<Teleportitis>()]),
     &RingDef::new("ring of stealth")
         .grants(&[Grant::of::<Stealthy>()]),
-    // The ring of strength's other twin: that one keeps the poison out of your
-    // arm, this one keeps the corrosion off your plate.
     &RingDef::new("ring of maintain armor")
         .grants(&[Grant::of::<SustainsArmor>()]),
     &RingDef::new("ring of polymorph")
         .grants(&[Grant::of::<Polymorphitis>()]),
     &RingDef::new("ring of sustain form")
         .grants(&[Grant::of::<SustainsForm>()]),
-    // The staff's bargain, for wands: two charges, two casts, one turn.
     &RingDef::new("ring of dualzap")
         .grants(&[Grant::of::<DualZap>()]),
-    // Hit points on the way on, none taken back on the way off: swapping it
-    // washes health, and a cursed one can kill.
     &RingDef::new("ring of health")
         .max_hp_bonus(PLAIN_BONUS),
 ];
@@ -1619,17 +1600,14 @@ impl ItemDef for &'static CoinDef {
 #[rustfmt::skip]
 pub static COINS: &[&CoinDef] = &[
     &CoinDef { name: "gold coin",     color: Color::Yellow,      apply: pickups::ledger,           helps: |_, _| true,               amount: 5000, treasure: true,  weight: 10 },
-    &CoinDef { name: "silver coin",   color: Color::Grey,        apply: pickups::ledger,           helps: |_, _| true,               amount: 1000, treasure: true,  weight: 10 },
-    &CoinDef { name: "red coin",      color: Color::Red,         apply: pickups::heal,             helps: pickups::hurt,             amount:    4, treasure: false, weight: 10 },
-    &CoinDef { name: "blue coin",     color: Color::Blue,        apply: pickups::refill_magic,     helps: pickups::drained,          amount:    4, treasure: false, weight: 10 },
-    &CoinDef { name: "rosé coin",     color: Color::Magenta,     apply: pickups::cleanse,          helps: crate::conditions::afflicted, amount: 4, treasure: false, weight: 10 },
-    &CoinDef { name: "green coin",    color: Color::Green,       apply: pickups::restore_strength, helps: pickups::weakened,         amount:    4, treasure: false, weight: 10 },
+    &CoinDef { name: "silver coin",   color: Color::Grey,        apply: pickups::ledger,           helps: |_, _| true,               amount: 1000, treasure: true,  weight: 13 },
+    &CoinDef { name: "red coin",      color: Color::Red,         apply: pickups::heal,             helps: pickups::hurt,             amount:    4, treasure: false, weight: 13 },
+    &CoinDef { name: "blue coin",     color: Color::Blue,        apply: pickups::refill_magic,     helps: pickups::drained,          amount:    4, treasure: false, weight: 13 },
+    &CoinDef { name: "rosé coin",     color: Color::Magenta,     apply: pickups::cleanse,          helps: crate::conditions::afflicted, amount: 4, treasure: false, weight: 5  },
+    &CoinDef { name: "green coin",    color: Color::Green,       apply: pickups::restore_strength, helps: pickups::weakened,         amount:    4, treasure: false, weight: 5  },
     &CoinDef { name: "platine coin",  color: Color::White,       apply: pickups::platinum,         helps: pickups::owed_platinum,    amount:    0, treasure: false, weight: 10 },
     &CoinDef { name: "forge coin",    color: Color::DarkYellow,  apply: pickups::forge,            helps: pickups::owed_forge,       amount:    0, treasure: false, weight: 10 },
-    // Teaches a random spell, and a shot one goes off in the widest burst in
-    // the game (`crate::traps::detonate_pickup`). Uncommon, and never
-    // disguised: no colour name, it is always just "a hero coin".
-    &CoinDef { name: "hero coin",     color: Color::Magenta,     apply: pickups::learn_spell,      helps: pickups::can_learn_spell,  amount:    0, treasure: false, weight: 3 },
+    &CoinDef { name: "hero coin",     color: Color::Magenta,     apply: pickups::learn_spell,      helps: pickups::can_learn_spell,  amount:    0, treasure: false, weight: 10 },
 ];
 
 /// The coin row named `name`, for a save to find its coin by.

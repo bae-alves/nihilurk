@@ -85,7 +85,7 @@ You start the run already equipped: armor worn, a weapon in hand, and in the pac
 
 Drops follow Rogue's own category odds, with coins and treats standing in for food. The shares below are rounded; `DROPS` in `models/src/world/spawn.rs` has the exact weights:
 
-- Scrolls, about 28%. Recharging, protection and justice are half as common as the rest.
+- Scrolls, about 28%. Recharging, protection and inner flame are half as common as the rest.
 - Potions, about 25%, and some of them are punishments.
 - Coins, about 12%. They buy nothing. A coin that would do nothing for you is not picked up at all; it keeps until it would.
 - Armor, about 8%. Each suit has its own armor die.

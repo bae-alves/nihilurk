@@ -2156,12 +2156,14 @@ pub const fn scroll_recharge_nothing() -> &'static str {
     "The scroll hums. You carry no wand to charge."
 }
 
-pub const fn scroll_justice_marks() -> &'static str {
-    "The scroll burns a verdict into everything that sees you. When they fall, they burst."
+// TODO: placeholder English; needs a human's pass.
+pub const fn scroll_inner_flame_marks() -> &'static str {
+    "The scroll burns an inner flame into everything that sees you. When they fall, they burst."
 }
 
-pub const fn scroll_justice_nobody() -> &'static str {
-    "The scroll finds nobody to judge."
+// TODO: placeholder English; needs a human's pass.
+pub const fn scroll_inner_flame_nobody() -> &'static str {
+    "The scroll finds nobody to set alight."
 }
 
 pub fn scroll_protection_cast(turns: u32) -> String {

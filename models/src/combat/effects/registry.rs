@@ -243,7 +243,7 @@ effects! {
     "typhon" => Typhon;
     "echidna" => Echidna;
     "vuln" => Vuln;
-    // The scroll of protection's, and the scroll of justice's.
+    // The scroll of protection's, and the scroll of inner flame's.
     "protected" => Protected, ends strings::ends_protected();
     "explodes_on_death" => ExplodesOnDeath;
     "sustains_form" => SustainsForm;

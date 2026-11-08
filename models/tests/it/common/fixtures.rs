@@ -28,12 +28,10 @@ pub static FIXTURE_POTIONS: &[&PotionDef] = &[
     &PotionDef::new("potion of monster detection", Color::Yellow,      potions::detect_monsters),
     &PotionDef::new("potion of magic detection",   Color::Yellow,      potions::detect_magic),
     &PotionDef::new("potion of raise level",       Color::White,       potions::raise_level),
-    &PotionDef::new("potion of extra healing",     Color::Red,         potions::extra_healing),
     &PotionDef::new("potion of haste self",        Color::DarkYellow,  models::conditions::hasten),
     &PotionDef::new("potion of restore strength",  Color::Red,         potions::restore_strength),
     &PotionDef::new("potion of fruit juice",       Color::DarkYellow,  potions::fruit_juice),
     &PotionDef::new("potion of magic",             Color::Blue,        potions::gain_magic),
-    &PotionDef::new("potion of adjustment",        Color::DarkCyan,    potions::adjustment),
     &PotionDef::new("potion of polymorph",         Color::DarkMagenta, potions::polymorph),
     &PotionDef::new("potion of thirst quenching",  Color::Blue,        potions::water).never_drops(),
 ];
@@ -42,7 +40,7 @@ pub static FIXTURE_POTIONS: &[&PotionDef] = &[
 /// test follows a row's name or tuning.
 #[rustfmt::skip]
 pub static FIXTURE_SCROLLS: &[&ScrollDef] = &[
-    &ScrollDef::new("scroll of monster confusion",  scrolls::charm_hands),
+    &ScrollDef::new("scroll of monster confusion",  scrolls::charm_hands).common(),
     &ScrollDef::new("scroll of magic mapping",      scrolls::map_the_floor),
     &ScrollDef::new("scroll of hold monster",       scrolls::hold_in_view),
     &ScrollDef::new("scroll of sleep",              scrolls::read_sleep),
@@ -54,13 +52,13 @@ pub static FIXTURE_SCROLLS: &[&ScrollDef] = &[
     &ScrollDef::new("scroll of create monster",     scrolls::create_monster),
     &ScrollDef::new("scroll of remove curse",       scrolls::remove_curse).common(),
     &ScrollDef::new("scroll of aggravate monsters", scrolls::aggravate_floor),
-    &ScrollDef::new("scroll of vorpalize weapon",   scrolls::vorpalize_wielded_weapon).common(),
+    &ScrollDef::new("scroll of vorpalize weapon",   scrolls::vorpalize_wielded_weapon),
     &ScrollDef::new("scroll of amnesia",            scrolls::read_amnesia),
     &ScrollDef::new("scroll of charming",           scrolls::charming),
     &ScrollDef::new("scroll of atonement",          scrolls::atonement).rare(),
     &ScrollDef::new("scroll of recharging",         scrolls::recharging).rare(),
     &ScrollDef::new("scroll of protection",         scrolls::protection).rare(),
-    &ScrollDef::new("scroll of justice",            scrolls::justice).rare(),
+    &ScrollDef::new("scroll of inner flame",        scrolls::inner_flame),
     &ScrollDef::new("scroll of teleport to stairs", scrolls::teleport_to_stairs).never_drops(),
     &ScrollDef::new("scroll of blank paper",        scrolls::blank_paper).never_drops(),
 ];

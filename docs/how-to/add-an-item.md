@@ -154,7 +154,7 @@ Scrolls take two edits and no enum. Write the handler, `fn(&mut World, Entity)`,
 
     &ScrollDef::new("scroll of genocide", scrolls::genocide),
 
-The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do; a scroll that should be scarce drops half as often with `.rare()`, as recharging, protection and justice do. A scroll draws as `?`, always white. The scroll of blank paper is in `SCROLLS` with `.never_drops()`: only a wand of cancellation makes it, and its handler does nothing on purpose.
+The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do; a scroll that should be scarce drops half as often with `.rare()`, as recharging, protection and inner flame do. A scroll draws as `?`, always white. The scroll of blank paper is in `SCROLLS` with `.never_drops()`: only a wand of cancellation makes it, and its handler does nothing on purpose.
 
 Wands take two edits and no enum. Write the zap handler, `fn(&mut World, Zap)`, in `models/src/items/wands.rs`, and name it in the row; `WandDef::new` takes it, so a row without one does not compile. The builder adds what the reticle, a throw and a `DualZap` read off the row:
 

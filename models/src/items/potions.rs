@@ -42,16 +42,6 @@ pub fn healing(world: &mut World, user: Entity) -> bool {
     )
 }
 
-/// Potion of extra healing: the same, raising max HP by more.
-pub fn extra_healing(world: &mut World, user: Entity) -> bool {
-    heal_fully(
-        world,
-        user,
-        EXTRA_HEALING_MAX_HP_GAIN,
-        strings::potion_extra_healing_player(),
-    )
-}
-
 /// Potion of confusion ([`confuse`]).
 pub fn confusion(world: &mut World, user: Entity) -> bool {
     confuse(
@@ -79,23 +69,6 @@ pub fn water(world: &mut World, user: Entity) -> bool {
 pub fn polymorph(world: &mut World, user: Entity) -> bool {
     super::wands::polymorph_entity(world, user);
     true
-}
-
-/// Resets the drinker's [`Alignment`] to the middle point — the one way back
-/// down from a pole that isn't starting a new run. Player-only, like
-/// [`raise_level`]: a monster that swallows this has nothing to adjust.
-pub fn adjustment(world: &mut World, user: Entity) -> bool {
-    if world.get::<Player>(user).is_none() {
-        return false;
-    }
-    let was_off_center = world.get::<Alignment>(user).is_some_and(|a| a.0 != 0);
-    if let Some(mut alignment) = world.get_mut::<Alignment>(user) {
-        alignment.0 = 0;
-    }
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::potion_adjustment_player());
-    was_off_center
 }
 
 /// A potion that breaks without being drunk — thrown, or simply caught in

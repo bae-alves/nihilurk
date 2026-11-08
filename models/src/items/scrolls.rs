@@ -693,7 +693,7 @@ pub fn detect_mundane_items(world: &mut World, user: Entity) {
 }
 
 // ---------------------------------------------------------------------------
-// Recharging, protection, justice
+// Recharging, protection, inner flame
 // ---------------------------------------------------------------------------
 
 /// Scroll of recharging: [`RECHARGE_STEP`] more in every wand `user` carries,
@@ -734,13 +734,13 @@ pub fn protection(world: &mut World, user: Entity) {
     world.resource_mut::<GameLog>().add(line);
 }
 
-/// Scroll of justice: every hostile in view will burst when it dies
+/// Scroll of inner flame: every hostile in view will burst when it dies
 /// ([`ExplodesOnDeath`]). Held for the floor, which is as long as they live.
-pub fn justice(world: &mut World, user: Entity) {
+pub fn inner_flame(world: &mut World, user: Entity) {
     let watchers = hostiles_in_view(world, user);
     let line = match watchers.is_empty() {
-        true => strings::scroll_justice_nobody(),
-        false => strings::scroll_justice_marks(),
+        true => strings::scroll_inner_flame_nobody(),
+        false => strings::scroll_inner_flame_marks(),
     };
     for watcher in watchers {
         lend(

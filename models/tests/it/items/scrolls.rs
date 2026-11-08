@@ -2,7 +2,7 @@
 //! monster and vorpalize weapon (plus the rule that a glancing blow can never
 //! be the killing one), then the two enchantments, monster confusion, hold
 //! monster, sleep and food detection, and the three rare ones: recharging,
-//! protection and justice.
+//! protection and inner flame.
 
 #[allow(dead_code)] // only the handless fixture is wanted here
 use crate::common::monster;
@@ -931,13 +931,13 @@ fn protection_stops_all_damage_for_six_turns_and_then_stops_stopping_it() {
 }
 
 // ---------------------------------------------------------------------------
-// Justice
+// Inner flame
 // ---------------------------------------------------------------------------
 
 /// The hero, a marked monster `a` beside them, and a one-HP bystander `b` next
 /// to `a`, out of the hero's sight so the scroll never marked it. `a`'s power die
 /// is what the burst rolls.
-fn justice_scene(w: &mut World) -> (Entity, Entity, Entity) {
+fn inner_flame_scene(w: &mut World) -> (Entity, Entity, Entity) {
     let p = player(w);
     make_tough(w, p);
     let hero = *w.get::<Position>(p).unwrap();
@@ -958,14 +958,14 @@ fn justice_scene(w: &mut World) -> (Entity, Entity, Entity) {
     }
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (at_a.x, at_a.y)];
 
-    read(w, p, "scroll of justice");
+    read(w, p, "scroll of inner flame");
     (p, a, b)
 }
 
 #[test]
 fn a_marked_monster_cut_down_in_melee_bursts_too() {
     let mut w = test_world(7);
-    let (p, a, b) = justice_scene(&mut w);
+    let (p, a, b) = inner_flame_scene(&mut w);
 
     for _ in 0..200 {
         if w.get_entity(a).is_none() {
