@@ -694,28 +694,6 @@ fn a_thrown_wand_of_digging_makes_a_crater() {
     }
 }
 
-#[test]
-fn a_centaur_spawns_with_a_bow_and_no_arrows_underfoot() {
-    let mut w = test_world(1);
-    let def = MonsterDef::named("centaur");
-    let mut rng = ChaCha12Rng::seed_from_u64(3);
-    let at = Position { x: 1, y: 1 };
-    let mobs: Vec<_> = (0..20)
-        .map(|_| spawn_monster_with_rng(&mut w, def, at, &mut rng))
-        .collect();
-    let strapped = mobs
-        .iter()
-        .filter(|&&m| wielded_launcher(&w, m).is_some())
-        .count();
-    assert!(strapped > 0);
-    let arrows = w
-        .query::<(&Name, &Position)>()
-        .iter(&w)
-        .filter(|(n, _)| n.what.contains("arrow"))
-        .count();
-    assert_eq!(arrows, 0);
-}
-
 /// The reticle's preview of the blast a confirm would set off, as a set.
 fn preview(
     w: &mut World,

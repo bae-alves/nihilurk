@@ -1542,9 +1542,6 @@ pub fn potion_healing_player() -> &'static str {
 pub fn potion_healing_mob() -> &'static str {
     "glows eerily, wounds closing"
 }
-pub fn potion_extra_healing_player() -> &'static str {
-    "You have never felt better than this!"
-}
 
 pub fn potion_confusion_player() -> &'static str {
     "The world is spinning! you are confused!"

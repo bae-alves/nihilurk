@@ -18,9 +18,6 @@ pub mod potions {
     /// nothing else raises it.
     pub const HEALING_MAX_HP_GAIN: i32 = 1;
 
-    /// A potion of extra healing does the same, for more.
-    pub const EXTRA_HEALING_MAX_HP_GAIN: i32 = 3;
-
     /// A potion of gain strength adds this to the drinker's attack die, floor
     /// and ceiling both.
     pub const GAIN_STRENGTH_POWER: i32 = 1;

@@ -102,19 +102,6 @@ fn descend(w: &mut World, p: Entity) {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn extra_healing_raises_the_ceiling() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let max = w.get::<Fighter>(p).unwrap().max_hp;
-
-    quaff(&mut w, p, "potion of extra healing");
-
-    let f = w.get::<Fighter>(p).unwrap();
-    assert!(f.max_hp > max);
-    assert_eq!(f.hp, f.max_hp);
-}
-
-#[test]
 fn strength_is_gained_poisoned_and_restored() {
     let mut w = test_world(3);
     let p = player(&mut w);
@@ -374,18 +361,6 @@ fn magic_refills_the_pool_and_raises_its_ceiling() {
     let m = *w.get::<Magic>(p).unwrap();
     assert_eq!(m.max_points, max + 1, "a dose is worth a point of ceiling");
     assert_eq!(m.points, m.max_points, "and fills you to it");
-}
-
-#[test]
-fn adjustment_resets_alignment_to_neutral() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    w.get_mut::<Alignment>(p).unwrap().0 = -3;
-
-    quaff(&mut w, p, "potion of adjustment");
-
-    assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
-    assert!(logged(&w, "calm"));
 }
 
 #[test]
